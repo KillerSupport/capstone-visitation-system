@@ -8,7 +8,7 @@ export const Footer: React.FC = () => {
       <div className="max-w-7xl mx-auto px-6 py-8 grid grid-cols-4 gap-8">
         <div>
           <div className="flex items-center space-x-2 text-slate-200 font-bold mb-3">
-            <Shield className="w-4 h-4 text-amber-400" />
+            <Shield className="w-4 h-4 text-blue-400" />
             <span>BJMP IMUS CITY JAIL</span>
           </div>
           <p className="text-slate-400 leading-relaxed text-[11px] mb-2">
@@ -24,7 +24,7 @@ export const Footer: React.FC = () => {
 
         <div>
           <h4 className="text-slate-200 font-semibold mb-3 flex items-center gap-1.5">
-            <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
+            <AlertCircle className="w-3.5 h-3.5 text-blue-400" />
             Important Visitor Reminders
           </h4>
           <ul className="space-y-1.5 text-[11px] text-slate-400">
@@ -38,17 +38,17 @@ export const Footer: React.FC = () => {
 
         <div>
           <h4 className="text-slate-200 font-semibold mb-3 flex items-center gap-1.5">
-            <Phone className="w-3.5 h-3.5 text-amber-400" />
+            <Phone className="w-3.5 h-3.5 text-blue-400" />
             Imus City Jail & Local Hotlines
           </h4>
           <div className="space-y-1.5 text-[11px] text-slate-400">
             <p className="flex justify-between">
               <span>BJMP Imus City Jail Desk:</span>
-              <strong className="text-amber-300 font-mono">(046) 471-2854</strong>
+              <strong className="text-blue-300 font-mono">(046) 471-2854</strong>
             </p>
             <p className="flex justify-between">
               <span>Imus Jail Mobile Hotline:</span>
-              <strong className="text-amber-300 font-mono">+63 917 839 2044</strong>
+              <strong className="text-blue-300 font-mono">+63 917 839 2044</strong>
             </p>
             <p className="flex justify-between">
               <span>Imus Police Station (PNP):</span>
@@ -63,13 +63,13 @@ export const Footer: React.FC = () => {
 
         <div>
           <h4 className="text-slate-200 font-semibold mb-3 flex items-center gap-1.5">
-            <FileText className="w-3.5 h-3.5 text-amber-400" />
+            <FileText className="w-3.5 h-3.5 text-blue-400" />
             Privacy & Governance
           </h4>
           <p className="text-[11px] text-slate-400 leading-relaxed mb-2">
             In compliance with the Data Privacy Act of 2012 (Republic Act No. 10173), all personal data, valid ID copies, and biometric records are securely encrypted and used exclusively for jail security clearance and visitor authentication.
           </p>
-          <div className="flex items-center space-x-2 text-[11px] text-amber-400/90 font-medium">
+          <div className="flex items-center space-x-2 text-[11px] text-blue-400/90 font-medium">
             <span>Official Government Desktop System</span>
           </div>
         </div>

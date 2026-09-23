@@ -138,12 +138,12 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
       {/* Activated Profile Status Banner */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl mb-8 flex items-center justify-between">
         <div className="flex items-center space-x-4">
-          <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+          <div className="w-14 h-14 rounded-2xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400">
             <CheckCircle2 className="w-8 h-8" />
           </div>
           <div>
             <div className="flex items-center space-x-2">
-              <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] uppercase font-bold px-2 py-0.5 rounded flex items-center gap-1">
+              <span className="bg-blue-500/10 text-blue-400 border border-blue-500/30 text-[10px] uppercase font-bold px-2 py-0.5 rounded flex items-center gap-1">
                 <CheckCircle2 className="w-3 h-3" /> Account Activated & Biometric Verified
               </span>
               <span className="text-slate-400 text-xs font-mono">
@@ -163,14 +163,14 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
         <div className="flex items-center space-x-6">
           <div className="bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-2.5 text-right">
             <span className="text-[10px] uppercase text-slate-400 block font-semibold">Active Visits</span>
-            <span className="text-xl font-bold text-amber-400 font-mono">
+            <span className="text-xl font-bold text-blue-400 font-mono">
               {appointments.filter((a) => a.status === 'Approved').length}
             </span>
           </div>
           <button
             type="button"
             onClick={() => setActiveTab('BOOK')}
-            className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-5 py-2.5 rounded-xl text-xs flex items-center space-x-1.5 shadow-lg shadow-amber-500/10 transition-colors cursor-pointer"
+            className="bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold px-5 py-2.5 rounded-xl text-xs flex items-center space-x-1.5 shadow-lg shadow-blue-500/10 transition-colors cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>Book New Appointment</span>
@@ -184,11 +184,11 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
           onClick={() => setActiveTab('ID_CARD')}
           className={`pb-3 px-4 flex items-center space-x-2 border-b-2 transition-colors cursor-pointer ${
             activeTab === 'ID_CARD'
-              ? 'border-amber-400 text-amber-400'
+              ? 'border-blue-400 text-blue-400'
               : 'border-transparent text-slate-400 hover:text-slate-200'
           }`}
         >
-          <QrCode className="w-4 h-4 text-amber-400" />
+          <QrCode className="w-4 h-4 text-blue-400" />
           <span>Permanent ID & Dynamic QR</span>
         </button>
 
@@ -196,7 +196,7 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
           onClick={() => setActiveTab('BOOK')}
           className={`pb-3 px-4 flex items-center space-x-2 border-b-2 transition-colors cursor-pointer ${
             activeTab === 'BOOK'
-              ? 'border-amber-400 text-amber-400'
+              ? 'border-blue-400 text-blue-400'
               : 'border-transparent text-slate-400 hover:text-slate-200'
           }`}
         >
@@ -208,7 +208,7 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
           onClick={() => setActiveTab('APPOINTMENTS')}
           className={`pb-3 px-4 flex items-center space-x-2 border-b-2 transition-colors cursor-pointer ${
             activeTab === 'APPOINTMENTS'
-              ? 'border-amber-400 text-amber-400'
+              ? 'border-blue-400 text-blue-400'
               : 'border-transparent text-slate-400 hover:text-slate-200'
           }`}
         >
@@ -220,7 +220,7 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
           onClick={() => setActiveTab('RULES')}
           className={`pb-3 px-4 flex items-center space-x-2 border-b-2 transition-colors cursor-pointer ${
             activeTab === 'RULES'
-              ? 'border-amber-400 text-amber-400'
+              ? 'border-blue-400 text-blue-400'
               : 'border-transparent text-slate-400 hover:text-slate-200'
           }`}
         >
@@ -232,7 +232,7 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
           onClick={() => setActiveTab('PROFILE')}
           className={`pb-3 px-4 flex items-center space-x-2 border-b-2 transition-colors cursor-pointer ${
             activeTab === 'PROFILE'
-              ? 'border-amber-400 text-amber-400'
+              ? 'border-blue-400 text-blue-400'
               : 'border-transparent text-slate-400 hover:text-slate-200'
           }`}
         >
@@ -258,7 +258,7 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
           {/* Main Booking Form */}
           <div className="col-span-8 bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-xl">
             <div className="mb-6">
-              <span className="text-xs uppercase font-bold tracking-wider text-amber-400">Step-by-Step Reservation</span>
+              <span className="text-xs uppercase font-bold tracking-wider text-blue-400">Step-by-Step Reservation</span>
               <h3 className="text-xl font-bold text-white tracking-tight mt-0.5">Schedule a Jail Visit</h3>
               <p className="text-xs text-slate-400">
                 Reserve your contact visit or E-Dalaw video slot with the Person Deprived of Liberty (PDL)
@@ -273,8 +273,8 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
             )}
 
             {bookingSuccess && (
-              <div className="mb-6 bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 flex items-center space-x-3 text-xs text-emerald-300">
-                <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+              <div className="mb-6 bg-blue-500/10 border border-blue-500/30 rounded-xl p-4 flex items-center space-x-3 text-xs text-blue-300">
+                <CheckCircle2 className="w-5 h-5 text-blue-400 shrink-0" />
                 <div>
                   <strong className="block font-bold">Appointment Successfully Scheduled!</strong>
                   <span>Generating your official BJMP Electronic Gate Pass...</span>
@@ -287,14 +287,14 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
               {/* 1. Jail Facility */}
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  1. Select Target BJMP Jail Facility <span className="text-amber-400">*</span>
+                  1. Select Target BJMP Jail Facility <span className="text-blue-400">*</span>
                 </label>
                 <div className="relative">
                   <MapPin className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
                   <select
                     value={facilityId}
                     onChange={(e) => setFacilityId(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-10 pr-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-10 pr-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-blue-400"
                   >
                     {BJMP_JAIL_FACILITIES.map((f) => (
                       <option key={f.id} value={f.id}>
@@ -312,12 +312,12 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="text-xs font-semibold text-slate-300">
-                    2. Person Deprived of Liberty (PDL / Inmate) <span className="text-amber-400">*</span>
+                    2. Person Deprived of Liberty (PDL / Inmate) <span className="text-blue-400">*</span>
                   </label>
                   <button
                     type="button"
                     onClick={() => setCustomPdlMode(!customPdlMode)}
-                    className="text-xs text-amber-400 hover:text-amber-300 font-medium cursor-pointer"
+                    className="text-xs text-blue-400 hover:text-blue-300 font-medium cursor-pointer"
                   >
                     {customPdlMode ? '← Choose from facility roster' : '+ Search / Enter Custom PDL'}
                   </button>
@@ -361,7 +361,7 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
                     <select
                       value={selectedPdlId}
                       onChange={(e) => setSelectedPdlId(e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-10 pr-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-amber-400"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-10 pr-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-blue-400"
                     >
                       {facilityPdls.length > 0 ? (
                         facilityPdls.map((pdl) => (
@@ -385,12 +385,12 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                    3. Visitation Type <span className="text-amber-400">*</span>
+                    3. Visitation Type <span className="text-blue-400">*</span>
                   </label>
                   <select
                     value={visitType}
                     onChange={(e) => setVisitType(e.target.value as VisitType)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-blue-400"
                   >
                     <option value="Contact Visit">Contact Visit (Face-to-Face Visitation Hall)</option>
                     <option value="Non-Contact (Glass Barrier)">Non-Contact Visit (Glass Barrier / Intercom)</option>
@@ -399,12 +399,12 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                    4. Relationship to PDL <span className="text-amber-400">*</span>
+                    4. Relationship to PDL <span className="text-blue-400">*</span>
                   </label>
                   <select
                     value={relationship}
                     onChange={(e) => setRelationship(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-blue-400"
                   >
                     <option value="Spouse">Spouse (Legal Husband / Wife)</option>
                     <option value="Parent">Parent (Father / Mother)</option>
@@ -421,7 +421,7 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                    5. Visit Date (Calendar) <span className="text-amber-400">*</span>
+                    5. Visit Date (Calendar) <span className="text-blue-400">*</span>
                   </label>
                   <input
                     type="date"
@@ -429,17 +429,17 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
                     value={visitDate}
                     min={new Date().toISOString().split('T')[0]}
                     onChange={(e) => setVisitDate(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-amber-400 [color-scheme:dark]"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-blue-400 [color-scheme:dark]"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                    6. Time Batch Slot <span className="text-amber-400">*</span>
+                    6. Time Batch Slot <span className="text-blue-400">*</span>
                   </label>
                   <select
                     value={timeSlot}
                     onChange={(e) => setTimeSlot(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-blue-400"
                   >
                     <option value="Morning Batch (09:00 AM - 11:30 AM)">
                       Morning Batch: 09:00 AM - 11:30 AM (Available)
@@ -461,7 +461,7 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
                   value={paabotDescription}
                   onChange={(e) => setPaabotDescription(e.target.value)}
                   placeholder="e.g. 2 clear plastic containers of cooked adobo and rice, 1 unopened bottled water"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-400"
                 ></textarea>
                 <span className="text-[10px] text-slate-400 mt-1 block">
                   Strictly transparent containers only. No pull-tab canned goods or opaque thermoses.
@@ -470,7 +470,7 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
 
               {/* 6. Security Undertakings */}
               <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 space-y-2.5 text-xs">
-                <div className="font-bold text-amber-400 uppercase tracking-wider text-[11px] mb-1">
+                <div className="font-bold text-blue-400 uppercase tracking-wider text-[11px] mb-1">
                   BJMP Visitor Security Undertakings:
                 </div>
                 <label className="flex items-start space-x-2.5 cursor-pointer">
@@ -478,10 +478,10 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
                     type="checkbox"
                     checked={agreeNoOrangeYellow}
                     onChange={(e) => setAgreeNoOrangeYellow(e.target.checked)}
-                    className="mt-0.5 rounded border-slate-700 bg-slate-800 text-amber-500"
+                    className="mt-0.5 rounded border-slate-700 bg-slate-800 text-blue-500"
                   />
                   <span className="text-slate-300">
-                    I strictly pledge <strong className="text-amber-300">NOT to wear yellow or orange shirts/clothes</strong>, shorts above the knee, sleeveless tops, or open-toed slippers.
+                    I strictly pledge <strong className="text-blue-300">NOT to wear yellow or orange shirts/clothes</strong>, shorts above the knee, sleeveless tops, or open-toed slippers.
                   </span>
                 </label>
                 <label className="flex items-start space-x-2.5 cursor-pointer">
@@ -489,7 +489,7 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
                     type="checkbox"
                     checked={agreeValidIdOriginal}
                     onChange={(e) => setAgreeValidIdOriginal(e.target.checked)}
-                    className="mt-0.5 rounded border-slate-700 bg-slate-800 text-amber-500"
+                    className="mt-0.5 rounded border-slate-700 bg-slate-800 text-blue-500"
                   />
                   <span className="text-slate-300">
                     I will bring the original copy of my registered valid ID (<strong className="text-slate-200">{user.validIdType}</strong>) on the appointment date.
@@ -500,7 +500,7 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
                     type="checkbox"
                     checked={agreeNoElectronics}
                     onChange={(e) => setAgreeNoElectronics(e.target.checked)}
-                    className="mt-0.5 rounded border-slate-700 bg-slate-800 text-amber-500"
+                    className="mt-0.5 rounded border-slate-700 bg-slate-800 text-blue-500"
                   />
                   <span className="text-slate-300">
                     I understand that mobile phones, smartwatches, and recording devices are strictly prohibited and will be surrendered to the gate deposit lockers.
@@ -512,7 +512,7 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
               <div className="pt-2">
                 <button
                   type="submit"
-                  className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold py-3.5 px-4 rounded-xl text-xs flex items-center justify-center space-x-2 shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
+                  className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 text-slate-950 font-extrabold py-3.5 px-4 rounded-xl text-xs flex items-center justify-center space-x-2 shadow-lg shadow-blue-500/20 transition-all cursor-pointer"
                 >
                   <Calendar className="w-4 h-4" />
                   <span>Confirm Reservation & Generate Official BJMP Gate Pass</span>
@@ -527,7 +527,7 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
             
             {/* Facility Card */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
-              <div className="flex items-center space-x-2 text-xs font-bold text-amber-400 uppercase tracking-wider mb-2">
+              <div className="flex items-center space-x-2 text-xs font-bold text-blue-400 uppercase tracking-wider mb-2">
                 <MapPin className="w-4 h-4" />
                 <span>Selected Jail Facility</span>
               </div>
@@ -541,18 +541,18 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-400">Desk Telephone:</span>
-                  <strong className="text-amber-300 font-mono">{activeFacility.contactNumber}</strong>
+                  <strong className="text-blue-300 font-mono">{activeFacility.contactNumber}</strong>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-400">Slot Capacity:</span>
-                  <span className="text-emerald-400 font-bold">{activeFacility.capacityPerSlot} visitors / batch</span>
+                  <span className="text-blue-400 font-bold">{activeFacility.capacityPerSlot} visitors / batch</span>
                 </div>
               </div>
             </div>
 
             {/* Strict Dress Code Warning */}
-            <div className="bg-gradient-to-br from-amber-500/10 to-transparent border border-amber-500/30 rounded-2xl p-6 shadow-xl">
-              <div className="flex items-center space-x-2 text-xs font-bold text-amber-400 uppercase tracking-wider mb-3">
+            <div className="bg-gradient-to-br from-blue-500/10 to-transparent border border-blue-500/30 rounded-2xl p-6 shadow-xl">
+              <div className="flex items-center space-x-2 text-xs font-bold text-blue-400 uppercase tracking-wider mb-3">
                 <AlertTriangle className="w-4 h-4" />
                 <span>Strict Dress Code Policy</span>
               </div>
@@ -570,7 +570,7 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
                   <span><strong>NO Sleeveless</strong>, see-through, or low-cut tops.</span>
                 </li>
                 <li className="flex items-start space-x-2">
-                  <span className="text-emerald-400 font-bold">✓</span>
+                  <span className="text-blue-400 font-bold">✓</span>
                   <span>Plain t-shirts, jeans/slacks below the knee are allowed.</span>
                 </li>
               </ul>
@@ -594,7 +594,7 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
             <button
               type="button"
               onClick={() => setActiveTab('BOOK')}
-              className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded-lg text-xs flex items-center space-x-1.5 transition-colors cursor-pointer"
+              className="bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold px-4 py-2 rounded-lg text-xs flex items-center space-x-1.5 transition-colors cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Book Another Visit</span>
@@ -611,7 +611,7 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
               <button
                 type="button"
                 onClick={() => setActiveTab('BOOK')}
-                className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-5 py-2.5 rounded-lg text-xs cursor-pointer"
+                className="bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold px-5 py-2.5 rounded-lg text-xs cursor-pointer"
               >
                 Schedule First Visitation
               </button>
@@ -627,12 +627,12 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
                     {/* Card Top */}
                     <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
                       <div className="flex items-center space-x-2">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-                        <span className="text-xs font-mono font-bold text-amber-400">
+                        <span className="w-2 h-2 rounded-full bg-blue-400"></span>
+                        <span className="text-xs font-mono font-bold text-blue-400">
                           {appt.appointmentReference}
                         </span>
                       </div>
-                      <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold uppercase px-2 py-0.5 rounded">
+                      <span className="bg-blue-500/10 text-blue-400 border border-blue-500/30 text-[10px] font-bold uppercase px-2 py-0.5 rounded">
                         {appt.status}
                       </span>
                     </div>
@@ -656,7 +656,7 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
                         </div>
                         <div className="flex justify-between">
                           <span className="text-slate-400">Visit Date:</span>
-                          <strong className="text-amber-300 font-mono">{appt.visitDate}</strong>
+                          <strong className="text-blue-300 font-mono">{appt.visitDate}</strong>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-slate-400">Time Batch:</span>
@@ -664,7 +664,7 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
                         </div>
                         <div className="flex justify-between">
                           <span className="text-slate-400">Visit Type:</span>
-                          <span className="text-sky-300 font-medium">{appt.visitType}</span>
+                          <span className="text-blue-300 font-medium">{appt.visitType}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-slate-400">Relationship:</span>
@@ -687,7 +687,7 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
                     <button
                       type="button"
                       onClick={() => setSelectedPass(appt)}
-                      className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded-lg text-xs flex items-center space-x-1.5 shadow-md transition-colors cursor-pointer"
+                      className="bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold px-4 py-2 rounded-lg text-xs flex items-center space-x-1.5 shadow-md transition-colors cursor-pointer"
                     >
                       <QrCode className="w-3.5 h-3.5" />
                       <span>View & Print Gate Pass</span>
@@ -730,14 +730,14 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
 
             {/* Column 2: Allowed Paabot Items */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
-              <div className="flex items-center space-x-2 text-xs font-bold text-emerald-400 uppercase tracking-wider mb-4">
+              <div className="flex items-center space-x-2 text-xs font-bold text-blue-400 uppercase tracking-wider mb-4">
                 <CheckCircle2 className="w-4 h-4" />
                 <span>Allowed Food & Care Articles (Paabot)</span>
               </div>
               <div className="space-y-2.5 text-xs text-slate-300">
                 {BJMP_RULES_AND_DRESS_CODE.allowedPaabotItems.map((item, idx) => (
                   <div key={idx} className="bg-slate-950/60 border border-slate-800 p-3 rounded-lg flex items-start space-x-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <CheckCircle2 className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
                     <span className="text-[11px]">{item}</span>
                   </div>
                 ))}
@@ -746,7 +746,7 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
 
             {/* Column 3: Prohibited Contraband */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
-              <div className="flex items-center space-x-2 text-xs font-bold text-amber-400 uppercase tracking-wider mb-4">
+              <div className="flex items-center space-x-2 text-xs font-bold text-blue-400 uppercase tracking-wider mb-4">
                 <Shield className="w-4 h-4" />
                 <span>Strictly Prohibited Contraband</span>
               </div>
@@ -781,18 +781,18 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
                   {user.firstName} {user.middleName ? `${user.middleName} ` : ''}{user.lastName} {user.suffix}
                 </h3>
                 <p className="text-xs text-slate-400">
-                  Registered BJMP Visitor ID: <strong className="text-amber-400 font-mono">{user.biometricReferenceNumber}</strong>
+                  Registered BJMP Visitor ID: <strong className="text-blue-400 font-mono">{user.biometricReferenceNumber}</strong>
                 </p>
               </div>
             </div>
-            <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1.5">
+            <span className="bg-blue-500/10 text-blue-400 border border-blue-500/30 text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1.5">
               <CheckCircle2 className="w-3.5 h-3.5" /> Biometrics Verified
             </span>
           </div>
 
           <div className="grid grid-cols-2 gap-8 text-xs mb-8">
             <div className="space-y-3 bg-slate-950/60 p-4 rounded-xl border border-slate-800">
-              <h4 className="font-bold text-amber-400 uppercase text-[11px]">Personal & Contact Data</h4>
+              <h4 className="font-bold text-blue-400 uppercase text-[11px]">Personal & Contact Data</h4>
               <div className="flex justify-between border-b border-slate-800 pb-1.5">
                 <span className="text-slate-400">Date of Birth:</span>
                 <span className="text-slate-200 font-medium">{user.dateOfBirth}</span>
@@ -818,10 +818,10 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
             </div>
 
             <div className="space-y-3 bg-slate-950/60 p-4 rounded-xl border border-slate-800">
-              <h4 className="font-bold text-amber-400 uppercase text-[11px]">Biometric & ID Verification Record</h4>
+              <h4 className="font-bold text-blue-400 uppercase text-[11px]">Biometric & ID Verification Record</h4>
               <div className="flex justify-between border-b border-slate-800 pb-1.5">
                 <span className="text-slate-400">Valid ID Presented:</span>
-                <span className="text-amber-300 font-bold">{user.validIdType}</span>
+                <span className="text-blue-300 font-bold">{user.validIdType}</span>
               </div>
               <div className="flex justify-between border-b border-slate-800 pb-1.5">
                 <span className="text-slate-400">Biometric Desk:</span>
@@ -833,14 +833,14 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Verification Officer:</span>
-                <span className="text-emerald-400 font-medium">{user.biometricsOfficerName || 'JO2 R. BAUTISTA (BJMP Records)'}</span>
+                <span className="text-blue-400 font-medium">{user.biometricsOfficerName || 'JO2 R. BAUTISTA (BJMP Records)'}</span>
               </div>
             </div>
           </div>
 
           {/* Valid ID Photo Card */}
           <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800">
-            <span className="font-bold text-amber-400 uppercase text-[11px] block mb-2">
+            <span className="font-bold text-blue-400 uppercase text-[11px] block mb-2">
               Submitted Valid Government ID Snapshot
             </span>
             <div className="max-w-md aspect-[16/10] bg-slate-900 border border-slate-700 rounded-lg overflow-hidden">

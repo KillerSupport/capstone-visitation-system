@@ -196,17 +196,17 @@ export const PermanentVisitorIdCard: React.FC<PermanentVisitorIdCardProps> = ({
   return (
     <div className="space-y-6">
       {/* Intro Explanation Card */}
-      <div className="bg-gradient-to-r from-amber-500/15 via-blue-900/20 to-slate-900 border border-amber-500/40 rounded-2xl p-6 shadow-xl flex items-start justify-between">
+      <div className="bg-gradient-to-r from-blue-500/15 via-blue-900/20 to-slate-900 border border-blue-500/40 rounded-2xl p-6 shadow-xl flex items-start justify-between">
         <div className="flex items-start space-x-4">
-          <div className="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/50 flex items-center justify-center text-amber-400 shrink-0">
+          <div className="w-12 h-12 rounded-xl bg-blue-500/20 border border-blue-500/50 flex items-center justify-center text-blue-400 shrink-0">
             <QrCode className="w-7 h-7" />
           </div>
           <div>
             <div className="flex items-center space-x-2 mb-1">
-              <span className="bg-amber-500 text-slate-950 text-[10px] font-black uppercase px-2 py-0.5 rounded">
+              <span className="bg-blue-500 text-slate-950 text-[10px] font-black uppercase px-2 py-0.5 rounded">
                 PERMANENT VISITOR ID & DYNAMIC QR
               </span>
-              <span className="text-xs text-amber-300 font-mono">
+              <span className="text-xs text-blue-300 font-mono">
                 {user.biometricReferenceNumber}
               </span>
             </div>
@@ -223,9 +223,9 @@ export const PermanentVisitorIdCard: React.FC<PermanentVisitorIdCardProps> = ({
           <button
             type="button"
             onClick={() => onOpenGuardScanner(user.id)}
-            className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center space-x-2 shadow-lg shadow-blue-500/20 cursor-pointer transition-all"
+            className="bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold px-4 py-2.5 rounded-xl text-xs flex items-center space-x-2 shadow-lg shadow-blue-500/20 cursor-pointer transition-all"
           >
-            <Shield className="w-4 h-4 text-amber-300" />
+            <Shield className="w-4 h-4 text-blue-300" />
             <span>Simulate Guard Scan at Gate 1</span>
           </button>
         </div>
@@ -237,16 +237,16 @@ export const PermanentVisitorIdCard: React.FC<PermanentVisitorIdCardProps> = ({
         className="bg-slate-900 border-2 border-slate-700/80 rounded-3xl overflow-hidden shadow-2xl relative max-w-4xl mx-auto text-slate-100"
       >
         {/* Card Header */}
-        <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-blue-950 px-8 py-5 border-b-2 border-amber-500/60 flex items-center justify-between relative">
+        <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-blue-950 px-8 py-5 border-b-2 border-blue-500/60 flex items-center justify-between relative">
           <div className="flex items-center space-x-4">
-            <div className="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/50 flex items-center justify-center text-amber-400">
+            <div className="w-12 h-12 rounded-xl bg-blue-500/20 border border-blue-500/50 flex items-center justify-center text-blue-400">
               <Shield className="w-7 h-7" />
             </div>
             <div>
-              <span className="text-[10px] font-bold uppercase tracking-widest text-amber-400 block">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-blue-400 block">
                 Republic of the Philippines • Department of the Interior and Local Government
               </span>
-              <h2 className="text-base font-extrabold text-white tracking-tight font-['Plus_Jakarta_Sans']">
+              <h2 className="text-base font-extrabold text-white tracking-tight font-sans">
                 BUREAU OF JAIL MANAGEMENT AND PENOLOGY • REGION IV-A
               </h2>
               <span className="text-xs text-slate-300 font-semibold">
@@ -255,7 +255,7 @@ export const PermanentVisitorIdCard: React.FC<PermanentVisitorIdCardProps> = ({
             </div>
           </div>
           <div className="text-right">
-            <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold uppercase px-3 py-1 rounded-full inline-flex items-center gap-1">
+            <span className="bg-blue-500/20 text-blue-300 border border-blue-500/40 text-[10px] font-bold uppercase px-3 py-1 rounded-full inline-flex items-center gap-1">
               <CheckCircle2 className="w-3.5 h-3.5" />
               Biometric Active
             </span>
@@ -270,7 +270,7 @@ export const PermanentVisitorIdCard: React.FC<PermanentVisitorIdCardProps> = ({
           
           {/* Left Column: Photo & Biometrics Tag */}
           <div className="col-span-3 text-center">
-            <div className="w-36 h-44 rounded-2xl bg-slate-800 border-2 border-amber-500/40 overflow-hidden mx-auto shadow-lg relative group">
+            <div className="w-36 h-44 rounded-2xl bg-slate-800 border-2 border-blue-500/40 overflow-hidden mx-auto shadow-lg relative group">
               {user.facePhotoUrl ? (
                 <img 
                   src={user.facePhotoUrl} 
@@ -283,7 +283,7 @@ export const PermanentVisitorIdCard: React.FC<PermanentVisitorIdCardProps> = ({
                   <span className="text-[10px] mt-1">Verified Photo</span>
                 </div>
               )}
-              <div className="absolute bottom-0 inset-x-0 bg-slate-950/80 text-[10px] py-1 text-amber-300 font-mono font-bold">
+              <div className="absolute bottom-0 inset-x-0 bg-slate-950/80 text-[10px] py-1 text-blue-300 font-mono font-bold">
                 BJMP RECORDED
               </div>
             </div>
@@ -302,7 +302,7 @@ export const PermanentVisitorIdCard: React.FC<PermanentVisitorIdCardProps> = ({
               <h3 className="text-xl font-extrabold text-white">
                 {user.firstName} {user.middleName ? `${user.middleName} ` : ''}{user.lastName} {user.suffix}
               </h3>
-              <div className="text-xs text-amber-400 font-mono font-semibold">
+              <div className="text-xs text-blue-400 font-mono font-semibold">
                 {user.biometricReferenceNumber}
               </div>
             </div>
@@ -329,17 +329,17 @@ export const PermanentVisitorIdCard: React.FC<PermanentVisitorIdCardProps> = ({
             {/* Dynamic Appointment Status Display */}
             <div className={`p-4 rounded-xl border transition-all ${
               todayAppointment
-                ? 'bg-emerald-950/30 border-emerald-500/50 text-emerald-200'
+                ? 'bg-blue-950/30 border-blue-500/50 text-blue-200'
                 : 'bg-slate-950/70 border-slate-800 text-slate-300'
             }`}>
               {todayAppointment ? (
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs font-black uppercase text-emerald-400 flex items-center gap-1.5">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    <span className="text-xs font-black uppercase text-blue-400 flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4 text-blue-400" />
                       Appointment Confirmed For Today!
                     </span>
-                    <span className="text-[10px] font-mono bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded font-bold">
+                    <span className="text-[10px] font-mono bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded font-bold">
                       {todayAppointment.timeSlot.split('(')[0].trim()}
                     </span>
                   </div>
@@ -353,8 +353,8 @@ export const PermanentVisitorIdCard: React.FC<PermanentVisitorIdCardProps> = ({
               ) : (
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
-                      <AlertTriangle className="w-4 h-4 text-amber-400" />
+                    <span className="text-xs font-bold text-blue-400 flex items-center gap-1.5">
+                      <AlertTriangle className="w-4 h-4 text-blue-400" />
                       No Appointment For Today ({todayStr})
                     </span>
                     <span className="text-[10px] text-slate-400">
@@ -366,7 +366,7 @@ export const PermanentVisitorIdCard: React.FC<PermanentVisitorIdCardProps> = ({
                   </p>
                   {upcomingAppointment && (
                     <div className="mt-2 text-[11px] bg-slate-900 p-2 rounded border border-slate-700/60 text-slate-300">
-                      Next scheduled visit: <strong className="text-amber-300">{upcomingAppointment.visitDate}</strong> ({upcomingAppointment.timeSlot})
+                      Next scheduled visit: <strong className="text-blue-300">{upcomingAppointment.visitDate}</strong> ({upcomingAppointment.timeSlot})
                     </div>
                   )}
                 </div>
@@ -382,7 +382,7 @@ export const PermanentVisitorIdCard: React.FC<PermanentVisitorIdCardProps> = ({
             <div className="bg-white p-3 rounded-2xl shadow-xl border-4 border-slate-800 relative group">
               {isGenerating ? (
                 <div className="w-48 h-48 flex items-center justify-center text-slate-800">
-                  <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+                  <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
                 </div>
               ) : qrDataUrl ? (
                 <img 
@@ -408,13 +408,13 @@ export const PermanentVisitorIdCard: React.FC<PermanentVisitorIdCardProps> = ({
         {/* Card Footer Bar */}
         <div className="bg-slate-950 px-8 py-3 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
           <div className="flex items-center space-x-2">
-            <MapPin className="w-3.5 h-3.5 text-amber-400" />
+            <MapPin className="w-3.5 h-3.5 text-blue-400" />
             <span>BJMP Imus City Jail • Brgy. Malagasang 1-G, Imus City, Cavite 4103</span>
           </div>
           <div className="flex items-center space-x-4 text-[11px]">
             <span>Hotline: <strong className="text-slate-300">(046) 471-2854</strong></span>
             <span>•</span>
-            <span className="text-amber-400">Official DILG Pass</span>
+            <span className="text-blue-400">Official DILG Pass</span>
           </div>
         </div>
       </div>
@@ -425,7 +425,7 @@ export const PermanentVisitorIdCard: React.FC<PermanentVisitorIdCardProps> = ({
           <button
             type="button"
             onClick={handleDownloadIdImage}
-            className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2.5 rounded-xl text-xs flex items-center space-x-2 shadow-md transition-colors cursor-pointer"
+            className="bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold px-4 py-2.5 rounded-xl text-xs flex items-center space-x-2 shadow-md transition-colors cursor-pointer"
           >
             <Download className="w-4 h-4" />
             <span>Download Permanent ID & QR Code (PNG)</span>
@@ -445,18 +445,18 @@ export const PermanentVisitorIdCard: React.FC<PermanentVisitorIdCardProps> = ({
             <button
               type="button"
               onClick={onQuickBookToday}
-              className="bg-emerald-600/80 hover:bg-emerald-600 text-white text-xs font-semibold px-3 py-2 rounded-xl flex items-center space-x-1.5 transition-colors cursor-pointer"
+              className="bg-blue-600/80 hover:bg-blue-600 text-white text-xs font-semibold px-3 py-2 rounded-xl flex items-center space-x-1.5 transition-colors cursor-pointer"
             >
-              <Sparkles className="w-3.5 h-3.5 text-emerald-300" />
+              <Sparkles className="w-3.5 h-3.5 text-blue-300" />
               <span>Quick Test: Add Today's Appointment</span>
             </button>
           )}
           <button
             type="button"
             onClick={() => onOpenGuardScanner(user.id)}
-            className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center space-x-1.5 transition-colors cursor-pointer shadow-md"
+            className="bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold px-4 py-2.5 rounded-xl text-xs flex items-center space-x-1.5 transition-colors cursor-pointer shadow-md"
           >
-            <Shield className="w-4 h-4 text-amber-300" />
+            <Shield className="w-4 h-4 text-blue-300" />
             <span>Test Guard Scanner Terminal</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>

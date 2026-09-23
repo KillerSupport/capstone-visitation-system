@@ -51,11 +51,11 @@ export const OfficialBjmpDocumentsModal: React.FC<OfficialBjmpDocumentsModalProp
         {/* Header Bar */}
         <div className="bg-slate-950 border-b border-slate-800 px-6 py-3.5 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
+            <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-500/40 flex items-center justify-center text-blue-400">
               <FileText className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-[10px] uppercase font-bold tracking-wider text-amber-400">
+              <div className="text-[10px] uppercase font-bold tracking-wider text-blue-400">
                 Official BJMP Calabarzon Region Records
               </div>
               <h3 className="text-base font-bold text-white">
@@ -68,7 +68,7 @@ export const OfficialBjmpDocumentsModal: React.FC<OfficialBjmpDocumentsModalProp
             <button
               type="button"
               onClick={handlePrint}
-              className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-3.5 py-1.5 rounded-lg text-xs flex items-center gap-1.5 cursor-pointer shadow transition-colors"
+              className="bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold px-3.5 py-1.5 rounded-lg text-xs flex items-center gap-1.5 cursor-pointer shadow transition-colors"
             >
               <Printer className="w-3.5 h-3.5" />
               <span>Print Official Document</span>
@@ -106,7 +106,7 @@ export const OfficialBjmpDocumentsModal: React.FC<OfficialBjmpDocumentsModalProp
                 onClick={() => setActiveDocType(doc.id as DocType)}
                 className={`px-3 py-1.5 rounded-lg font-bold transition-colors cursor-pointer ${
                   activeDocType === doc.id
-                    ? 'bg-amber-500 text-slate-950 shadow'
+                    ? 'bg-blue-500 text-slate-950 shadow'
                     : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                 }`}
               >
@@ -122,7 +122,7 @@ export const OfficialBjmpDocumentsModal: React.FC<OfficialBjmpDocumentsModalProp
               <select
                 value={currentPdlId}
                 onChange={(e) => setCurrentPdlId(e.target.value)}
-                className="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-slate-200 font-semibold focus:outline-none focus:border-amber-400"
+                className="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-slate-200 font-semibold focus:outline-none focus:border-blue-400"
               >
                 {pdlList.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -139,7 +139,7 @@ export const OfficialBjmpDocumentsModal: React.FC<OfficialBjmpDocumentsModalProp
               <select
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
-                className="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-slate-200 font-semibold focus:outline-none focus:border-amber-400"
+                className="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-slate-200 font-semibold focus:outline-none focus:border-blue-400"
               >
                 <option value="January 2025">January 2025</option>
                 <option value="February 2025">February 2025</option>
@@ -163,7 +163,7 @@ export const OfficialBjmpDocumentsModal: React.FC<OfficialBjmpDocumentsModalProp
               <div className="flex items-center justify-between">
                 <div className="w-16 h-16 flex items-center justify-center">
                   {/* BJMP Calabarzon Emblem Placeholder */}
-                  <div className="w-14 h-14 rounded-full border-2 border-slate-800 bg-amber-50 flex items-center justify-center text-[10px] font-black text-slate-800 uppercase text-center p-1 leading-tight">
+                  <div className="w-14 h-14 rounded-full border-2 border-slate-800 bg-white flex items-center justify-center text-[10px] font-black text-slate-800 uppercase text-center p-1 leading-tight">
                     BJMP R-4A
                   </div>
                 </div>
@@ -675,7 +675,7 @@ export const OfficialBjmpDocumentsModal: React.FC<OfficialBjmpDocumentsModalProp
                     <div><strong>Sentence Min:</strong> {currentPdl.sentence?.minimum || '12 Years'}</div>
                     <div><strong>Sentence Max:</strong> {currentPdl.sentence?.maximum || '20 Years'}</div>
                     <div><strong>Expiration Without GCTA:</strong> {currentPdl.sentence?.expirationWithoutGctaMax || '2044-03-12'}</div>
-                    <div><strong>Expiration With GCTA:</strong> <span className="font-bold text-emerald-700">{currentPdl.sentence?.expirationWithGctaMax || '2038-11-20'}</span></div>
+                    <div><strong>Expiration With GCTA:</strong> <span className="font-bold text-blue-700">{currentPdl.sentence?.expirationWithGctaMax || '2038-11-20'}</span></div>
                   </div>
                 </div>
 
@@ -752,7 +752,7 @@ export const OfficialBjmpDocumentsModal: React.FC<OfficialBjmpDocumentsModalProp
                             </div>
                           )}
                           {vi === 3 && (
-                            <div className="absolute top-12 right-1 bg-amber-600 text-white text-[7px] px-1 rounded font-bold shadow">
+                            <div className="absolute top-12 right-1 bg-blue-600 text-white text-[7px] px-1 rounded font-bold shadow">
                               SCAR #2
                             </div>
                           )}

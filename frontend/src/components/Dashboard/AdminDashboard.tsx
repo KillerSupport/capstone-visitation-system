@@ -251,20 +251,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     <div className="min-h-[calc(100vh-140px)] bg-slate-950 text-slate-100 pb-16">
       
       {/* Executive Command Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-blue-950/80 to-slate-900 border-b border-amber-500/30 px-6 py-4 shadow-xl">
+      <div className="bg-gradient-to-r from-slate-900 via-blue-950/80 to-slate-900 border-b border-blue-500/30 px-6 py-4 shadow-xl">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           
           <div className="flex items-center space-x-4">
-            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-amber-500 to-amber-700 p-0.5 shadow-lg flex items-center justify-center shrink-0">
-              <div className="w-full h-full bg-slate-950 rounded-[10px] flex flex-col items-center justify-center border border-amber-400/50">
-                <Shield className="w-7 h-7 text-amber-400" />
-                <span className="text-[9px] font-black text-amber-300">EXEC</span>
+            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 p-0.5 shadow-lg flex items-center justify-center shrink-0">
+              <div className="w-full h-full bg-slate-950 rounded-[10px] flex flex-col items-center justify-center border border-blue-400/50">
+                <Shield className="w-7 h-7 text-blue-400" />
+                <span className="text-[9px] font-black text-blue-300">EXEC</span>
               </div>
             </div>
             <div>
               <div className="flex items-center gap-2.5">
-                <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider flex items-center gap-1">
-                  <Shield className="w-3 h-3 text-amber-400" />
+                <span className="bg-blue-500/20 text-blue-300 border border-blue-500/40 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider flex items-center gap-1">
+                  <Shield className="w-3 h-3 text-blue-400" />
                   Auto-Recognized Administrator
                 </span>
                 <span className="text-slate-400 text-xs font-mono">Badge #{currentUser.badgeNumber || 'BJMP-OFF-40192'}</span>
@@ -273,7 +273,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 BJMP Imus City Jail — Executive Command & Admin Dashboard
               </h1>
               <p className="text-xs text-slate-300">
-                Logged in as <span className="text-amber-300 font-bold">{currentUser.firstName} {currentUser.lastName}</span> ({currentUser.adminTitle || 'Jail Warden / Administrator'}) • Brgy. Malagasang 1-G, Imus City, Cavite
+                Logged in as <span className="text-blue-300 font-bold">{currentUser.firstName} {currentUser.lastName}</span> ({currentUser.adminTitle || 'Jail Warden / Administrator'}) • Brgy. Malagasang 1-G, Imus City, Cavite
               </p>
             </div>
           </div>
@@ -282,9 +282,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <button
               type="button"
               onClick={() => onOpenGuardScanner()}
-              className="bg-gradient-to-r from-blue-700 to-indigo-800 hover:from-blue-600 hover:to-indigo-700 text-white font-bold px-3.5 py-2 rounded-lg text-xs flex items-center space-x-2 border border-blue-400/40 shadow-lg cursor-pointer transition-all"
+              className="bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold px-3.5 py-2 rounded-lg text-xs flex items-center space-x-2 border border-blue-400/40 shadow-lg cursor-pointer transition-all"
             >
-              <QrCode className="w-4 h-4 text-amber-300" />
+              <QrCode className="w-4 h-4 text-blue-300" />
               <span>Gate 1 Guard Scanner</span>
             </button>
 
@@ -294,7 +294,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               className="bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-semibold px-3.5 py-2 rounded-lg text-xs flex items-center space-x-2 border border-slate-700 shadow cursor-pointer transition-colors"
               title="Preview the visitor experience without logging out"
             >
-              <ExternalLink className="w-4 h-4 text-sky-400" />
+              <ExternalLink className="w-4 h-4 text-blue-400" />
               <span>Preview Visitor View</span>
             </button>
           </div>
@@ -304,9 +304,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       {/* Broadcast Alert Banner */}
       {systemNotice && (
-        <div className="bg-amber-500/10 border-b border-amber-500/30 px-6 py-2 text-xs text-amber-300 flex items-center justify-between">
+        <div className="bg-blue-500/10 border-b border-blue-500/30 px-6 py-2 text-xs text-blue-300 flex items-center justify-between">
           <div className="max-w-7xl mx-auto w-full flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+            <AlertTriangle className="w-4 h-4 text-blue-400 shrink-0" />
             <span className="font-semibold">{systemNotice}</span>
           </div>
         </div>
@@ -322,7 +322,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             onClick={() => setActiveTab('OVERVIEW')}
             className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center space-x-2 transition-all cursor-pointer whitespace-nowrap ${
               activeTab === 'OVERVIEW'
-                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                ? 'bg-blue-500 text-slate-950 shadow-md shadow-blue-500/20'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
             }`}
           >
@@ -335,7 +335,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             onClick={() => setActiveTab('VISITORS')}
             className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center space-x-2 transition-all cursor-pointer whitespace-nowrap relative ${
               activeTab === 'VISITORS'
-                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                ? 'bg-blue-500 text-slate-950 shadow-md shadow-blue-500/20'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
             }`}
           >
@@ -343,7 +343,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <span>Visitors & Biometrics Desk</span>
             {pendingBiometricVisitors > 0 && (
               <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
-                activeTab === 'VISITORS' ? 'bg-slate-950 text-amber-400' : 'bg-amber-500 text-slate-950'
+                activeTab === 'VISITORS' ? 'bg-slate-950 text-blue-400' : 'bg-blue-500 text-slate-950'
               }`}>
                 {pendingBiometricVisitors}
               </span>
@@ -355,14 +355,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             onClick={() => setActiveTab('APPOINTMENTS')}
             className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center space-x-2 transition-all cursor-pointer whitespace-nowrap relative ${
               activeTab === 'APPOINTMENTS'
-                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                ? 'bg-blue-500 text-slate-950 shadow-md shadow-blue-500/20'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
             }`}
           >
             <Calendar className="w-4 h-4" />
             <span>Visitations & Gate Schedule</span>
             <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
-              activeTab === 'APPOINTMENTS' ? 'bg-slate-950 text-amber-400' : 'bg-slate-800 text-slate-300'
+              activeTab === 'APPOINTMENTS' ? 'bg-slate-950 text-blue-400' : 'bg-slate-800 text-slate-300'
             }`}>
               {appointments.length}
             </span>
@@ -373,7 +373,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             onClick={() => setActiveTab('PDL_ROSTER')}
             className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center space-x-2 transition-all cursor-pointer whitespace-nowrap ${
               activeTab === 'PDL_ROSTER'
-                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                ? 'bg-blue-500 text-slate-950 shadow-md shadow-blue-500/20'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
             }`}
           >
@@ -387,7 +387,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             onClick={() => setActiveTab('SECURITY_LOGS')}
             className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center space-x-2 transition-all cursor-pointer whitespace-nowrap ${
               activeTab === 'SECURITY_LOGS'
-                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                ? 'bg-blue-500 text-slate-950 shadow-md shadow-blue-500/20'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
             }`}
           >
@@ -401,7 +401,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             onClick={() => setActiveTab('FACILITY_SETTINGS')}
             className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center space-x-2 transition-all cursor-pointer whitespace-nowrap ${
               activeTab === 'FACILITY_SETTINGS'
-                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                ? 'bg-blue-500 text-slate-950 shadow-md shadow-blue-500/20'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
             }`}
           >
@@ -431,9 +431,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   {totalVisitors}
                 </div>
                 <div className="mt-2 text-[11px] text-slate-400 flex items-center gap-2">
-                  <span className="text-emerald-400 font-semibold">{activatedVisitors} Verified</span>
+                  <span className="text-blue-400 font-semibold">{activatedVisitors} Verified</span>
                   <span>•</span>
-                  <span className="text-amber-400 font-semibold">{pendingBiometricVisitors} Awaiting Bio</span>
+                  <span className="text-blue-400 font-semibold">{pendingBiometricVisitors} Awaiting Bio</span>
                 </div>
               </div>
 
@@ -441,15 +441,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 relative overflow-hidden">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Today's Visits ({todayStr})</span>
-                  <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                  <div className="w-8 h-8 rounded-lg bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
                     <Calendar className="w-4 h-4" />
                   </div>
                 </div>
-                <div className="mt-2 text-3xl font-extrabold text-amber-300">
+                <div className="mt-2 text-3xl font-extrabold text-blue-300">
                   {todayAppointments.length}
                 </div>
                 <div className="mt-2 text-[11px] text-slate-400 flex items-center gap-2">
-                  <span className="text-sky-300 font-semibold">{appointments.length} Total on Record</span>
+                  <span className="text-blue-300 font-semibold">{appointments.length} Total on Record</span>
                   <span>•</span>
                   <span className="text-slate-300">Morning & Afternoon</span>
                 </div>
@@ -459,11 +459,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 relative overflow-hidden">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Gate Biometric Desk</span>
-                  <div className="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                  <div className="w-8 h-8 rounded-lg bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
                     <Fingerprint className="w-4 h-4" />
                   </div>
                 </div>
-                <div className="mt-2 text-3xl font-extrabold text-emerald-400">
+                <div className="mt-2 text-3xl font-extrabold text-blue-400">
                   {pendingBiometricVisitors}
                 </div>
                 <div className="mt-2 text-[11px] text-slate-400">
@@ -475,7 +475,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 relative overflow-hidden">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Inmates (PDL) In Custody</span>
-                  <div className="w-8 h-8 rounded-lg bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-400">
+                  <div className="w-8 h-8 rounded-lg bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
                     <Building className="w-4 h-4" />
                   </div>
                 </div>
@@ -499,7 +499,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-amber-400" />
+                      <Calendar className="w-4 h-4 text-blue-400" />
                       Today's Gate 1 Visitation Passes & Schedule
                     </h3>
                     <p className="text-xs text-slate-400">Visitors scheduled for contact or e-dalaw visitation today ({todayStr})</p>
@@ -507,7 +507,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <button
                     type="button"
                     onClick={() => setActiveTab('APPOINTMENTS')}
-                    className="text-xs text-amber-400 hover:text-amber-300 font-semibold cursor-pointer"
+                    className="text-xs text-blue-400 hover:text-blue-300 font-semibold cursor-pointer"
                   >
                     View All Passes →
                   </button>
@@ -520,7 +520,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <button
                       type="button"
                       onClick={() => setActiveTab('APPOINTMENTS')}
-                      className="mt-3 text-xs bg-slate-800 hover:bg-slate-700 text-amber-300 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer"
+                      className="mt-3 text-xs bg-slate-800 hover:bg-slate-700 text-blue-300 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer"
                     >
                       Browse Upcoming Visitation Schedule
                     </button>
@@ -533,7 +533,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         className="bg-slate-950/80 border border-slate-800 rounded-lg p-3.5 flex items-center justify-between hover:border-slate-700 transition-colors"
                       >
                         <div className="flex items-center space-x-3">
-                          <div className="w-10 h-10 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0 font-mono text-xs font-bold">
+                          <div className="w-10 h-10 rounded-lg bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0 font-mono text-xs font-bold">
                             PASS
                           </div>
                           <div>
@@ -542,14 +542,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-mono">
                                 {appt.appointmentReference}
                               </span>
-                              <span className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded font-semibold">
+                              <span className="text-[10px] bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded font-semibold">
                                 {appt.status}
                               </span>
                             </div>
                             <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-2">
                               <span>Visiting PDL: <strong className="text-slate-200">{appt.pdlName}</strong> ({appt.relationshipToPDL})</span>
                               <span>•</span>
-                              <span className="text-amber-300/90">{appt.timeSlot}</span>
+                              <span className="text-blue-300/90">{appt.timeSlot}</span>
                             </div>
                           </div>
                         </div>
@@ -566,7 +566,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <button
                             type="button"
                             onClick={() => onOpenGuardScanner(appt.userId)}
-                            className="px-2.5 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs flex items-center space-x-1 cursor-pointer"
+                            className="px-2.5 py-1.5 rounded bg-blue-500 hover:bg-blue-400 text-slate-950 font-semibold text-xs flex items-center space-x-1 cursor-pointer"
                           >
                             <QrCode className="w-3.5 h-3.5" />
                             <span>Scan at Gate</span>
@@ -584,10 +584,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                      <Fingerprint className="w-4 h-4 text-emerald-400" />
+                      <Fingerprint className="w-4 h-4 text-blue-400" />
                       In-Person Biometric Desk Queue
                     </h3>
-                    <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded font-bold">
+                    <span className="text-[10px] bg-blue-500/20 text-blue-300 border border-blue-500/40 px-2 py-0.5 rounded font-bold">
                       {pendingBiometricVisitors} Waiting
                     </span>
                   </div>
@@ -606,7 +606,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         >
                           <div className="text-xs">
                             <div className="font-bold text-white">{u.firstName} {u.lastName}</div>
-                            <div className="text-[11px] text-amber-400 font-mono mt-0.5">
+                            <div className="text-[11px] text-blue-400 font-mono mt-0.5">
                               {u.biometricReferenceNumber}
                             </div>
                             <div className="text-[10px] text-slate-400 mt-0.5">
@@ -616,7 +616,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <button
                             type="button"
                             onClick={() => handleStartBiometricScan(u)}
-                            className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center space-x-1 shadow-md cursor-pointer transition-colors"
+                            className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center space-x-1 shadow-md cursor-pointer transition-colors"
                           >
                             <Fingerprint className="w-3.5 h-3.5" />
                             <span>Scan Thumb</span>
@@ -636,7 +636,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <button
                     type="button"
                     onClick={() => setActiveTab('VISITORS')}
-                    className="text-amber-400 hover:text-amber-300 font-bold cursor-pointer"
+                    className="text-blue-400 hover:text-blue-300 font-bold cursor-pointer"
                   >
                     Open Full Visitor Desk →
                   </button>
@@ -658,7 +658,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <button
                   type="button"
                   onClick={() => setActiveTab('SECURITY_LOGS')}
-                  className="text-xs text-amber-400 hover:text-amber-300 font-semibold cursor-pointer"
+                  className="text-xs text-blue-400 hover:text-blue-300 font-semibold cursor-pointer"
                 >
                   View Full Incident Log ({incidentList.length}) →
                 </button>
@@ -673,7 +673,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </div>
                     <div className="font-semibold text-slate-200 mb-1">{inc.visitorName}</div>
                     <p className="text-slate-400 text-[11px] leading-relaxed line-clamp-2">{inc.description}</p>
-                    <div className="mt-2 pt-2 border-t border-slate-800/80 text-[10px] text-emerald-400 truncate">
+                    <div className="mt-2 pt-2 border-t border-slate-800/80 text-[10px] text-blue-400 truncate">
                       Action: {inc.actionTaken}
                     </div>
                   </div>
@@ -702,7 +702,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       onClick={() => setVisitorFilter(filterVal)}
                       className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
                         visitorFilter === filterVal
-                          ? 'bg-amber-500 text-slate-950'
+                          ? 'bg-blue-500 text-slate-950'
                           : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                       }`}
                     >
@@ -722,7 +722,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   placeholder="Search visitor name, email, Bio ID..."
                   value={visitorSearch}
                   onChange={(e) => setVisitorSearch(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-400"
                 />
               </div>
             </div>
@@ -763,7 +763,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 <div className="font-bold text-white flex items-center gap-1.5">
                                   <span>{u.firstName} {u.middleName ? `${u.middleName} ` : ''}{u.lastName} {u.suffix}</span>
                                   {isAdmin && (
-                                    <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] px-1.5 py-0.2 rounded font-black">
+                                    <span className="bg-blue-500/20 text-blue-300 border border-blue-500/40 text-[9px] px-1.5 py-0.2 rounded font-black">
                                       ADMIN
                                     </span>
                                   )}
@@ -785,7 +785,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             <button
                               type="button"
                               onClick={() => setSelectedVisitorForKyc(u)}
-                              className="text-[10px] text-sky-400 hover:text-sky-300 flex items-center gap-1 mt-0.5 cursor-pointer"
+                              className="text-[10px] text-blue-400 hover:text-blue-300 flex items-center gap-1 mt-0.5 cursor-pointer"
                             >
                               <Eye className="w-3 h-3" />
                               <span>Inspect Submitted ID Photo</span>
@@ -794,7 +794,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                           {/* Biometric Reference */}
                           <td className="py-3 px-4">
-                            <span className="font-mono text-[11px] text-amber-300 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded">
+                            <span className="font-mono text-[11px] text-blue-300 bg-blue-500/10 border border-blue-500/30 px-2 py-0.5 rounded">
                               {u.biometricReferenceNumber}
                             </span>
                             {u.biometricScannedAt && (
@@ -807,17 +807,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           {/* Status */}
                           <td className="py-3 px-4">
                             {u.accountStatus === 'ACTIVATED' && (
-                              <span className="inline-flex items-center gap-1 text-[11px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-full font-bold">
+                              <span className="inline-flex items-center gap-1 text-[11px] bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2.5 py-1 rounded-full font-bold">
                                 <CheckCircle2 className="w-3 h-3" /> Activated
                               </span>
                             )}
                             {u.accountStatus === 'PENDING_BIOMETRICS' && (
-                              <span className="inline-flex items-center gap-1 text-[11px] bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2.5 py-1 rounded-full font-bold animate-pulse">
+                              <span className="inline-flex items-center gap-1 text-[11px] bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2.5 py-1 rounded-full font-bold animate-pulse">
                                 <Fingerprint className="w-3 h-3" /> Pending Biometrics
                               </span>
                             )}
                             {u.accountStatus === 'PENDING_EMAIL' && (
-                              <span className="inline-flex items-center gap-1 text-[11px] bg-sky-500/20 text-sky-400 border border-sky-500/30 px-2.5 py-1 rounded-full font-bold">
+                              <span className="inline-flex items-center gap-1 text-[11px] bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2.5 py-1 rounded-full font-bold">
                                 <Clock className="w-3 h-3" /> Pending Email OTP
                               </span>
                             )}
@@ -829,7 +829,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               <button
                                 type="button"
                                 onClick={() => handleStartBiometricScan(u)}
-                                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-lg text-xs inline-flex items-center space-x-1.5 shadow cursor-pointer transition-colors"
+                                className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-1.5 rounded-lg text-xs inline-flex items-center space-x-1.5 shadow cursor-pointer transition-colors"
                                 title="Capture fingerprint at Gate 1 Desk & Activate"
                               >
                                 <Fingerprint className="w-3.5 h-3.5" />
@@ -841,7 +841,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               <button
                                 type="button"
                                 onClick={() => onUpdateUserStatus(u.id, 'PENDING_BIOMETRICS', 'Biometrics reset by Admin')}
-                                className="text-slate-400 hover:text-amber-300 bg-slate-800 hover:bg-slate-750 px-2 py-1 rounded text-[11px] border border-slate-700 cursor-pointer"
+                                className="text-slate-400 hover:text-blue-300 bg-slate-800 hover:bg-slate-750 px-2 py-1 rounded text-[11px] border border-slate-700 cursor-pointer"
                                 title="Require In-Person Biometric Re-scan"
                               >
                                 Re-verify
@@ -852,7 +852,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               <button
                                 type="button"
                                 onClick={() => onUpdateUserStatus(u.id, 'PENDING_BIOMETRICS', 'Email override by Admin')}
-                                className="bg-sky-700 hover:bg-sky-600 text-white px-2.5 py-1 rounded text-[11px] font-semibold cursor-pointer"
+                                className="bg-blue-500 hover:bg-blue-400 text-slate-950 px-2.5 py-1 rounded text-[11px] font-semibold cursor-pointer"
                                 title="Manual Email Verification Override"
                               >
                                 Skip to Bio
@@ -890,7 +890,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       onClick={() => setApptFilterDate(dOption)}
                       className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
                         apptFilterDate === dOption
-                          ? 'bg-amber-500 text-slate-950'
+                          ? 'bg-blue-500 text-slate-950'
                           : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                       }`}
                     >
@@ -907,7 +907,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <select
                   value={apptFilterStatus}
                   onChange={(e) => setApptFilterStatus(e.target.value)}
-                  className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-amber-400"
+                  className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-blue-400"
                 >
                   <option value="ALL">All Statuses</option>
                   <option value="Approved">Approved</option>
@@ -924,7 +924,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   placeholder="Search visitor, PDL, ref #, cell..."
                   value={apptSearch}
                   onChange={(e) => setApptSearch(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-400"
                 />
               </div>
 
@@ -949,14 +949,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     {filteredAppointments.map((appt) => {
                       const isToday = appt.visitDate === todayStr;
                       return (
-                        <tr key={appt.id} className={`hover:bg-slate-850/50 transition-colors ${isToday ? 'bg-amber-500/5' : ''}`}>
+                        <tr key={appt.id} className={`hover:bg-slate-850/50 transition-colors ${isToday ? 'bg-blue-500/5' : ''}`}>
                           
                           {/* Reference */}
                           <td className="py-3 px-4">
-                            <div className="font-mono font-bold text-amber-300">{appt.appointmentReference}</div>
+                            <div className="font-mono font-bold text-blue-300">{appt.appointmentReference}</div>
                             <div className="text-[10px] text-slate-400">{appt.visitType}</div>
                             {isToday && (
-                              <span className="inline-block mt-1 bg-amber-500/20 text-amber-400 text-[9px] font-black px-1.5 py-0.2 rounded uppercase">
+                              <span className="inline-block mt-1 bg-blue-500/20 text-blue-400 text-[9px] font-black px-1.5 py-0.2 rounded uppercase">
                                 TODAY'S PASS
                               </span>
                             )}
@@ -973,13 +973,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <td className="py-3 px-4">
                             <div className="font-bold text-slate-200">{appt.pdlName}</div>
                             <div className="text-[11px] font-mono text-slate-400">{appt.pdlNumber}</div>
-                            <div className="text-[10px] text-amber-400/90">{appt.cellDormitory}</div>
+                            <div className="text-[10px] text-blue-400/90">{appt.cellDormitory}</div>
                           </td>
 
                           {/* Date & Slot */}
                           <td className="py-3 px-4">
                             <div className="font-semibold text-slate-200 flex items-center gap-1">
-                              <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                              <Calendar className="w-3.5 h-3.5 text-blue-400" />
                               {appt.visitDate}
                             </div>
                             <div className="text-[11px] text-slate-400">{appt.timeSlot}</div>
@@ -997,10 +997,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <td className="py-3 px-4">
                             <span className={`inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full font-bold ${
                               appt.status === 'Approved'
-                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
                                 : appt.status === 'Completed'
                                 ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                                : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                                : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
                             }`}>
                               {appt.status}
                             </span>
@@ -1021,7 +1021,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               <button
                                 type="button"
                                 onClick={() => onUpdateAppointmentStatus(appt.id, 'Approved')}
-                                className="px-2 py-1 rounded bg-emerald-700 hover:bg-emerald-600 text-white text-[11px] font-semibold cursor-pointer"
+                                className="px-2 py-1 rounded bg-blue-700 hover:bg-blue-600 text-white text-[11px] font-semibold cursor-pointer"
                                 title="Grant Visitation Approval"
                               >
                                 Approve
@@ -1032,7 +1032,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               <button
                                 type="button"
                                 onClick={() => onUpdateAppointmentStatus(appt.id, 'Completed')}
-                                className="px-2 py-1 rounded bg-blue-700 hover:bg-blue-600 text-white text-[11px] font-semibold cursor-pointer"
+                                className="px-2 py-1 rounded bg-blue-500 hover:bg-blue-400 text-slate-950 text-[11px] font-semibold cursor-pointer"
                                 title="Mark Visitation Concluded"
                               >
                                 Mark Done
@@ -1070,23 +1070,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] font-bold px-2 py-0.5 rounded uppercase">
+                  <span className="bg-blue-500/20 text-blue-400 border border-blue-500/30 text-[10px] font-bold px-2 py-0.5 rounded uppercase">
                     BJMP Standard Records
                   </span>
                   <span className="text-xs text-slate-400">DILG • Calabarzon Region IV-A</span>
                 </div>
                 <h2 className="text-base font-bold text-white flex items-center gap-2 mt-0.5">
-                  <Building className="w-4 h-4 text-amber-400" />
+                  <Building className="w-4 h-4 text-blue-400" />
                   BJMP Imus City Jail — PDL Commitment & Institutional Master Roster
                 </h2>
                 <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400 mt-1">
                   <span>Total Committed: <strong className="text-white">{pdlList.length}</strong></span>
                   <span>•</span>
-                  <span>Male: <strong className="text-amber-300">{pdlList.filter(p => p.sex === 'Male' || !p.sex).length}</strong></span>
+                  <span>Male: <strong className="text-blue-300">{pdlList.filter(p => p.sex === 'Male' || !p.sex).length}</strong></span>
                   <span>•</span>
-                  <span>Female: <strong className="text-pink-300">{pdlList.filter(p => p.sex === 'Female').length}</strong></span>
+                  <span>Female: <strong className="text-blue-300">{pdlList.filter(p => p.sex === 'Female').length}</strong></span>
                   <span>•</span>
-                  <span>Under Trial: <strong className="text-emerald-400">{pdlList.filter(p => (p.caseStatus || '').includes('Trial')).length}</strong></span>
+                  <span>Under Trial: <strong className="text-blue-400">{pdlList.filter(p => (p.caseStatus || '').includes('Trial')).length}</strong></span>
                 </div>
               </div>
 
@@ -1099,7 +1099,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     placeholder="Search name, PDL #, offense, cell..."
                     value={pdlSearch}
                     onChange={(e) => setPdlSearch(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-400"
                   />
                 </div>
 
@@ -1109,7 +1109,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     type="button"
                     onClick={() => setPdlViewMode('CARDS')}
                     className={`px-2.5 py-1 rounded text-xs font-semibold cursor-pointer transition-colors ${
-                      pdlViewMode === 'CARDS' ? 'bg-amber-500 text-slate-950' : 'text-slate-400 hover:text-white'
+                      pdlViewMode === 'CARDS' ? 'bg-blue-500 text-slate-950' : 'text-slate-400 hover:text-white'
                     }`}
                     title="Grid Card View"
                   >
@@ -1119,7 +1119,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     type="button"
                     onClick={() => setPdlViewMode('TABLE')}
                     className={`px-2.5 py-1 rounded text-xs font-semibold cursor-pointer transition-colors flex items-center gap-1 ${
-                      pdlViewMode === 'TABLE' ? 'bg-amber-500 text-slate-950' : 'text-slate-400 hover:text-white'
+                      pdlViewMode === 'TABLE' ? 'bg-blue-500 text-slate-950' : 'text-slate-400 hover:text-white'
                     }`}
                     title="Monthly Commitment Register (Photo 1 & 2 Logbook)"
                   >
@@ -1135,9 +1135,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     setSelectedPdlForDocs(pdlList[0] || null);
                     setIsDocsModalOpen(true);
                   }}
-                  className="bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 cursor-pointer shadow transition-colors"
+                  className="bg-slate-800 hover:bg-slate-700 text-blue-300 border border-blue-500/30 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 cursor-pointer shadow transition-colors"
                 >
-                  <FileText className="w-4 h-4 text-amber-400" />
+                  <FileText className="w-4 h-4 text-blue-400" />
                   <span>Official Documents & Reports</span>
                 </button>
 
@@ -1148,7 +1148,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     setEditingPdl(null);
                     setIsAddPdlOpen(true);
                   }}
-                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-3.5 py-1.5 rounded-lg text-xs flex items-center space-x-1.5 cursor-pointer shadow-lg shadow-amber-500/20"
+                  className="bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold px-3.5 py-1.5 rounded-lg text-xs flex items-center space-x-1.5 cursor-pointer shadow-lg shadow-blue-500/20"
                 >
                   <Plus className="w-4 h-4" />
                   <span>Register New PDL</span>
@@ -1180,7 +1180,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         {/* Header: PDL Number & Status */}
                         <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
                           <div className="flex items-center gap-1.5">
-                            <span className="font-mono font-bold text-amber-300 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded text-[11px]">
+                            <span className="font-mono font-bold text-blue-300 bg-blue-500/10 border border-blue-500/30 px-2 py-0.5 rounded text-[11px]">
                               {pdl.pdlNumber}
                             </span>
                             {pdl.fileNumber && (
@@ -1189,7 +1189,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               </span>
                             )}
                           </div>
-                          <span className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded font-bold">
+                          <span className="text-[10px] bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded font-bold">
                             {pdl.status}
                           </span>
                         </div>
@@ -1200,12 +1200,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             {pdl.fullName}
                           </div>
                           {pdl.aliases && (
-                            <div className="text-amber-400/90 text-[11px] italic mt-0.5">
+                            <div className="text-blue-400/90 text-[11px] italic mt-0.5">
                               Alias: "{pdl.aliases}"
                             </div>
                           )}
                           <div className="text-slate-400 text-[11px] mt-1 flex items-center gap-1">
-                            <MapPin className="w-3 h-3 text-amber-400" />
+                            <MapPin className="w-3 h-3 text-blue-400" />
                             <span className="font-semibold text-slate-200">{pdl.cellDormitory}</span>
                             <span className="text-slate-500 text-[10px]">
                               ({pdl.jailFacilityId.includes('female') ? 'Female Dorm' : 'Male Dorm'})
@@ -1225,7 +1225,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           </div>
                           <div>
                             <span className="text-slate-500 block">Pangkat:</span>
-                            <span className="font-bold text-amber-300 truncate block" title={pdl.gangGroupAffiliation}>
+                            <span className="font-bold text-blue-300 truncate block" title={pdl.gangGroupAffiliation}>
                               {pdl.gangGroupAffiliation || 'Neutral'}
                             </span>
                           </div>
@@ -1235,8 +1235,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         {pdl.primaryOffense && (
                           <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800 space-y-1">
                             <div className="flex items-center justify-between text-[10px]">
-                              <span className="text-amber-400 font-bold uppercase tracking-wider flex items-center gap-1">
-                                <Scale className="w-3 h-3 text-amber-400" />
+                              <span className="text-blue-400 font-bold uppercase tracking-wider flex items-center gap-1">
+                                <Scale className="w-3 h-3 text-blue-400" />
                                 Case & Violation
                               </span>
                               <span className="font-mono text-slate-400">{pdl.criminalCaseNumbers?.[0] || 'CC-24-10294'}</span>
@@ -1262,7 +1262,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         {/* Visits stats */}
                         <div className="text-[11px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-800/80">
                           <span>Visits on Record:</span>
-                          <strong className="text-amber-300">
+                          <strong className="text-blue-300">
                             {appointments.filter((a) => a.pdlId === pdl.id).length} scheduled
                           </strong>
                         </div>
@@ -1276,9 +1276,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             setSelectedPdlForDocs(pdl);
                             setIsDocsModalOpen(true);
                           }}
-                          className="bg-slate-800 hover:bg-slate-700 text-amber-300 py-1.5 px-2 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 border border-amber-500/20 cursor-pointer transition-colors"
+                          className="bg-slate-800 hover:bg-slate-700 text-blue-300 py-1.5 px-2 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 border border-blue-500/20 cursor-pointer transition-colors"
                         >
-                          <FileText className="w-3.5 h-3.5 text-amber-400" />
+                          <FileText className="w-3.5 h-3.5 text-blue-400" />
                           <span>Official Docs</span>
                         </button>
                         
@@ -1290,7 +1290,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           }}
                           className="bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white py-1.5 px-2 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1.5 border border-slate-700 cursor-pointer transition-colors"
                         >
-                          <Edit3 className="w-3.5 h-3.5 text-sky-400" />
+                          <Edit3 className="w-3.5 h-3.5 text-blue-400" />
                           <span>Edit Booking</span>
                         </button>
                       </div>
@@ -1305,7 +1305,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow">
                 <div className="bg-slate-950 p-3 border-b border-slate-800 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-amber-400" />
+                    <FileText className="w-4 h-4 text-blue-400" />
                     <span className="font-bold text-white text-xs uppercase tracking-wider">
                       COMMIT - Reports / Logs Generation (Monthly Commitment Register)
                     </span>
@@ -1349,10 +1349,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         .map((pdl) => (
                           <tr key={pdl.id} className="hover:bg-slate-800/40 transition-colors">
                             <td className="p-3 font-mono text-[11px] text-slate-300">{pdl.dateCommitted || '2024-03-12'}</td>
-                            <td className="p-3 font-mono font-bold text-amber-300 text-[11px]">{pdl.pdlNumber}</td>
+                            <td className="p-3 font-mono font-bold text-blue-300 text-[11px]">{pdl.pdlNumber}</td>
                             <td className="p-3 font-bold text-white">
                               {pdl.fullName}
-                              {pdl.aliases && <span className="text-amber-400 text-[10px] ml-1">("{pdl.aliases}")</span>}
+                              {pdl.aliases && <span className="text-blue-400 text-[10px] ml-1">("{pdl.aliases}")</span>}
                             </td>
                             <td className="p-3 font-mono text-slate-300">{pdl.dateOfBirth} ({pdl.ageAtAdmission}y)</td>
                             <td className="p-3 text-slate-300">{pdl.sex || 'Male'}</td>
@@ -1363,7 +1363,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             <td className="p-3 max-w-xs truncate font-medium text-slate-200" title={pdl.primaryOffense}>
                               {pdl.primaryOffense}
                             </td>
-                            <td className="p-3 font-mono font-bold text-amber-300 text-[11px]">
+                            <td className="p-3 font-mono font-bold text-blue-300 text-[11px]">
                               {pdl.criminalCaseNumbers?.[0] || 'CC-24-10294'}
                             </td>
                             <td className="p-3 text-slate-300 text-[11px]">
@@ -1371,7 +1371,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             </td>
                             <td className="p-3 text-slate-300 font-semibold">{pdl.cellDormitory}</td>
                             <td className="p-3">
-                              <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded text-[10px] font-bold">
+                              <span className="bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded text-[10px] font-bold">
                                 {pdl.status}
                               </span>
                             </td>
@@ -1383,7 +1383,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     setSelectedPdlForDocs(pdl);
                                     setIsDocsModalOpen(true);
                                   }}
-                                  className="bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 px-2 py-1 rounded text-[10px] font-bold cursor-pointer"
+                                  className="bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/30 px-2 py-1 rounded text-[10px] font-bold cursor-pointer"
                                   title="View Official BJMP Booking Report, Certificate of Detention, Property Receipt"
                                 >
                                   Docs
@@ -1464,7 +1464,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             inc.incidentType === 'Contraband Interception'
                               ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
                               : inc.incidentType === 'Dress Code Non-Compliance'
-                              ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                              ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
                               : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
                           }`}>
                             {inc.incidentType}
@@ -1473,7 +1473,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <td className="py-3 px-4 max-w-sm text-slate-300 text-[11px]">
                           {inc.description}
                         </td>
-                        <td className="py-3 px-4 max-w-xs text-emerald-400 font-medium text-[11px]">
+                        <td className="py-3 px-4 max-w-xs text-blue-400 font-medium text-[11px]">
                           {inc.actionTaken}
                         </td>
                         <td className="py-3 px-4 font-mono text-slate-400 text-[11px]">
@@ -1498,7 +1498,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             {/* Slot Limits */}
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Sliders className="w-4 h-4 text-amber-400" />
+                <Sliders className="w-4 h-4 text-blue-400" />
                 Visitation Slot Capacity Configuration
               </h3>
               <p className="text-xs text-slate-400">
@@ -1517,7 +1517,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       max={100}
                       value={maleCapacity}
                       onChange={(e) => setMaleCapacity(Number(e.target.value))}
-                      className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 w-32 focus:outline-none focus:border-amber-400"
+                      className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 w-32 focus:outline-none focus:border-blue-400"
                     />
                     <span className="text-xs text-slate-400">visitors maximum / batch slot</span>
                   </div>
@@ -1534,7 +1534,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       max={100}
                       value={femaleCapacity}
                       onChange={(e) => setFemaleCapacity(Number(e.target.value))}
-                      className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 w-32 focus:outline-none focus:border-amber-400"
+                      className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 w-32 focus:outline-none focus:border-blue-400"
                     />
                     <span className="text-xs text-slate-400">visitors maximum / batch slot</span>
                   </div>
@@ -1544,7 +1544,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <button
                     type="button"
                     onClick={() => alert('Facility slot capacity limits saved to BJMP records system.')}
-                    className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded-lg text-xs cursor-pointer shadow"
+                    className="bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold px-4 py-2 rounded-lg text-xs cursor-pointer shadow"
                   >
                     Save Capacity Settings
                   </button>
@@ -1555,7 +1555,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             {/* Broadcast Notice Controller */}
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-amber-400" />
+                <AlertTriangle className="w-4 h-4 text-blue-400" />
                 Live Broadcast Security Notice
               </h3>
               <p className="text-xs text-slate-400">
@@ -1567,7 +1567,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   rows={4}
                   value={systemNotice}
                   onChange={(e) => setSystemNotice(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-xs text-slate-100 focus:outline-none focus:border-amber-400"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-xs text-slate-100 focus:outline-none focus:border-blue-400"
                   placeholder="Enter system announcement for visitors..."
                 />
               </div>
@@ -1576,7 +1576,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <button
                   type="button"
                   onClick={() => alert('Security notice broadcast updated across all visitor devices.')}
-                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded-lg text-xs cursor-pointer shadow"
+                  className="bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold px-4 py-2 rounded-lg text-xs cursor-pointer shadow"
                 >
                   Update Live Broadcast
                 </button>
@@ -1600,9 +1600,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       ======================================================== */}
       {biometricScanningUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-emerald-500/50 rounded-2xl max-w-md w-full shadow-2xl overflow-hidden p-6 text-center text-slate-100 relative">
+          <div className="bg-slate-900 border border-blue-500/50 rounded-2xl max-w-md w-full shadow-2xl overflow-hidden p-6 text-center text-slate-100 relative">
             
-            <div className="w-16 h-16 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 mx-auto mb-4">
+            <div className="w-16 h-16 rounded-2xl bg-blue-500/20 border border-blue-500/40 flex items-center justify-center text-blue-400 mx-auto mb-4">
               <Fingerprint className={`w-10 h-10 ${biometricScanningStep === 'SCANNING' ? 'animate-pulse' : ''}`} />
             </div>
 
@@ -1612,7 +1612,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <p className="text-xs text-slate-400 mt-1">
               Enrolling in-person physical fingerprint for:
             </p>
-            <div className="mt-2 text-sm font-extrabold text-amber-300">
+            <div className="mt-2 text-sm font-extrabold text-blue-300">
               {biometricScanningUser.firstName} {biometricScanningUser.lastName}
             </div>
             <div className="text-xs font-mono text-slate-400">
@@ -1630,22 +1630,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
               <div className="flex justify-between text-slate-400">
                 <span>Enrolling Officer:</span>
-                <span className="font-semibold text-amber-300">{currentUser.firstName} {currentUser.lastName}</span>
+                <span className="font-semibold text-blue-300">{currentUser.firstName} {currentUser.lastName}</span>
               </div>
             </div>
 
             {biometricScanningStep === 'SCANNING' ? (
               <div className="space-y-2">
                 <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
-                  <div className="bg-emerald-400 h-full w-3/4 animate-pulse"></div>
+                  <div className="bg-blue-400 h-full w-3/4 animate-pulse"></div>
                 </div>
-                <p className="text-xs text-emerald-400 font-semibold flex items-center justify-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                <p className="text-xs text-blue-400 font-semibold flex items-center justify-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-blue-400 animate-ping"></span>
                   Optical sensor scanning right thumb print...
                 </p>
               </div>
             ) : biometricScanningStep === 'SUCCESS' ? (
-              <div className="bg-emerald-500/20 border border-emerald-500/40 p-3 rounded-lg text-emerald-300 text-xs font-bold flex items-center justify-center gap-2">
+              <div className="bg-blue-500/20 border border-blue-500/40 p-3 rounded-lg text-blue-300 text-xs font-bold flex items-center justify-center gap-2">
                 <Check className="w-4 h-4" />
                 <span>Biometric Authenticated! Account ACTIVATED.</span>
               </div>
@@ -1674,7 +1674,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             
             <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
               <div>
-                <span className="text-[10px] uppercase tracking-wider font-bold text-amber-400">Official KYC Document Verification</span>
+                <span className="text-[10px] uppercase tracking-wider font-bold text-blue-400">Official KYC Document Verification</span>
                 <h3 className="text-base font-bold text-white">
                   {selectedVisitorForKyc.firstName} {selectedVisitorForKyc.lastName}
                 </h3>
@@ -1723,12 +1723,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="mt-4 bg-slate-950 p-3 rounded-lg border border-slate-800 text-xs space-y-1">
               <div><strong className="text-slate-400">Address:</strong> {selectedVisitorForKyc.address.houseUnitStreet}, {selectedVisitorForKyc.address.municipality}</div>
               <div><strong className="text-slate-400">Contact:</strong> {selectedVisitorForKyc.contactNumber} | {selectedVisitorForKyc.email}</div>
-              <div><strong className="text-slate-400">Biometric Reference:</strong> <span className="font-mono text-amber-300">{selectedVisitorForKyc.biometricReferenceNumber}</span></div>
+              <div><strong className="text-slate-400">Biometric Reference:</strong> <span className="font-mono text-blue-300">{selectedVisitorForKyc.biometricReferenceNumber}</span></div>
             </div>
 
             <div className="mt-5 pt-3 border-t border-slate-800 flex items-center justify-between">
               <span className="text-xs text-slate-400">
-                Status: <strong className="text-amber-400">{selectedVisitorForKyc.accountStatus}</strong>
+                Status: <strong className="text-blue-400">{selectedVisitorForKyc.accountStatus}</strong>
               </span>
 
               <div className="space-x-2">
@@ -1739,7 +1739,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       onUpdateUserStatus(selectedVisitorForKyc.id, 'ACTIVATED', 'Manual Admin ID KYC Approval');
                       setSelectedVisitorForKyc(null);
                     }}
-                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-lg text-xs cursor-pointer"
+                    className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-1.5 rounded-lg text-xs cursor-pointer"
                   >
                     Directly Activate Visitor
                   </button>
@@ -1827,7 +1827,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   placeholder="e.g. Juan P. Santos"
                   value={newIncidentVisitor}
                   onChange={(e) => setNewIncidentVisitor(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-amber-400"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-blue-400"
                 />
               </div>
 
@@ -1836,7 +1836,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <select
                   value={newIncidentType}
                   onChange={(e) => setNewIncidentType(e.target.value as SecurityIncident['incidentType'])}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-amber-400"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-blue-400"
                 >
                   <option value="Contraband Interception">Contraband Interception (Electronics/Sharp items/Food rules)</option>
                   <option value="Dress Code Non-Compliance">Dress Code Non-Compliance (Yellow/Orange attire, sleeveless)</option>
@@ -1853,7 +1853,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   placeholder="Describe what was intercepted or observed..."
                   value={newIncidentDesc}
                   onChange={(e) => setNewIncidentDesc(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-amber-400"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-blue-400"
                 />
               </div>
 
@@ -1864,7 +1864,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   placeholder="e.g. Confiscated and deposited in locker; entry deferred until..."
                   value={newIncidentAction}
                   onChange={(e) => setNewIncidentAction(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-amber-400"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-blue-400"
                 />
               </div>
 

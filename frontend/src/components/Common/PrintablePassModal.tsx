@@ -26,15 +26,15 @@ export const PrintablePassModal: React.FC<PrintablePassModalProps> = ({
         {/* Top Control Bar */}
         <div className="bg-slate-950 px-6 py-3 border-b border-slate-800 flex items-center justify-between no-print">
           <div className="flex items-center space-x-2 text-xs text-slate-300">
-            <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+            <span className="w-2 h-2 rounded-full bg-blue-400"></span>
             <span className="font-semibold">Official BJMP Electronic Gate Pass</span>
             <span className="text-slate-600">|</span>
-            <span className="text-amber-400 font-mono">{appointment.appointmentReference}</span>
+            <span className="text-blue-400 font-mono">{appointment.appointmentReference}</span>
           </div>
           <div className="flex items-center space-x-3">
             <button
               onClick={handlePrint}
-              className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-1.5 rounded-lg text-xs flex items-center space-x-1.5 transition-colors shadow-md cursor-pointer"
+              className="bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold px-4 py-1.5 rounded-lg text-xs flex items-center space-x-1.5 transition-colors shadow-md cursor-pointer"
             >
               <Printer className="w-4 h-4" />
               <span>Print Gate Pass (PDF)</span>
@@ -58,7 +58,7 @@ export const PrintablePassModal: React.FC<PrintablePassModalProps> = ({
             <div className="text-sm uppercase font-black tracking-tight text-blue-950">
               BUREAU OF JAIL MANAGEMENT AND PENOLOGY • REGION IV-A
             </div>
-            <div className="text-xs font-bold text-amber-700 mt-1 uppercase tracking-wider">
+            <div className="text-xs font-bold text-blue-700 mt-1 uppercase tracking-wider">
               {appointment.jailFacilityName} • IMUS CITY, CAVITE
             </div>
             <div className="text-[10px] text-slate-500">Inmates Welfare and Development Division • Gate Clearance Pass</div>
@@ -76,7 +76,7 @@ export const PrintablePassModal: React.FC<PrintablePassModalProps> = ({
               </div>
             </div>
             <div className="text-right">
-              <span className="inline-block bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase px-2.5 py-1 rounded border border-emerald-300">
+              <span className="inline-block bg-blue-100 text-blue-800 text-[10px] font-black uppercase px-2.5 py-1 rounded border border-blue-300">
                 STATUS: APPROVED
               </span>
               <div className="text-[10px] text-slate-500 mt-1">
@@ -176,8 +176,8 @@ export const PrintablePassModal: React.FC<PrintablePassModalProps> = ({
               </div>
               <div className="w-full pt-3 border-t border-slate-200 text-left">
                 <div className="text-[9px] text-slate-500">Security Validation:</div>
-                <div className="text-[10px] font-bold text-emerald-800 flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                <div className="text-[10px] font-bold text-blue-800 flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3 text-blue-600" />
                   <span>Biometric Verified</span>
                 </div>
               </div>
@@ -187,8 +187,8 @@ export const PrintablePassModal: React.FC<PrintablePassModalProps> = ({
 
           {/* Paabot Items Declaration if any */}
           {appointment.paabotItemsDescription && (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-950 mb-4">
-              <strong className="block text-[11px] font-bold uppercase text-amber-800 mb-0.5">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-950 mb-4">
+              <strong className="block text-[11px] font-bold uppercase text-blue-800 mb-0.5">
                 Declared Food / Care Articles for Inspection (Paabot):
               </strong>
               <span>{appointment.paabotItemsDescription}</span>

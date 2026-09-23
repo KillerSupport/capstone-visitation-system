@@ -48,11 +48,11 @@ export const EmailConfirmationView: React.FC<EmailConfirmationViewProps> = ({
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-2xl mb-8">
         <div className="flex items-start justify-between border-b border-slate-800 pb-6 mb-6">
           <div className="flex items-center space-x-4">
-            <div className="w-14 h-14 rounded-2xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400">
+            <div className="w-14 h-14 rounded-2xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400">
               <Mail className="w-7 h-7" />
             </div>
             <div>
-              <span className="text-xs uppercase font-bold tracking-wider text-sky-400">
+              <span className="text-xs uppercase font-bold tracking-wider text-blue-400">
                 Stage 1 Verification • Wait for Email Confirmation
               </span>
               <h2 className="text-2xl font-black text-white tracking-tight mt-0.5">
@@ -65,7 +65,7 @@ export const EmailConfirmationView: React.FC<EmailConfirmationViewProps> = ({
           </div>
           <div className="text-right">
             <span className="text-[11px] text-slate-400 block font-mono">Reference No.</span>
-            <span className="text-xs font-bold text-amber-400 font-mono bg-amber-500/10 px-2.5 py-1 rounded border border-amber-500/20">
+            <span className="text-xs font-bold text-blue-400 font-mono bg-blue-500/10 px-2.5 py-1 rounded border border-blue-500/20">
               {user.biometricReferenceNumber}
             </span>
           </div>
@@ -94,13 +94,13 @@ export const EmailConfirmationView: React.FC<EmailConfirmationViewProps> = ({
                   value={otpInput}
                   onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, ''))}
                   placeholder="••••••"
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl py-3 px-4 text-center font-mono text-2xl tracking-[0.4em] text-amber-400 focus:outline-none focus:border-amber-400 placeholder:text-slate-600 shadow-inner"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl py-3 px-4 text-center font-mono text-2xl tracking-[0.4em] text-blue-400 focus:outline-none focus:border-blue-400 placeholder:text-slate-600 shadow-inner"
                 />
                 <button
                   type="button"
                   disabled={isVerifying}
                   onClick={() => handleVerify()}
-                  className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3 px-4 rounded-xl text-xs flex items-center justify-center space-x-2 transition-all cursor-pointer shadow-lg shadow-amber-500/10 disabled:opacity-50"
+                  className="w-full bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold py-3 px-4 rounded-xl text-xs flex items-center justify-center space-x-2 transition-all cursor-pointer shadow-lg shadow-blue-500/10 disabled:opacity-50"
                 >
                   {isVerifying ? (
                     <span>Validating Email Security Token...</span>
@@ -118,7 +118,7 @@ export const EmailConfirmationView: React.FC<EmailConfirmationViewProps> = ({
                 <button
                   type="button"
                   onClick={handleResend}
-                  className="text-amber-400 hover:text-amber-300 font-medium flex items-center gap-1 cursor-pointer"
+                  className="text-blue-400 hover:text-blue-300 font-medium flex items-center gap-1 cursor-pointer"
                 >
                   <RefreshCw className="w-3 h-3" />
                   <span>Resend Confirmation Code</span>
@@ -142,10 +142,10 @@ export const EmailConfirmationView: React.FC<EmailConfirmationViewProps> = ({
           <div className="col-span-7 bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
             <div className="bg-slate-900/90 px-4 py-2.5 border-b border-slate-800 flex items-center justify-between text-xs text-slate-400">
               <div className="flex items-center space-x-2">
-                <Inbox className="w-3.5 h-3.5 text-sky-400" />
+                <Inbox className="w-3.5 h-3.5 text-blue-400" />
                 <span className="font-semibold text-slate-300">Simulated Visitor Mailbox Preview</span>
               </div>
-              <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+              <span className="text-[10px] text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">
                 1 Unread System Message
               </span>
             </div>
@@ -168,7 +168,7 @@ export const EmailConfirmationView: React.FC<EmailConfirmationViewProps> = ({
               {/* Official Email Body */}
               <div className="bg-slate-900 border border-slate-800 rounded-lg p-5 space-y-4">
                 <div className="flex items-center space-x-3">
-                  <div className="w-9 h-9 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                  <div className="w-9 h-9 rounded-lg bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400">
                     <Shield className="w-5 h-5" />
                   </div>
                   <div>
@@ -185,11 +185,11 @@ export const EmailConfirmationView: React.FC<EmailConfirmationViewProps> = ({
                   Thank you for applying for a visitor account with the BJMP Imus City Jail Visitation System. Your account application has been received and is pending identity verification.
                 </p>
 
-                <div className="bg-slate-950 border border-amber-500/30 rounded-lg p-4 text-center">
+                <div className="bg-slate-950 border border-blue-500/30 rounded-lg p-4 text-center">
                   <span className="text-[11px] text-slate-400 uppercase tracking-wider block mb-1">
                     Your 6-Digit Email Verification Code:
                   </span>
-                  <div className="text-3xl font-mono font-black text-amber-400 tracking-widest my-1">
+                  <div className="text-3xl font-mono font-black text-blue-400 tracking-widest my-1">
                     {generatedCode}
                   </div>
                   <span className="text-[10px] text-slate-500">Valid for 15 minutes</span>
@@ -199,7 +199,7 @@ export const EmailConfirmationView: React.FC<EmailConfirmationViewProps> = ({
                   <button
                     type="button"
                     onClick={() => handleVerify(generatedCode)}
-                    className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-6 py-2.5 rounded-lg text-xs inline-flex items-center space-x-1.5 shadow-md cursor-pointer transition-colors"
+                    className="bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold px-6 py-2.5 rounded-lg text-xs inline-flex items-center space-x-1.5 shadow-md cursor-pointer transition-colors"
                   >
                     <CheckCircle2 className="w-4 h-4" />
                     <span>Quick Confirm (1-Click Verification)</span>
@@ -207,7 +207,7 @@ export const EmailConfirmationView: React.FC<EmailConfirmationViewProps> = ({
                 </div>
 
                 <div className="border-t border-slate-800 pt-3 text-[10px] text-slate-400 leading-relaxed">
-                  <strong className="text-amber-400">Next Mandatory Step:</strong> After confirming this email, you will receive an official biometric appointment notice and must visit the jail in person to have your biometric fingerprint scanned before your account can be activated.
+                  <strong className="text-blue-400">Next Mandatory Step:</strong> After confirming this email, you will receive an official biometric appointment notice and must visit the jail in person to have your biometric fingerprint scanned before your account can be activated.
                 </div>
               </div>
             </div>

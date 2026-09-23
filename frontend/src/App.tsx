@@ -420,12 +420,12 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 font-['Plus_Jakarta_Sans'] antialiased">
+    <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 font-sans antialiased">
       
       {/* Refined Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-5 right-5 z-50 bg-slate-900 border border-amber-500/50 text-slate-100 px-4 py-2.5 rounded-lg shadow-xl flex items-center space-x-2.5 text-xs transition-all animate-fadeIn">
-          <Bell className="w-4 h-4 text-amber-400 shrink-0" />
+        <div className="fixed bottom-5 right-5 z-50 bg-slate-900 border border-blue-500/50 text-slate-100 px-4 py-2.5 rounded-lg shadow-xl flex items-center space-x-2.5 text-xs transition-all animate-fadeIn">
+          <Bell className="w-4 h-4 text-blue-400 shrink-0" />
           <span className="font-medium">{toastMessage}</span>
         </div>
       )}
@@ -475,12 +475,12 @@ export default function App() {
               {/* Return to Admin Command Banner */}
               <div className="bg-slate-800 border-b border-slate-700 text-slate-200 px-6 py-2 flex items-center justify-between text-xs sticky top-[53px] z-30">
                 <div className="flex items-center space-x-2">
-                  <Shield className="w-4 h-4 text-amber-400" />
+                  <Shield className="w-4 h-4 text-blue-400" />
                   <span>Officer Mode: Previewing Visitor Interface ({currentUser.firstName} {currentUser.lastName})</span>
                 </div>
                 <button
                   onClick={() => setAdminViewMode('admin')}
-                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 px-2.5 py-1 rounded text-xs font-bold transition-colors cursor-pointer"
+                  className="bg-blue-500 hover:bg-blue-400 text-slate-950 px-2.5 py-1 rounded text-xs font-bold transition-colors cursor-pointer"
                 >
                   Return to Admin Panel
                 </button>

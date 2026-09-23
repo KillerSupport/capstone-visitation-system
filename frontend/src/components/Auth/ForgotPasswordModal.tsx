@@ -78,7 +78,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
         </button>
 
         <div className="flex items-center space-x-3 mb-5 border-b border-slate-800 pb-4">
-          <div className="w-10 h-10 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+          <div className="w-10 h-10 rounded-lg bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400">
             <KeyRound className="w-5 h-5" />
           </div>
           <div>
@@ -111,7 +111,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
                   placeholder="e.g. maria.santos@gmail.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-9 pr-3 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-9 pr-3 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-400"
                 />
               </div>
             </div>
@@ -125,7 +125,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs flex items-center space-x-1.5 transition-colors shadow-md cursor-pointer"
+                className="px-5 py-2 bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold rounded-lg text-xs flex items-center space-x-1.5 transition-colors shadow-md cursor-pointer"
               >
                 <span>Send Recovery Code</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -137,8 +137,8 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
         {step === 'VERIFY_OTP' && (
           <form onSubmit={handleVerifyOtp} className="space-y-4">
             <div className="bg-slate-800/60 border border-slate-700/80 rounded-lg p-3 text-xs text-slate-300">
-              A 6-digit password reset code was sent to <strong className="text-amber-300">{email}</strong>.
-              <div className="mt-2 text-[11px] text-amber-400/90 font-mono bg-amber-500/10 p-1.5 rounded border border-amber-500/20">
+              A 6-digit password reset code was sent to <strong className="text-blue-300">{email}</strong>.
+              <div className="mt-2 text-[11px] text-blue-400/90 font-mono bg-blue-500/10 p-1.5 rounded border border-blue-500/20">
                 Official Recovery Token for demo: <strong>{simulatedSentCode}</strong>
               </div>
             </div>
@@ -153,7 +153,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
                 placeholder="6-digit code"
                 value={otp}
                 onChange={(e) => setOtp(e.target.value)}
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-center font-mono text-lg tracking-widest text-amber-300 focus:outline-none focus:border-amber-400"
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-center font-mono text-lg tracking-widest text-blue-300 focus:outline-none focus:border-blue-400"
               />
             </div>
             <div className="pt-2 flex justify-between items-center">
@@ -166,7 +166,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs flex items-center space-x-1.5 transition-colors shadow-md cursor-pointer"
+                className="px-5 py-2 bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold rounded-lg text-xs flex items-center space-x-1.5 transition-colors shadow-md cursor-pointer"
               >
                 <span>Verify Code</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -187,7 +187,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
                 placeholder="Enter new strong password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-400"
               />
             </div>
             <div>
@@ -200,7 +200,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
                 placeholder="Re-enter new password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-400"
               />
             </div>
             <div className="pt-2 flex justify-end space-x-3">
@@ -213,7 +213,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-lg text-xs flex items-center space-x-1.5 transition-colors shadow-md cursor-pointer"
+                className="px-5 py-2 bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold rounded-lg text-xs flex items-center space-x-1.5 transition-colors shadow-md cursor-pointer"
               >
                 <span>Update Password</span>
                 <ShieldCheck className="w-4 h-4" />
@@ -224,7 +224,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
 
         {step === 'SUCCESS' && (
           <div className="text-center py-6 space-y-3">
-            <div className="w-12 h-12 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto">
+            <div className="w-12 h-12 bg-blue-500/20 text-blue-400 rounded-full flex items-center justify-center mx-auto">
               <CheckCircle2 className="w-8 h-8" />
             </div>
             <h4 className="text-base font-bold text-white">Password Successfully Updated</h4>

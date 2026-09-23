@@ -48,7 +48,7 @@ export const Header: React.FC<HeaderProps> = ({
           <span className="text-slate-600">|</span>
           <span className="hidden md:inline">Department of the Interior and Local Government (DILG)</span>
           <span className="text-slate-600 hidden md:inline">|</span>
-          <span className="text-amber-400 font-medium">BJMP Region IV-A (CALABARZON)</span>
+          <span className="text-blue-400 font-medium">BJMP Region IV-A (CALABARZON)</span>
         </div>
 
         {/* Real-Time WebSocket & Hotline Status */}
@@ -71,13 +71,13 @@ export const Header: React.FC<HeaderProps> = ({
           >
             {wsStatus === 'CONNECTED' ? (
               <>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
-                <Wifi className="w-3 h-3 text-emerald-400" />
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-ping"></span>
+                <Wifi className="w-3 h-3 text-blue-400" />
                 <span className="font-semibold tracking-wide">LIVE WS LINK</span>
               </>
             ) : wsStatus === 'RECONNECTING' ? (
               <>
-                <Radio className="w-3 h-3 text-amber-400 animate-spin" />
+                <Radio className="w-3 h-3 text-blue-400 animate-spin" />
                 <span>RECONNECTING...</span>
               </>
             ) : (
@@ -90,7 +90,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           <span className="text-slate-600 hidden sm:inline">|</span>
           <span className="text-slate-300 hidden sm:inline">
-            Jail Desk: <span className="font-mono text-amber-300 font-semibold">(046) 471-2854</span>
+            Jail Desk: <span className="font-mono text-blue-300 font-semibold">(046) 471-2854</span>
           </span>
         </div>
       </div>
@@ -100,18 +100,18 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="flex items-center space-x-4">
           {/* Official BJMP Seal Crest */}
           <div className="flex items-center space-x-3.5">
-            <div className="w-11 h-11 rounded-lg bg-gradient-to-br from-amber-500 via-amber-600 to-amber-700 p-0.5 shadow-md flex items-center justify-center shrink-0">
-              <div className="w-full h-full bg-slate-900 rounded-[6px] flex flex-col items-center justify-center border border-amber-400/40">
-                <Shield className="w-5 h-5 text-amber-400" />
-                <span className="text-[7.5px] font-black tracking-tighter text-amber-300">BJMP</span>
+            <div className="w-11 h-11 rounded-lg bg-gradient-to-br from-blue-500 via-blue-600 to-blue-700 p-0.5 shadow-md flex items-center justify-center shrink-0">
+              <div className="w-full h-full bg-slate-900 rounded-[6px] flex flex-col items-center justify-center border border-blue-400/40">
+                <Shield className="w-5 h-5 text-blue-400" />
+                <span className="text-[7.5px] font-black tracking-tighter text-blue-300">BJMP</span>
               </div>
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-base sm:text-lg font-extrabold tracking-tight text-white font-['Plus_Jakarta_Sans']">
+                <h1 className="text-base sm:text-lg font-extrabold tracking-tight text-white font-sans">
                   BJMP IMUS CITY JAIL
                 </h1>
-                <span className="bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[10px] uppercase font-bold px-2 py-0.5 rounded">
+                <span className="bg-blue-500/15 text-blue-300 border border-blue-500/30 text-[10px] uppercase font-bold px-2 py-0.5 rounded">
                   Cavite
                 </span>
               </div>
@@ -129,9 +129,9 @@ export const Header: React.FC<HeaderProps> = ({
               type="button"
               onClick={onOpenGuardScanner}
               title="Open BJMP Gate 1 Guard Verification Scanner Terminal"
-              className="bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-white font-semibold px-3 py-1.5 rounded-lg text-xs flex items-center space-x-1.5 border border-slate-700 hover:border-amber-500/40 shadow-sm cursor-pointer transition-all"
+              className="bg-slate-800 hover:bg-slate-700 text-blue-300 hover:text-white font-semibold px-3 py-1.5 rounded-lg text-xs flex items-center space-x-1.5 border border-slate-700 hover:border-blue-500/40 shadow-sm cursor-pointer transition-all"
             >
-              <QrCode className="w-3.5 h-3.5 text-amber-400" />
+              <QrCode className="w-3.5 h-3.5 text-blue-400" />
               <span className="hidden sm:inline">Gate 1</span>
               <span>Scanner</span>
             </button>
@@ -154,30 +154,30 @@ export const Header: React.FC<HeaderProps> = ({
                 <div className="text-xs font-semibold text-slate-100 flex items-center gap-1.5">
                   <span>{currentUser.firstName} {currentUser.lastName} {currentUser.suffix}</span>
                   {isStaff && (
-                    <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-bold px-1.5 py-0.2 rounded uppercase">
+                    <span className="bg-blue-500/20 text-blue-300 border border-blue-500/40 text-[9px] font-bold px-1.5 py-0.2 rounded uppercase">
                       {isAdmin ? 'ADMIN' : 'WORKER'}
                     </span>
                   )}
                 </div>
                 <div className="flex items-center gap-1 text-[11px]">
                   {isStaff ? (
-                    <span className="text-amber-400 font-medium">
+                    <span className="text-blue-400 font-medium">
                       {currentUser.adminTitle ? currentUser.adminTitle.split('/')[0].trim() : 'Jail Administrator'}
                     </span>
                   ) : (
                     <>
                       {currentUser.accountStatus === 'ACTIVATED' && (
-                        <span className="text-emerald-400 font-medium flex items-center gap-1">
+                        <span className="text-blue-400 font-medium flex items-center gap-1">
                           <CheckCircle2 className="w-3 h-3" /> Biometric Verified
                         </span>
                       )}
                       {currentUser.accountStatus === 'PENDING_BIOMETRICS' && (
-                        <span className="text-amber-400 font-medium flex items-center gap-1">
+                        <span className="text-blue-400 font-medium flex items-center gap-1">
                           <Fingerprint className="w-3 h-3" /> Pending Jail Biometrics
                         </span>
                       )}
                       {currentUser.accountStatus === 'PENDING_EMAIL' && (
-                        <span className="text-sky-400 font-medium flex items-center gap-1">
+                        <span className="text-blue-400 font-medium flex items-center gap-1">
                           <Clock className="w-3 h-3" /> Email Pending
                         </span>
                       )}
@@ -194,7 +194,7 @@ export const Header: React.FC<HeaderProps> = ({
                     className={`px-2.5 py-1 rounded text-xs font-bold border transition-colors cursor-pointer ${
                       isAdminView
                         ? 'bg-slate-700 text-slate-200 border-slate-600 hover:bg-slate-650'
-                        : 'bg-amber-500 text-slate-950 border-amber-400 hover:bg-amber-400'
+                        : 'bg-blue-500 text-slate-950 border-blue-400 hover:bg-blue-400'
                     }`}
                     title={isAdminView ? 'Switch to Visitor View Preview' : 'Return to Executive Command Center'}
                   >
@@ -217,7 +217,7 @@ export const Header: React.FC<HeaderProps> = ({
           ) : (
             <div className="flex items-center space-x-2 text-xs text-slate-400">
               <div className="flex items-center gap-1.5 bg-slate-800/80 border border-slate-700 px-2.5 py-1 rounded-lg text-slate-300">
-                <Lock className="w-3.5 h-3.5 text-amber-400" />
+                <Lock className="w-3.5 h-3.5 text-blue-400" />
                 <span className="text-[11px]">Official BJMP Portal</span>
               </div>
             </div>

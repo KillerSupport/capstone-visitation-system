@@ -171,12 +171,12 @@ export const GuardScannerModal: React.FC<GuardScannerModalProps> = ({
         {/* Terminal Top Bar */}
         <div className="bg-slate-950 px-6 py-3.5 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="w-9 h-9 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
+            <div className="w-9 h-9 rounded-lg bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-blue-400">
               <Shield className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400">
                   BJMP REGION IV-A • GATE 1 ACCESS CONTROL
                 </span>
                 <span className="bg-slate-800 text-slate-300 text-[10px] font-mono px-2 py-0.2 rounded border border-slate-700">
@@ -192,7 +192,7 @@ export const GuardScannerModal: React.FC<GuardScannerModalProps> = ({
           <div className="flex items-center space-x-3">
             <div className="text-right text-[11px] text-slate-400 hidden sm:block">
               <span className="block text-slate-300 font-medium">Duty Sentinel: JO2 R. BAUTISTA</span>
-              <span className="font-mono text-emerald-400">● Optical Sensor Online</span>
+              <span className="font-mono text-blue-400">● Optical Sensor Online</span>
             </div>
             <button
               onClick={onClose}
@@ -208,15 +208,15 @@ export const GuardScannerModal: React.FC<GuardScannerModalProps> = ({
           
           {/* QR input supports a USB QR reader (keyboard mode) or manual test entry. */}
           <div className="flex items-center gap-2 flex-1 min-w-[260px]">
-            <QrCode className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <QrCode className="w-3.5 h-3.5 text-blue-400 shrink-0" />
             <input
               value={scannedQrValue}
               onChange={(e) => setScannedQrValue(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleQrTokenScan(); } }}
               placeholder="Scan or paste unique QR token"
-              className="min-w-0 flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-100 focus:outline-none focus:border-amber-400"
+              className="min-w-0 flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-100 focus:outline-none focus:border-blue-400"
             />
-            <button type="button" onClick={handleQrTokenScan} className="bg-slate-800 hover:bg-slate-700 border border-slate-700 px-2.5 py-1 rounded-lg text-xs text-amber-300 font-bold">Read QR</button>
+            <button type="button" onClick={handleQrTokenScan} className="bg-slate-800 hover:bg-slate-700 border border-slate-700 px-2.5 py-1 rounded-lg text-xs text-blue-300 font-bold">Read QR</button>
           </div>
 
           {/* Manual fallback is limited to workers at the physical gate desk. */}
@@ -225,7 +225,7 @@ export const GuardScannerModal: React.FC<GuardScannerModalProps> = ({
             <select
               value={selectedVisitorId}
               onChange={(e) => handleVisitorChange(e.target.value)}
-              className="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-100 focus:outline-none focus:border-amber-400 flex-1 max-w-xs"
+              className="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-100 focus:outline-none focus:border-blue-400 flex-1 max-w-xs"
             >
               {users.map((u) => (
                 <option key={u.id} value={u.id}>
@@ -237,13 +237,13 @@ export const GuardScannerModal: React.FC<GuardScannerModalProps> = ({
 
           {/* Inspection Date */}
           <div className="flex items-center space-x-2 shrink-0">
-            <Calendar className="w-3.5 h-3.5 text-amber-400" />
+            <Calendar className="w-3.5 h-3.5 text-blue-400" />
             <span className="text-slate-400 font-medium text-[11px]">Inspection Date:</span>
             <input
               type="date"
               value={inspectionDate}
               onChange={(e) => handleDateChange(e.target.value)}
-              className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-amber-400 [color-scheme:dark]"
+              className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-blue-400 [color-scheme:dark]"
             />
           </div>
 
@@ -252,7 +252,7 @@ export const GuardScannerModal: React.FC<GuardScannerModalProps> = ({
             type="button"
             onClick={() => triggerScan()}
             disabled={isScanning}
-            className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-3 py-1 rounded-lg text-xs flex items-center space-x-1.5 transition-colors cursor-pointer disabled:opacity-50"
+            className="bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold px-3 py-1 rounded-lg text-xs flex items-center space-x-1.5 transition-colors cursor-pointer disabled:opacity-50"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin' : ''}`} />
             <span>Rescan QR</span>
@@ -266,8 +266,8 @@ export const GuardScannerModal: React.FC<GuardScannerModalProps> = ({
           
           {isScanning ? (
             <div className="py-12 text-center">
-              <div className="w-16 h-16 mx-auto mb-3 flex items-center justify-center bg-slate-950 border border-amber-400/60 rounded-xl">
-                <QrCode className="w-8 h-8 text-amber-400 animate-pulse" />
+              <div className="w-16 h-16 mx-auto mb-3 flex items-center justify-center bg-slate-950 border border-blue-400/60 rounded-xl">
+                <QrCode className="w-8 h-8 text-blue-400 animate-pulse" />
               </div>
               <h3 className="text-sm font-bold text-white mb-1">Scanning Gate QR Code...</h3>
               <p className="text-xs text-slate-400 font-mono">
@@ -284,31 +284,31 @@ export const GuardScannerModal: React.FC<GuardScannerModalProps> = ({
             <div className="space-y-4">
               
               {/* Clearance Banner */}
-              <div className="bg-emerald-950/60 border border-emerald-500/70 rounded-xl p-4 shadow-md">
+              <div className="bg-blue-950/60 border border-blue-500/70 rounded-xl p-4 shadow-md">
                 <div className="flex items-start justify-between">
                   <div className="flex items-start space-x-3">
-                    <div className="w-11 h-11 rounded-lg bg-emerald-500/20 border border-emerald-400 flex items-center justify-center text-emerald-400 shrink-0">
+                    <div className="w-11 h-11 rounded-lg bg-blue-500/20 border border-blue-400 flex items-center justify-center text-blue-400 shrink-0">
                       <CheckCircle2 className="w-6 h-6" />
                     </div>
                     <div>
                       <div className="flex items-center space-x-2 mb-0.5">
-                        <span className="bg-emerald-500 text-slate-950 text-[9px] font-black uppercase px-2 py-0.2 rounded">
+                        <span className="bg-blue-500 text-slate-950 text-[9px] font-black uppercase px-2 py-0.2 rounded">
                           ACCESS GRANTED • VERIFIED PASS
                         </span>
-                        <span className="text-[11px] text-emerald-300 font-mono">
+                        <span className="text-[11px] text-blue-300 font-mono">
                           Date: {todayAppointment.visitDate} (Today)
                         </span>
                       </div>
                       <h3 className="text-base font-bold text-white tracking-tight">
                         VALID APPOINTMENT CONFIRMED FOR TODAY
                       </h3>
-                      <p className="text-xs text-emerald-200/90 mt-0.5 max-w-xl">
+                      <p className="text-xs text-blue-200/90 mt-0.5 max-w-xl">
                         QR appointment found. Complete the in-person fingerprint confirmation before admitting the visitor.
                       </p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <span className="bg-emerald-400 text-slate-950 font-black text-[10px] px-2.5 py-0.5 rounded-full uppercase">
+                    <span className="bg-blue-400 text-slate-950 font-black text-[10px] px-2.5 py-0.5 rounded-full uppercase">
                       CLEARED
                     </span>
                     <div className="text-[10px] text-slate-400 font-mono mt-1">
@@ -319,8 +319,8 @@ export const GuardScannerModal: React.FC<GuardScannerModalProps> = ({
               </div>
 
               {entryAdmittedMessage && (
-                <div className="bg-emerald-500/15 border border-emerald-500/40 p-3 rounded-lg flex items-center space-x-2 text-xs text-emerald-300">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <div className="bg-blue-500/15 border border-blue-500/40 p-3 rounded-lg flex items-center space-x-2 text-xs text-blue-300">
+                  <CheckCircle2 className="w-4 h-4 text-blue-400 shrink-0" />
                   <span>{entryAdmittedMessage}</span>
                 </div>
               )}
@@ -343,7 +343,7 @@ export const GuardScannerModal: React.FC<GuardScannerModalProps> = ({
                       )}
                     </div>
                     <div>
-                      <span className="text-[9px] uppercase font-bold text-amber-400 block">
+                      <span className="text-[9px] uppercase font-bold text-blue-400 block">
                         Verified Visitor
                       </span>
                       <h4 className="text-sm font-bold text-white">
@@ -366,7 +366,7 @@ export const GuardScannerModal: React.FC<GuardScannerModalProps> = ({
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-400">Relationship:</span>
-                      <strong className="text-amber-300 text-[11px]">{todayAppointment.relationshipToPDL}</strong>
+                      <strong className="text-blue-300 text-[11px]">{todayAppointment.relationshipToPDL}</strong>
                     </div>
                   </div>
                 </div>
@@ -395,13 +395,13 @@ export const GuardScannerModal: React.FC<GuardScannerModalProps> = ({
                       </div>
                       <div className="bg-slate-900 p-2 rounded border border-slate-800">
                         <span className="text-[9px] text-slate-400 block">Time Slot:</span>
-                        <strong className="text-amber-300 text-xs">{todayAppointment.timeSlot}</strong>
+                        <strong className="text-blue-300 text-xs">{todayAppointment.timeSlot}</strong>
                       </div>
                     </div>
 
                     {todayAppointment.paabotItemsDescription && (
-                      <div className="bg-amber-500/10 border border-amber-500/25 rounded-lg p-2.5 text-xs">
-                        <strong className="text-amber-400 font-semibold block text-[11px] mb-0.5">
+                      <div className="bg-blue-500/10 border border-blue-500/25 rounded-lg p-2.5 text-xs">
+                        <strong className="text-blue-400 font-semibold block text-[11px] mb-0.5">
                           Declared Paabot Articles (To be Frisked):
                         </strong>
                         <span className="text-slate-300 text-[11px]">{todayAppointment.paabotItemsDescription}</span>
@@ -410,8 +410,8 @@ export const GuardScannerModal: React.FC<GuardScannerModalProps> = ({
                   </div>
 
                   {/* A browser cannot read fingerprint hardware by itself. The worker confirms completion on the approved physical terminal. */}
-                  <label className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 p-2.5 rounded-lg text-xs text-amber-100 cursor-pointer">
-                    <input type="checkbox" checked={fingerprintConfirmed} onChange={(e) => setFingerprintConfirmed(e.target.checked)} className="accent-amber-400" />
+                  <label className="flex items-center gap-2 bg-blue-500/10 border border-blue-500/30 p-2.5 rounded-lg text-xs text-blue-100 cursor-pointer">
+                    <input type="checkbox" checked={fingerprintConfirmed} onChange={(e) => setFingerprintConfirmed(e.target.checked)} className="accent-blue-400" />
                     <span><strong>Worker confirmation:</strong> fingerprint was matched on the approved BJMP biometric terminal.</span>
                   </label>
 
@@ -419,13 +419,13 @@ export const GuardScannerModal: React.FC<GuardScannerModalProps> = ({
                   <div className="flex items-center justify-between bg-slate-950/80 p-3 rounded-xl border border-slate-800">
                     <div className="text-xs text-slate-400">
                       <span>Inspection Status: </span>
-                      <strong className="text-emerald-400">Ready for Admission</strong>
+                      <strong className="text-blue-400">Ready for Admission</strong>
                     </div>
                     <button
                       type="button"
                       onClick={handleAdmitEntry}
                       disabled={!fingerprintConfirmed}
-                      className="bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-700 disabled:text-slate-400 text-slate-950 font-bold px-3.5 py-1.5 rounded-lg text-xs flex items-center space-x-1.5 shadow-md cursor-pointer transition-colors"
+                      className="bg-blue-500 hover:bg-blue-400 disabled:bg-slate-700 disabled:text-slate-400 text-slate-950 font-bold px-3.5 py-1.5 rounded-lg text-xs flex items-center space-x-1.5 shadow-md cursor-pointer transition-colors"
                     >
                       <CheckCircle2 className="w-3.5 h-3.5" />
                       <span>Admit Visitor (Log Entry to Database)</span>
@@ -478,12 +478,12 @@ export const GuardScannerModal: React.FC<GuardScannerModalProps> = ({
                   </span>
                   <div className="font-bold text-sm text-white">{currentVisitor.firstName} {currentVisitor.lastName}</div>
                   <div className="text-slate-400 font-mono text-[11px]">{currentVisitor.biometricReferenceNumber}</div>
-                  <div className="text-slate-300">Status: <span className="text-emerald-400 font-medium">{currentVisitor.accountStatus}</span></div>
+                  <div className="text-slate-300">Status: <span className="text-blue-400 font-medium">{currentVisitor.accountStatus}</span></div>
                 </div>
 
                 <div className="md:col-span-7 bg-slate-950/70 border border-slate-800 rounded-xl p-4">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-amber-400 mb-2 flex items-center gap-1.5">
-                    <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-blue-400 mb-2 flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 text-blue-400" />
                     <span>Other Appointments on Record</span>
                   </h4>
 
@@ -510,7 +510,7 @@ export const GuardScannerModal: React.FC<GuardScannerModalProps> = ({
                       <button
                         type="button"
                         onClick={() => onQuickBookTodayForUser(currentVisitor.id, inspectionDate)}
-                        className="bg-slate-800 hover:bg-slate-700 text-amber-300 font-semibold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 border border-slate-700 transition-colors"
+                        className="bg-slate-800 hover:bg-slate-700 text-blue-300 font-semibold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 border border-slate-700 transition-colors"
                       >
                         <Plus className="w-3.5 h-3.5" />
                         <span>Emergency Pass: Issue Today's Pass ({inspectionDate})</span>

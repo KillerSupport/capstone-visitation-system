@@ -47,11 +47,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           <div>
             {/* Crest and Title */}
             <div className="flex items-center space-x-3 mb-5">
-              <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+              <div className="w-12 h-12 rounded-xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0">
                 <Shield className="w-6 h-6" />
               </div>
               <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400">
                   DILG • Region IV-A CALABARZON
                 </span>
                 <h2 className="text-lg font-extrabold text-white tracking-tight">
@@ -64,7 +64,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             </div>
 
             <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-3 mb-5 text-[11px] text-slate-300">
-              <span className="text-amber-400 font-bold block mb-0.5">Facility Location:</span>
+              <span className="text-blue-400 font-bold block mb-0.5">Facility Location:</span>
               <span>Brgy. Malagasang 1-G, Imus City, Cavite 4103</span>
             </div>
 
@@ -75,14 +75,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             {/* Official Requirements List */}
             <div className="space-y-3 text-xs">
               <div className="flex items-start space-x-2.5 bg-slate-950/60 border border-slate-800/80 p-2.5 rounded-lg">
-                <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                <CheckCircle className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
                 <div>
                   <strong className="text-slate-200 block text-[11px]">Identity KYC Verification</strong>
                   <span className="text-slate-400 text-[10px]">Valid government photo ID (PhilSys, Driver's License, Passport, UMID).</span>
                 </div>
               </div>
               <div className="flex items-start space-x-2.5 bg-slate-950/60 border border-slate-800/80 p-2.5 rounded-lg">
-                <Fingerprint className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <Fingerprint className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
                 <div>
                   <strong className="text-slate-200 block text-[11px]">In-Person Biometric Scan</strong>
                   <span className="text-slate-400 text-[10px]">Mandatory digital fingerprint enrollment at jail records desk before first visit.</span>
@@ -108,7 +108,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
         <div className="md:col-span-7 p-6 sm:p-8 flex flex-col justify-center bg-slate-900">
           <div className="max-w-md mx-auto w-full">
             <div className="mb-5">
-              <span className="text-[10px] uppercase font-bold tracking-wider text-amber-400">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-blue-400">
                 Portal Authentication
               </span>
               <h3 className="text-xl font-bold text-white tracking-tight mt-0.5">
@@ -137,7 +137,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="e.g. maria.santos@gmail.com"
-                    className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-lg pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 outline-none transition-colors"
+                    className="w-full bg-slate-950 border border-slate-700 focus:border-blue-400 rounded-lg pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 outline-none transition-colors"
                   />
                 </div>
               </div>
@@ -150,7 +150,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                   <button
                     type="button"
                     onClick={onOpenForgotPassword}
-                    className="text-[11px] text-amber-400 hover:text-amber-300 transition-colors"
+                    className="text-[11px] text-blue-400 hover:text-blue-300 transition-colors"
                   >
                     Forgot Password?
                   </button>
@@ -163,7 +163,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter account password"
-                    className="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-lg pl-9 pr-9 py-2 text-xs text-white placeholder-slate-500 outline-none transition-colors font-mono"
+                    className="w-full bg-slate-950 border border-slate-700 focus:border-blue-400 rounded-lg pl-9 pr-9 py-2 text-xs text-white placeholder-slate-500 outline-none transition-colors font-mono"
                   />
                   <button
                     type="button"
@@ -179,7 +179,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2.5 px-4 rounded-lg text-xs flex items-center justify-center space-x-2 shadow-md transition-all cursor-pointer disabled:opacity-50"
+                  className="w-full bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold py-2.5 px-4 rounded-lg text-xs flex items-center justify-center space-x-2 shadow-md transition-all cursor-pointer disabled:opacity-50"
                 >
                   {isLoading ? (
                     <span className="flex items-center space-x-2">
@@ -205,7 +205,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                 onClick={onOpenSignUp}
                 className="w-full bg-slate-800 hover:bg-slate-750 border border-slate-700 text-slate-200 font-semibold py-2 px-3 rounded-lg text-xs flex items-center justify-center space-x-2 transition-all cursor-pointer"
               >
-                <UserPlus className="w-3.5 h-3.5 text-amber-400" />
+                <UserPlus className="w-3.5 h-3.5 text-blue-400" />
                 <span>Create an Account</span>
               </button>
             </div>

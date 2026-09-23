@@ -255,13 +255,13 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({
         {/* Modal Top Header */}
         <div className="bg-slate-950 px-8 py-5 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
+            <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-500/40 flex items-center justify-center text-blue-400">
               <Shield className="w-6 h-6" />
             </div>
             <div>
               <div className="flex items-center space-x-2">
                 <h3 className="text-base font-bold text-white tracking-tight">BJMP Visitor Registration Portal</h3>
-                <span className="bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[10px] uppercase font-bold px-2 py-0.5 rounded">
+                <span className="bg-blue-500/10 border border-blue-500/30 text-blue-300 text-[10px] uppercase font-bold px-2 py-0.5 rounded">
                   Desktop Form
                 </span>
               </div>
@@ -275,7 +275,7 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({
             <button
               type="button"
               onClick={fillSampleData}
-              className="text-[11px] bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 px-2.5 py-1.5 rounded-lg flex items-center space-x-1 transition-colors cursor-pointer"
+              className="text-[11px] bg-slate-800 hover:bg-slate-700 border border-slate-700 text-blue-300 px-2.5 py-1.5 rounded-lg flex items-center space-x-1 transition-colors cursor-pointer"
             >
               <Sparkles className="w-3.5 h-3.5" />
               <span>Auto-Fill Sample Data</span>
@@ -295,18 +295,18 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({
         {/* Step Indicator Progress */}
         <div className="bg-slate-900/90 px-8 py-3.5 border-b border-slate-800 flex items-center justify-between text-xs">
           <div className="flex items-center space-x-8">
-            <div className={`flex items-center space-x-2 font-semibold ${currentStep === 1 ? 'text-amber-400' : 'text-emerald-400'}`}>
+            <div className={`flex items-center space-x-2 font-semibold ${currentStep === 1 ? 'text-blue-400' : 'text-blue-400'}`}>
               <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${
-                currentStep === 1 ? 'bg-amber-500 text-slate-950 font-bold' : 'bg-emerald-500 text-slate-950 font-bold'
+                currentStep === 1 ? 'bg-blue-500 text-slate-950 font-bold' : 'bg-blue-500 text-slate-950 font-bold'
               }`}>
                 {currentStep > 1 ? <CheckCircle className="w-4 h-4" /> : '1'}
               </div>
               <span>Step 1: Personal, Address & Account Details</span>
             </div>
             <div className="w-12 h-0.5 bg-slate-800"></div>
-            <div className={`flex items-center space-x-2 font-semibold ${currentStep === 2 ? 'text-amber-400' : 'text-slate-500'}`}>
+            <div className={`flex items-center space-x-2 font-semibold ${currentStep === 2 ? 'text-blue-400' : 'text-slate-500'}`}>
               <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${
-                currentStep === 2 ? 'bg-amber-500 text-slate-950 font-bold' : 'bg-slate-800 text-slate-400'
+                currentStep === 2 ? 'bg-blue-500 text-slate-950 font-bold' : 'bg-slate-800 text-slate-400'
               }`}>
                 2
               </div>
@@ -335,14 +335,14 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({
               
               {/* Section A: Full Legal Name */}
               <div>
-                <h4 className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5 mb-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-blue-400 flex items-center gap-1.5 mb-3">
                   <User className="w-4 h-4" />
                   <span>Full Legal Name (as shown on Government ID)</span>
                 </h4>
                 <div className="grid grid-cols-4 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      First Name <span className="text-amber-400">*</span>
+                      First Name <span className="text-blue-400">*</span>
                     </label>
                     <input
                       type="text"
@@ -350,7 +350,7 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({
                       placeholder="e.g. Maria"
                       value={firstName}
                       onChange={(e) => setFirstName(e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-400"
                     />
                   </div>
                   <div>
@@ -362,12 +362,12 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({
                       placeholder="e.g. Santos"
                       value={middleName}
                       onChange={(e) => setMiddleName(e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-400"
                     />
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Last Name <span className="text-amber-400">*</span>
+                      Last Name <span className="text-blue-400">*</span>
                     </label>
                     <input
                       type="text"
@@ -375,7 +375,7 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({
                       placeholder="e.g. Dela Cruz"
                       value={lastName}
                       onChange={(e) => setLastName(e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-400"
                     />
                   </div>
                   <div>
@@ -385,7 +385,7 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({
                     <select
                       value={suffix}
                       onChange={(e) => setSuffix(e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-amber-400"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-400"
                     >
                       <option value="">None</option>
                       <option value="Jr.">Jr.</option>
@@ -400,7 +400,7 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({
 
               {/* Section B: DOB, Gender, Marital Status */}
               <div>
-                <h4 className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5 mb-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-blue-400 flex items-center gap-1.5 mb-3">
                   <Calendar className="w-4 h-4" />
                   <span>Demographic & Civil Status</span>
                 </h4>
@@ -408,10 +408,10 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <label className="text-xs font-semibold text-slate-300">
-                        Date of Birth (Calendar) <span className="text-amber-400">*</span>
+                        Date of Birth (Calendar) <span className="text-blue-400">*</span>
                       </label>
                       {dateOfBirth && (
-                        <span className={`text-[11px] font-bold ${currentAge >= 18 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        <span className={`text-[11px] font-bold ${currentAge >= 18 ? 'text-blue-400' : 'text-rose-400'}`}>
                           Age: {currentAge} yrs
                         </span>
                       )}
@@ -423,7 +423,7 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({
                         value={dateOfBirth}
                         max={new Date().toISOString().split('T')[0]}
                         onChange={(e) => setDateOfBirth(e.target.value)}
-                        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-amber-400 [color-scheme:dark]"
+                        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-400 [color-scheme:dark]"
                       />
                     </div>
                     <span className="text-[10px] text-slate-400 mt-1 block">
@@ -433,12 +433,12 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Gender <span className="text-amber-400">*</span>
+                      Gender <span className="text-blue-400">*</span>
                     </label>
                     <select
                       value={gender}
                       onChange={(e) => setGender(e.target.value as Gender)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-amber-400"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-400"
                     >
                       <option value="Male">Male</option>
                       <option value="Female">Female</option>
@@ -449,12 +449,12 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Marital Status <span className="text-amber-400">*</span>
+                      Marital Status <span className="text-blue-400">*</span>
                     </label>
                     <select
                       value={maritalStatus}
                       onChange={(e) => setMaritalStatus(e.target.value as MaritalStatus)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-amber-400"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-400"
                     >
                       <option value="Single">Single</option>
                       <option value="Married">Married</option>
@@ -468,14 +468,14 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({
 
               {/* Section C: Complete Residence Address */}
               <div>
-                <h4 className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5 mb-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-blue-400 flex items-center gap-1.5 mb-3">
                   <Home className="w-4 h-4" />
                   <span>Residential Address</span>
                 </h4>
                 <div className="grid grid-cols-12 gap-4">
                   <div className="col-span-6">
                     <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      House / Unit / Street / Subdivision / Brgy <span className="text-amber-400">*</span>
+                      House / Unit / Street / Subdivision / Brgy <span className="text-blue-400">*</span>
                     </label>
                     <input
                       type="text"
@@ -483,17 +483,17 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({
                       placeholder="e.g. Block 12 Lot 4, Sunflower St., Brgy. San Antonio"
                       value={houseUnitStreet}
                       onChange={(e) => setHouseUnitStreet(e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-400"
                     />
                   </div>
                   <div className="col-span-4">
                     <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Municipality / City <span className="text-amber-400">*</span>
+                      Municipality / City <span className="text-blue-400">*</span>
                     </label>
                     <select
                       value={municipality}
                       onChange={(e) => setMunicipality(e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-amber-400"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-400"
                     >
                       {PHILIPPINE_MUNICIPALITIES.map((mun) => (
                         <option key={mun} value={mun}>
@@ -504,7 +504,7 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({
                   </div>
                   <div className="col-span-2">
                     <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Zip Code <span className="text-amber-400">*</span>
+                      Zip Code <span className="text-blue-400">*</span>
                     </label>
                     <input
                       type="text"
@@ -513,7 +513,7 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({
                       placeholder="e.g. 1000"
                       value={zipCode}
                       onChange={(e) => setZipCode(e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 text-center font-mono focus:outline-none focus:border-amber-400"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 text-center font-mono focus:outline-none focus:border-blue-400"
                     />
                   </div>
                 </div>
@@ -521,14 +521,14 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({
 
               {/* Section D: Contact & Security Credentials */}
               <div>
-                <h4 className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5 mb-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-blue-400 flex items-center gap-1.5 mb-3">
                   <Lock className="w-4 h-4" />
                   <span>Contact Information & Account Password</span>
                 </h4>
                 <div className="grid grid-cols-2 gap-4 mb-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Contact Number <span className="text-amber-400">*</span>
+                      Contact Number <span className="text-blue-400">*</span>
                     </label>
                     <div className="relative">
                       <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
@@ -538,14 +538,14 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({
                         placeholder="+63 9XX XXX XXXX"
                         value={contactNumber}
                         onChange={(e) => setContactNumber(e.target.value)}
-                        className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                        className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-400"
                       />
                     </div>
                   </div>
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Email Address <span className="text-amber-400">*</span>
+                      Email Address <span className="text-blue-400">*</span>
                     </label>
                     <div className="relative">
                       <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
@@ -555,7 +555,7 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({
                         placeholder="e.g. visitor@gmail.com"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                        className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-400"
                       />
                     </div>
                     <span className="text-[10px] text-slate-400 mt-1 block">
@@ -567,7 +567,7 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Password (Minimum 8 characters) <span className="text-amber-400">*</span>
+                      Password (Minimum 8 characters) <span className="text-blue-400">*</span>
                     </label>
                     <div className="relative">
                       <input
@@ -576,7 +576,7 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({
                         placeholder="8+ chars: Aa1@..."
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-3 pr-10 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                        className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-3 pr-10 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-400"
                       />
                       <button
                         type="button"
@@ -590,7 +590,7 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Confirm Password <span className="text-amber-400">*</span>
+                      Confirm Password <span className="text-blue-400">*</span>
                     </label>
                     <div className="relative">
                       <input
@@ -599,7 +599,7 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({
                         placeholder="Re-enter password"
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
-                        className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-3 pr-10 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                        className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-3 pr-10 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-400"
                       />
                       <button
                         type="button"
@@ -610,7 +610,7 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({
                       </button>
                     </div>
                     {password && confirmPassword && (
-                      <span className={`text-[10px] mt-1 block ${password === confirmPassword ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      <span className={`text-[10px] mt-1 block ${password === confirmPassword ? 'text-blue-400' : 'text-rose-400'}`}>
                         {password === confirmPassword ? '✓ Passwords match' : '✗ Passwords do not match'}
                       </span>
                     )}
@@ -629,7 +629,7 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-6 py-2.5 rounded-lg text-xs flex items-center space-x-2 shadow-lg shadow-amber-500/10 transition-colors cursor-pointer"
+                  className="bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold px-6 py-2.5 rounded-lg text-xs flex items-center space-x-2 shadow-lg shadow-blue-500/10 transition-colors cursor-pointer"
                 >
                   <span>Proceed to Step 2: Valid ID & Face Verification</span>
                   <ArrowRight className="w-4 h-4" />
@@ -658,12 +658,12 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({
               {/* Facility Selection for In-Person Biometrics */}
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Designated BJMP Jail Facility (for in-person biometric scanning & visiting) <span className="text-amber-400">*</span>
+                  Designated BJMP Jail Facility (for in-person biometric scanning & visiting) <span className="text-blue-400">*</span>
                 </label>
                 <select
                   value={preferredFacility}
                   onChange={(e) => setPreferredFacility(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-amber-400"
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-blue-400"
                 >
                   {BJMP_JAIL_FACILITIES.map((fac) => (
                     <option key={fac.id} value={fac.id}>
@@ -676,14 +676,14 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({
               {/* Valid ID Dropdown */}
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Valid Government ID Type <span className="text-amber-400">*</span>
+                  Valid Government ID Type <span className="text-blue-400">*</span>
                 </label>
                 <div className="relative">
                   <CreditCard className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
                   <select
                     value={validIdType}
                     onChange={(e) => setValidIdType(e.target.value as ValidIdType)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-10 pr-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-10 pr-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-blue-400"
                   >
                     {VALID_ID_OPTIONS.map((idType) => (
                       <option key={idType} value={idType}>
@@ -696,16 +696,16 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({
 
               {/* Webcam preview if active */}
               {isWebcamActive && (
-                <div className="bg-slate-950 border border-amber-500/50 rounded-xl p-4 text-center">
-                  <div className="text-xs font-bold text-amber-400 mb-2 flex items-center justify-center gap-1.5">
+                <div className="bg-slate-950 border border-blue-500/50 rounded-xl p-4 text-center">
+                  <div className="text-xs font-bold text-blue-400 mb-2 flex items-center justify-center gap-1.5">
                     <Camera className="w-4 h-4 animate-pulse" />
                     <span>Live Camera Capture: {webcamTarget === 'ID' ? 'Valid Government ID' : 'Visitor Facial Photo'}</span>
                   </div>
                   <div className="max-w-md mx-auto aspect-video bg-black rounded-lg overflow-hidden relative mb-3">
                     <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
                     {webcamTarget === 'FACE' && (
-                      <div className="absolute inset-0 border-2 border-dashed border-amber-400/60 rounded-full m-8 pointer-events-none flex items-center justify-center">
-                        <span className="text-[10px] text-amber-300 bg-slate-950/80 px-2 py-0.5 rounded">
+                      <div className="absolute inset-0 border-2 border-dashed border-blue-400/60 rounded-full m-8 pointer-events-none flex items-center justify-center">
+                        <span className="text-[10px] text-blue-300 bg-slate-950/80 px-2 py-0.5 rounded">
                           Center face within oval
                         </span>
                       </div>
@@ -722,7 +722,7 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({
                     <button
                       type="button"
                       onClick={captureWebcamSnapshot}
-                      className="px-5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-lg text-xs flex items-center space-x-1.5 cursor-pointer"
+                      className="px-5 py-1.5 bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold rounded-lg text-xs flex items-center space-x-1.5 cursor-pointer"
                     >
                       <Camera className="w-4 h-4" />
                       <span>Capture Photo</span>
@@ -738,8 +738,8 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({
                 <div className="bg-slate-800/60 border border-slate-700/80 rounded-xl p-4">
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                      <CreditCard className="w-4 h-4 text-amber-400" />
-                      <span>Photo of Valid ID <span className="text-amber-400">*</span></span>
+                      <CreditCard className="w-4 h-4 text-blue-400" />
+                      <span>Photo of Valid ID <span className="text-blue-400">*</span></span>
                     </label>
                     <span className="text-[10px] text-slate-400 font-mono">Front side clear</span>
                   </div>
@@ -770,7 +770,7 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({
                       <button
                         type="button"
                         onClick={() => startWebcam('ID')}
-                        className="bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-semibold px-3 py-1.5 rounded flex items-center space-x-1 cursor-pointer"
+                        className="bg-blue-500 hover:bg-blue-400 text-slate-950 text-xs font-semibold px-3 py-1.5 rounded flex items-center space-x-1 cursor-pointer"
                       >
                         <Camera className="w-3.5 h-3.5" />
                         <span>Webcam</span>
@@ -778,7 +778,7 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({
                     </div>
                   </div>
                   <div className="flex items-center justify-between text-[11px] text-slate-400">
-                    <label className="cursor-pointer text-amber-400 hover:text-amber-300 font-medium flex items-center gap-1">
+                    <label className="cursor-pointer text-blue-400 hover:text-blue-300 font-medium flex items-center gap-1">
                       <Upload className="w-3 h-3" />
                       <span>Choose ID Image</span>
                       <input
@@ -806,8 +806,8 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({
                 <div className="bg-slate-800/60 border border-slate-700/80 rounded-xl p-4">
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                      <Camera className="w-4 h-4 text-amber-400" />
-                      <span>Photo of Face (Confirm Identity) <span className="text-amber-400">*</span></span>
+                      <Camera className="w-4 h-4 text-blue-400" />
+                      <span>Photo of Face (Confirm Identity) <span className="text-blue-400">*</span></span>
                     </label>
                     <span className="text-[10px] text-slate-400 font-mono">Facial match check</span>
                   </div>
@@ -838,7 +838,7 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({
                       <button
                         type="button"
                         onClick={() => startWebcam('FACE')}
-                        className="bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-semibold px-3 py-1.5 rounded flex items-center space-x-1 cursor-pointer"
+                        className="bg-blue-500 hover:bg-blue-400 text-slate-950 text-xs font-semibold px-3 py-1.5 rounded flex items-center space-x-1 cursor-pointer"
                       >
                         <Camera className="w-3.5 h-3.5" />
                         <span>Take Selfie</span>
@@ -846,7 +846,7 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({
                     </div>
                   </div>
                   <div className="flex items-center justify-between text-[11px] text-slate-400">
-                    <label className="cursor-pointer text-amber-400 hover:text-amber-300 font-medium flex items-center gap-1">
+                    <label className="cursor-pointer text-blue-400 hover:text-blue-300 font-medium flex items-center gap-1">
                       <Upload className="w-3 h-3" />
                       <span>Upload Selfie Photo</span>
                       <input
@@ -879,13 +879,13 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({
                     type="checkbox"
                     checked={agreedToTerms}
                     onChange={(e) => setAgreedToTerms(e.target.checked)}
-                    className="mt-1 w-4 h-4 rounded border-slate-700 bg-slate-800 text-amber-500 focus:ring-amber-400"
+                    className="mt-1 w-4 h-4 rounded border-slate-700 bg-slate-800 text-blue-500 focus:ring-blue-400"
                   />
                   <div className="text-xs text-slate-300 leading-relaxed">
                     <strong className="text-slate-100 block mb-0.5">
                       Visitor Clearance & In-Person Biometric Undertaking
                     </strong>
-                    I hereby certify under oath that all information submitted is true, correct, and matches my genuine government-issued identification. I understand that <strong className="text-amber-300">after email confirmation, I must visit the BJMP Jail Facility in person to have my biometric fingerprint scanned</strong> to complete the identity activation process before any visitation pass will be issued.
+                    I hereby certify under oath that all information submitted is true, correct, and matches my genuine government-issued identification. I understand that <strong className="text-blue-300">after email confirmation, I must visit the BJMP Jail Facility in person to have my biometric fingerprint scanned</strong> to complete the identity activation process before any visitation pass will be issued.
                   </div>
                 </label>
               </div>
@@ -902,7 +902,7 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-7 py-3 rounded-lg text-xs flex items-center space-x-2 shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
+                  className="bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold px-7 py-3 rounded-lg text-xs flex items-center space-x-2 shadow-lg shadow-blue-500/20 transition-all cursor-pointer"
                 >
                   <span>Submit Registration & Proceed to Email Confirmation</span>
                   <ArrowRight className="w-4 h-4" />

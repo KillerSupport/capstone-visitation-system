@@ -388,17 +388,17 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-3 sm:p-6 overflow-y-auto">
-      <div className="bg-slate-900 border border-amber-500/40 rounded-2xl max-w-5xl w-full shadow-2xl overflow-hidden text-slate-100 flex flex-col max-h-[92vh]">
+      <div className="bg-slate-900 border border-blue-500/40 rounded-2xl max-w-5xl w-full shadow-2xl overflow-hidden text-slate-100 flex flex-col max-h-[92vh]">
         
         {/* Modal Header */}
         <div className="bg-slate-950 border-b border-slate-800 px-6 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
+            <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-500/40 flex items-center justify-center text-blue-400">
               <Scale className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="bg-amber-500/20 text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded border border-amber-500/30">
+                <span className="bg-blue-500/20 text-blue-300 text-[10px] font-bold px-2 py-0.5 rounded border border-blue-500/30">
                   BJMP STANDARD FORM
                 </span>
                 <span className="text-xs text-slate-400 font-mono">
@@ -416,10 +416,10 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
               <button
                 type="button"
                 onClick={handleQuickFillDemo}
-                className="bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 text-xs font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 cursor-pointer transition-colors"
+                className="bg-slate-800 hover:bg-slate-700 text-blue-300 border border-blue-500/30 text-xs font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 cursor-pointer transition-colors"
                 title="Populate with realistic BJMP demo record"
               >
-                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <Sparkles className="w-3.5 h-3.5 text-blue-400" />
                 <span>Auto-Fill Sample Record</span>
               </button>
             )}
@@ -445,7 +445,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                 onClick={() => setActiveTab(tab.key)}
                 className={`flex items-center gap-2 py-3 px-3 text-xs font-bold whitespace-nowrap border-b-2 transition-colors cursor-pointer ${
                   isActive
-                    ? 'border-amber-400 text-amber-400 bg-amber-500/5'
+                    ? 'border-blue-400 text-blue-400 bg-blue-500/5'
                     : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-700'
                 }`}
               >
@@ -472,7 +472,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     required
                     value={pdlNumber}
                     onChange={(e) => setPdlNumber(e.target.value)}
-                    className="font-mono font-bold text-amber-300 text-sm bg-slate-900 border border-slate-700 rounded px-2.5 py-1 mt-0.5 focus:outline-none focus:border-amber-400"
+                    className="font-mono font-bold text-blue-300 text-sm bg-slate-900 border border-slate-700 rounded px-2.5 py-1 mt-0.5 focus:outline-none focus:border-blue-400"
                   />
                 </div>
                 <div>
@@ -481,7 +481,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     type="text"
                     value={fileNumber}
                     onChange={(e) => setFileNumber(e.target.value)}
-                    className="font-mono text-slate-200 text-sm bg-slate-900 border border-slate-700 rounded px-2.5 py-1 mt-0.5 focus:outline-none focus:border-amber-400"
+                    className="font-mono text-slate-200 text-sm bg-slate-900 border border-slate-700 rounded px-2.5 py-1 mt-0.5 focus:outline-none focus:border-blue-400"
                   />
                 </div>
                 <div>
@@ -490,7 +490,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     type="text"
                     value={bjmpIdNumber}
                     onChange={(e) => setBjmpIdNumber(e.target.value)}
-                    className="font-mono text-slate-200 text-sm bg-slate-900 border border-slate-700 rounded px-2.5 py-1 mt-0.5 focus:outline-none focus:border-amber-400"
+                    className="font-mono text-slate-200 text-sm bg-slate-900 border border-slate-700 rounded px-2.5 py-1 mt-0.5 focus:outline-none focus:border-blue-400"
                   />
                 </div>
                 <div>
@@ -498,7 +498,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                   <select
                     value={status}
                     onChange={(e) => setStatus(e.target.value as PDL['status'])}
-                    className="bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded px-2.5 py-1 mt-0.5 focus:outline-none focus:border-amber-400"
+                    className="bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded px-2.5 py-1 mt-0.5 focus:outline-none focus:border-blue-400"
                   >
                     <option value="In Custody">In Custody</option>
                     <option value="On Trial">On Trial</option>
@@ -518,7 +518,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     placeholder="e.g. Dela Cruz"
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   />
                 </div>
                 <div>
@@ -529,7 +529,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     placeholder="e.g. Juan"
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   />
                 </div>
                 <div>
@@ -539,7 +539,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     placeholder="e.g. Santos"
                     value={middleName}
                     onChange={(e) => setMiddleName(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   />
                 </div>
                 <div>
@@ -549,7 +549,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     placeholder="Jr., Sr., III"
                     value={suffix}
                     onChange={(e) => setSuffix(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   />
                 </div>
               </div>
@@ -562,7 +562,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     placeholder='e.g. Johnny / "Totoy Bato"'
                     value={aliases}
                     onChange={(e) => setAliases(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   />
                 </div>
                 <div>
@@ -570,7 +570,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                   <select
                     value={sex}
                     onChange={(e) => setSex(e.target.value as 'Male' | 'Female')}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   >
                     <option value="Male">Male</option>
                     <option value="Female">Female</option>
@@ -581,7 +581,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                   <select
                     value={civilStatus}
                     onChange={(e) => setCivilStatus(e.target.value as MaritalStatus)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   >
                     <option value="Single">Single</option>
                     <option value="Married">Married</option>
@@ -600,7 +600,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     required
                     value={dateOfBirth}
                     onChange={(e) => setDateOfBirth(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   />
                 </div>
                 <div>
@@ -612,7 +612,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     required
                     value={ageAtAdmission}
                     onChange={(e) => setAgeAtAdmission(Number(e.target.value))}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   />
                 </div>
                 <div>
@@ -621,7 +621,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     type="text"
                     value={citizenship}
                     onChange={(e) => setCitizenship(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   />
                 </div>
                 <div>
@@ -630,7 +630,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     type="text"
                     value={placeOfBirth}
                     onChange={(e) => setPlaceOfBirth(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   />
                 </div>
               </div>
@@ -643,7 +643,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     placeholder="Roman Catholic, Iglesia ni Cristo, Islam, etc."
                     value={religion}
                     onChange={(e) => setReligion(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   />
                 </div>
                 <div>
@@ -653,7 +653,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     placeholder="Tagalog, Ilocano, Bicolano, Cebuano, etc."
                     value={tribalAffiliation}
                     onChange={(e) => setTribalAffiliation(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   />
                 </div>
               </div>
@@ -667,7 +667,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     placeholder="House/Blk/Lot, Street, Barangay, City/Municipality, Province"
                     value={presentAddress}
                     onChange={(e) => setPresentAddress(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   />
                 </div>
                 <div>
@@ -677,7 +677,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     placeholder="Provincial address or origin..."
                     value={provincialAddress}
                     onChange={(e) => setProvincialAddress(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   />
                 </div>
               </div>
@@ -688,7 +688,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                   <select
                     value={highestEducationalAttainment}
                     onChange={(e) => setHighestEducationalAttainment(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   >
                     <option value="Elementary Undergraduate">Elementary Undergraduate</option>
                     <option value="Elementary Graduate">Elementary Graduate</option>
@@ -708,7 +708,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     placeholder="e.g. BS Criminology, HRM, N/A"
                     value={course}
                     onChange={(e) => setCourse(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   />
                 </div>
                 <div>
@@ -718,7 +718,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     placeholder="e.g. Jeepney Driver, Electrician, Vendor"
                     value={occupation}
                     onChange={(e) => setOccupation(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   />
                 </div>
               </div>
@@ -731,7 +731,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     placeholder="Carpentry, Electrical, Culinary, Tailoring, Music"
                     value={skills}
                     onChange={(e) => setSkills(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   />
                 </div>
                 <div>
@@ -739,7 +739,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                   <select
                     value={gangGroupAffiliation}
                     onChange={(e) => setGangGroupAffiliation(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400 font-semibold"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400 font-semibold"
                   >
                     <option value="Non-Affiliated (Neutral)">Non-Affiliated (Neutral / Walang Pangkat)</option>
                     <option value="Sigue-Sigue Sputnik">Sigue-Sigue Sputnik</option>
@@ -765,7 +765,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                   <h4 className="font-bold text-white text-sm">Physical Description & Anthropometric Identification</h4>
                   <p className="text-[11px] text-slate-400">Official BJMP Inmate Identification Sheet & Bertillion Classification</p>
                 </div>
-                <div className="text-right font-mono text-amber-400 text-xs">
+                <div className="text-right font-mono text-blue-400 text-xs">
                   ICJ-MD-BERTILLION
                 </div>
               </div>
@@ -778,7 +778,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     placeholder={'e.g. 5\'7" (170 cm)'}
                     value={height}
                     onChange={(e) => setHeight(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   />
                 </div>
                 <div>
@@ -788,7 +788,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     placeholder="e.g. 68 kg (150 lbs)"
                     value={weight}
                     onChange={(e) => setWeight(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   />
                 </div>
                 <div>
@@ -796,7 +796,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                   <select
                     value={built}
                     onChange={(e) => setBuilt(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   >
                     <option value="Medium Built">Medium Built</option>
                     <option value="Slim">Slim</option>
@@ -809,7 +809,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                   <select
                     value={complexion}
                     onChange={(e) => setComplexion(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   >
                     <option value="Brown / Kayumanggi">Brown / Kayumanggi</option>
                     <option value="Fair / Maputi">Fair / Maputi</option>
@@ -826,7 +826,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     placeholder="Brown, Black"
                     value={eyes}
                     onChange={(e) => setEyes(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   />
                 </div>
                 <div>
@@ -836,7 +836,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     placeholder="Black wavy, Short straight"
                     value={hair}
                     onChange={(e) => setHair(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   />
                 </div>
                 <div>
@@ -844,7 +844,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                   <select
                     value={bloodType}
                     onChange={(e) => setBloodType(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   >
                     <option value="O+">O+</option>
                     <option value="O-">O-</option>
@@ -864,7 +864,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     placeholder="Tagalog, English, Ilocano"
                     value={dialectsSpoken}
                     onChange={(e) => setDialectsSpoken(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   />
                 </div>
               </div>
@@ -879,7 +879,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                   placeholder="Detail exact location and description of tattoos, birthmarks, and scars (e.g. Tribal dragon on left shoulder; 5cm surgical scar on appendectomy site; Cross tattoo on right forearm)..."
                   value={bertillionMarks}
                   onChange={(e) => setBertillionMarks(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-amber-400"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-blue-400"
                 />
               </div>
 
@@ -892,7 +892,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                   placeholder="e.g. Frequent blinking, throat clearing, none noted"
                   value={mannerism}
                   onChange={(e) => setMannerism(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                 />
               </div>
 
@@ -912,7 +912,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     placeholder="Full legal name of spouse/partner"
                     value={spouseName}
                     onChange={(e) => setSpouseName(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
@@ -923,7 +923,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                       min={0}
                       value={numberOfChildren}
                       onChange={(e) => setNumberOfChildren(Number(e.target.value))}
-                      className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                     />
                   </div>
                   <div>
@@ -933,7 +933,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                       placeholder="e.g. John (7), Mary (4)"
                       value={childrenNamesStr}
                       onChange={(e) => setChildrenNamesStr(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                     />
                   </div>
                 </div>
@@ -946,7 +946,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     type="text"
                     value={fatherName}
                     onChange={(e) => setFatherName(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   />
                 </div>
                 <div>
@@ -955,7 +955,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     type="text"
                     value={fatherAddress}
                     onChange={(e) => setFatherAddress(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   />
                 </div>
               </div>
@@ -967,7 +967,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     type="text"
                     value={motherName}
                     onChange={(e) => setMotherName(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   />
                 </div>
                 <div>
@@ -976,13 +976,13 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     type="text"
                     value={motherAddress}
                     onChange={(e) => setMotherAddress(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   />
                 </div>
               </div>
 
               <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
-                <h4 className="font-bold text-amber-300 text-xs uppercase tracking-wider">
+                <h4 className="font-bold text-blue-300 text-xs uppercase tracking-wider">
                   Emergency Contact / Nearest Kin (Tatawagan kung may Emergency)
                 </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -993,7 +993,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                       required
                       value={emergencyContactPerson}
                       onChange={(e) => setEmergencyContactPerson(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                     />
                   </div>
                   <div>
@@ -1002,7 +1002,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                       type="text"
                       value={emergencyContactRelation}
                       onChange={(e) => setEmergencyContactRelation(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                     />
                   </div>
                   <div>
@@ -1012,7 +1012,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                       required
                       value={emergencyContactPhone}
                       onChange={(e) => setEmergencyContactPhone(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                     />
                   </div>
                 </div>
@@ -1022,7 +1022,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     type="text"
                     value={emergencyContactAddress}
                     onChange={(e) => setEmergencyContactAddress(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   />
                 </div>
               </div>
@@ -1043,7 +1043,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     required
                     value={dateCommitted}
                     onChange={(e) => setDateCommitted(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   />
                 </div>
                 <div>
@@ -1053,7 +1053,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     placeholder="e.g. 2025-01-14 10:30 PM"
                     value={timeAndDateOfArrest}
                     onChange={(e) => setTimeAndDateOfArrest(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   />
                 </div>
                 <div>
@@ -1063,7 +1063,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     placeholder="e.g. Aguinaldo Highway, Imus City, Cavite"
                     value={placeOfArrest}
                     onChange={(e) => setPlaceOfArrest(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   />
                 </div>
               </div>
@@ -1076,7 +1076,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     placeholder="e.g. PCpl. Ronald Gomez (Imus City Police Station)"
                     value={arrestingOfficer}
                     onChange={(e) => setArrestingOfficer(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   />
                 </div>
                 <div>
@@ -1086,7 +1086,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     placeholder="e.g. 2025-01-15 01:30 AM (Imus Police Station)"
                     value={timeDateOfDetentionLea}
                     onChange={(e) => setTimeDateOfDetentionLea(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   />
                 </div>
               </div>
@@ -1100,7 +1100,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     placeholder="e.g. JO1 Aldrin M. Mangampo"
                     value={receivingOfficer}
                     onChange={(e) => setReceivingOfficer(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400 font-semibold"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400 font-semibold"
                   />
                 </div>
                 <div>
@@ -1110,13 +1110,13 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     placeholder="e.g. JO2 Roberto S. Bautista"
                     value={searchedBy}
                     onChange={(e) => setSearchedBy(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   />
                 </div>
               </div>
 
               <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
-                <h4 className="font-bold text-amber-300 text-xs uppercase tracking-wider">
+                <h4 className="font-bold text-blue-300 text-xs uppercase tracking-wider">
                   Facility Housing & Cell / Brigada Assignment
                 </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1125,7 +1125,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     <select
                       value={jailFacilityId}
                       onChange={(e) => setJailFacilityId(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                     >
                       {BJMP_JAIL_FACILITIES.map((f) => (
                         <option key={f.id} value={f.id}>{f.name}</option>
@@ -1140,7 +1140,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                       placeholder="e.g. Brigada 3 - Cell Dorm B"
                       value={cellDormitory}
                       onChange={(e) => setCellDormitory(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400 font-bold text-amber-300"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400 font-bold text-blue-300"
                     />
                   </div>
                 </div>
@@ -1156,7 +1156,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
             <div className="space-y-4">
               <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
                 <h4 className="font-bold text-white text-xs uppercase tracking-wider flex items-center gap-1.5">
-                  <Scale className="w-4 h-4 text-amber-400" />
+                  <Scale className="w-4 h-4 text-blue-400" />
                   Primary Criminal Case & Judicial Information
                 </h4>
 
@@ -1169,7 +1169,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                       placeholder="e.g. CC-24-10294"
                       value={caseNumber1}
                       onChange={(e) => setCaseNumber1(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 font-mono font-bold focus:outline-none focus:border-amber-400"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 font-mono font-bold focus:outline-none focus:border-blue-400"
                     />
                   </div>
                   <div>
@@ -1179,7 +1179,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                       min={1}
                       value={counts1}
                       onChange={(e) => setCounts1(Number(e.target.value))}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                     />
                   </div>
                   <div>
@@ -1188,7 +1188,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                       type="date"
                       value={dateCrimeCommitted}
                       onChange={(e) => setDateCrimeCommitted(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                     />
                   </div>
                 </div>
@@ -1201,7 +1201,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     placeholder="e.g. Violation of Sec. 11, Art. II of R.A. 9165 (Comprehensive Dangerous Drugs Act)"
                     value={primaryOffense}
                     onChange={(e) => setPrimaryOffense(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400 font-medium"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400 font-medium"
                   />
                 </div>
 
@@ -1214,7 +1214,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                       placeholder="e.g. RTC Branch 20, Imus City, Cavite"
                       value={courtBranch}
                       onChange={(e) => setCourtBranch(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                     />
                   </div>
                   <div>
@@ -1224,7 +1224,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                       placeholder="e.g. Hon. Amy Ana L. De Villa-Rosales"
                       value={presidingJudge}
                       onChange={(e) => setPresidingJudge(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                     />
                   </div>
                 </div>
@@ -1236,14 +1236,14 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     placeholder="e.g. Under Trial, Arraignment, Pre-Trial, Promulgated"
                     value={caseStatus}
                     onChange={(e) => setCaseStatus(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-amber-400"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   />
                 </div>
               </div>
 
               {/* Hearing Status Checklist (Photo 9) */}
               <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2.5">
-                <span className="font-bold text-amber-300 text-xs uppercase tracking-wider block">
+                <span className="font-bold text-blue-300 text-xs uppercase tracking-wider block">
                   Hearing Status Checklist (Official PDL Jacket Tracker)
                 </span>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -1252,7 +1252,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                       type="checkbox"
                       checked={stageArraignment}
                       onChange={(e) => setStageArraignment(e.target.checked)}
-                      className="rounded accent-amber-500"
+                      className="rounded accent-blue-500"
                     />
                     <span className="text-slate-200">Arraignment</span>
                   </label>
@@ -1261,7 +1261,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                       type="checkbox"
                       checked={stagePreTrial}
                       onChange={(e) => setStagePreTrial(e.target.checked)}
-                      className="rounded accent-amber-500"
+                      className="rounded accent-blue-500"
                     />
                     <span className="text-slate-200">Pre-Trial</span>
                   </label>
@@ -1270,7 +1270,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                       type="checkbox"
                       checked={stageTrial}
                       onChange={(e) => setStageTrial(e.target.checked)}
-                      className="rounded accent-amber-500"
+                      className="rounded accent-blue-500"
                     />
                     <span className="text-slate-200">Trial</span>
                   </label>
@@ -1279,7 +1279,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                       type="checkbox"
                       checked={stageProsecution}
                       onChange={(e) => setStageProsecution(e.target.checked)}
-                      className="rounded accent-amber-500"
+                      className="rounded accent-blue-500"
                     />
                     <span className="text-slate-200">Prosecution Evidence</span>
                   </label>
@@ -1288,7 +1288,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                       type="checkbox"
                       checked={stageDefense}
                       onChange={(e) => setStageDefense(e.target.checked)}
-                      className="rounded accent-amber-500"
+                      className="rounded accent-blue-500"
                     />
                     <span className="text-slate-200">Defense Evidence</span>
                   </label>
@@ -1297,7 +1297,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                       type="checkbox"
                       checked={stageDecision}
                       onChange={(e) => setStageDecision(e.target.checked)}
-                      className="rounded accent-amber-500"
+                      className="rounded accent-blue-500"
                     />
                     <span className="text-slate-200">Decision / Promulgation</span>
                   </label>
@@ -1325,7 +1325,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     type="text"
                     value={propertyReceiptNumber}
                     onChange={(e) => setPropertyReceiptNumber(e.target.value)}
-                    className="font-mono font-bold text-amber-300 text-xs bg-slate-900 border border-slate-700 rounded px-2 py-0.5"
+                    className="font-mono font-bold text-blue-300 text-xs bg-slate-900 border border-slate-700 rounded px-2 py-0.5"
                   />
                 </div>
               </div>
@@ -1336,7 +1336,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                   <button
                     type="button"
                     onClick={handleAddPropertyItem}
-                    className="text-amber-400 hover:text-amber-300 text-xs flex items-center gap-1 font-semibold cursor-pointer"
+                    className="text-blue-400 hover:text-blue-300 text-xs flex items-center gap-1 font-semibold cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Add Item</span>
@@ -1387,24 +1387,24 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
             <div className="space-y-4">
               
               {/* RA 10592 (Photo 10) */}
-              <div className="bg-slate-950 p-4 rounded-xl border border-amber-500/30 space-y-3">
+              <div className="bg-slate-950 p-4 rounded-xl border border-blue-500/30 space-y-3">
                 <div className="flex items-start justify-between">
                   <div>
-                    <h4 className="font-bold text-amber-300 text-sm">
+                    <h4 className="font-bold text-blue-300 text-sm">
                       Manipesto ng Detenido (R.A. 10592 - Good Conduct Time Allowance / GCTA)
                     </h4>
                     <p className="text-[11px] text-slate-400 mt-0.5">
                       Voluntary formal manifestation by the detainee agreeing in writing to abide by BJMP discipline rules
                     </p>
                   </div>
-                  <label className="flex items-center space-x-2 bg-amber-500/10 border border-amber-500/30 px-3 py-1.5 rounded-lg cursor-pointer">
+                  <label className="flex items-center space-x-2 bg-blue-500/10 border border-blue-500/30 px-3 py-1.5 rounded-lg cursor-pointer">
                     <input
                       type="checkbox"
                       checked={ra10592Signed}
                       onChange={(e) => setRa10592Signed(e.target.checked)}
-                      className="rounded accent-amber-500"
+                      className="rounded accent-blue-500"
                     />
-                    <span className="font-bold text-amber-300 text-xs">SIGNED & CERTIFIED</span>
+                    <span className="font-bold text-blue-300 text-xs">SIGNED & CERTIFIED</span>
                   </label>
                 </div>
                 <div className="bg-slate-900 p-3 rounded-lg text-[11px] text-slate-300 leading-relaxed font-serif border border-slate-800">
@@ -1426,7 +1426,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                       type="checkbox"
                       checked={chkMittimus}
                       onChange={(e) => setChkMittimus(e.target.checked)}
-                      className="rounded accent-amber-500"
+                      className="rounded accent-blue-500"
                     />
                     <span className="text-slate-200 font-medium">Mittimus / Order of Commitment</span>
                   </label>
@@ -1436,7 +1436,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                       type="checkbox"
                       checked={chkCourtOrder}
                       onChange={(e) => setChkCourtOrder(e.target.checked)}
-                      className="rounded accent-amber-500"
+                      className="rounded accent-blue-500"
                     />
                     <span className="text-slate-200 font-medium">Court Order / Information Sheet</span>
                   </label>
@@ -1446,7 +1446,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                       type="checkbox"
                       checked={chkNonPending}
                       onChange={(e) => setChkNonPending(e.target.checked)}
-                      className="rounded accent-amber-500"
+                      className="rounded accent-blue-500"
                     />
                     <span className="text-slate-200 font-medium">Certificate of Non-Pending Case (RTC/MTCC)</span>
                   </label>
@@ -1456,7 +1456,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                       type="checkbox"
                       checked={chkCommitmentInfo}
                       onChange={(e) => setChkCommitmentInfo(e.target.checked)}
-                      className="rounded accent-amber-500"
+                      className="rounded accent-blue-500"
                     />
                     <span className="text-slate-200 font-medium">Commitment Information Sheet</span>
                   </label>
@@ -1466,7 +1466,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                       type="checkbox"
                       checked={chkGctaCalc}
                       onChange={(e) => setChkGctaCalc(e.target.checked)}
-                      className="rounded accent-amber-500"
+                      className="rounded accent-blue-500"
                     />
                     <span className="text-slate-200 font-medium">Computation of GCTA Sheet</span>
                   </label>
@@ -1476,7 +1476,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                       type="checkbox"
                       checked={chkCertDetention}
                       onChange={(e) => setChkCertDetention(e.target.checked)}
-                      className="rounded accent-amber-500"
+                      className="rounded accent-blue-500"
                     />
                     <span className="text-slate-200 font-medium">Certificate of Detention Form</span>
                   </label>
@@ -1486,7 +1486,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                       type="checkbox"
                       checked={chkHealthCert}
                       onChange={(e) => setChkHealthCert(e.target.checked)}
-                      className="rounded accent-amber-500"
+                      className="rounded accent-blue-500"
                     />
                     <span className="text-slate-200 font-medium">Medical & Physical Health Clearance</span>
                   </label>
@@ -1496,7 +1496,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                       type="checkbox"
                       checked={chkDde}
                       onChange={(e) => setChkDde(e.target.checked)}
-                      className="rounded accent-amber-500"
+                      className="rounded accent-blue-500"
                     />
                     <span className="text-slate-200 font-medium">Drug Dependency Examination (DDE Result)</span>
                   </label>
@@ -1522,7 +1522,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
               </button>
               <button
                 type="submit"
-                className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-5 py-2 rounded-lg flex items-center gap-1.5 cursor-pointer shadow-lg shadow-amber-500/20"
+                className="bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold px-5 py-2 rounded-lg flex items-center gap-1.5 cursor-pointer shadow-lg shadow-blue-500/20"
               >
                 <Check className="w-4 h-4" />
                 <span>{existingPdl ? 'Save Updated Booking' : 'Complete & Register PDL'}</span>
