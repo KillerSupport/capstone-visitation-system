@@ -1,0 +1,6 @@
+{
+  "name": "BJMP Imus City Jail Visitation System",
+  "description": "Official desktop portal for BJMP Imus City Jail (Male and Female Dormitories, Imus City, Cavite) visitation registration, identity verification, in-person biometric activation, and appointment scheduling.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,5 @@
+TO RUN THE PROJECT, OPEN TERMINAL THEN TYPE THIS: npm.cmd run dev
+
+ADMIN ACC: tongtongornamental@gmail.com   AdminAcc@123
+WORKER ACC: mharijie@gmail.com   WorkerAcc@123
+VISITOR ACC: harijiem@gmail.com   VisitorTest@123
