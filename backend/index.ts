@@ -3,6 +3,8 @@ import express from 'express';
 import cors from 'cors';
 import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
+import { randomBytes, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
+import { promisify } from 'node:util';
 import {
   initDatabase,
   getAllUsers,
@@ -31,6 +33,22 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 const GMAIL_EMAIL_PATTERN = /^[^\s@]+@gmail\.com$/i;
 const STRONG_PASSWORD_PATTERN = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+const scrypt = promisify(scryptCallback);
+
+async function hashPassword(password: string) {
+  const salt = randomBytes(16);
+  const derivedKey = await scrypt(password, salt, 64) as Buffer;
+  return `scrypt:${salt.toString('hex')}:${derivedKey.toString('hex')}`;
+}
+
+async function verifyPassword(password: string, stored: string) {
+  if (!stored.startsWith('scrypt:')) return password === stored; // Existing seeded/demo accounts.
+  const [, saltHex, keyHex] = stored.split(':');
+  if (!saltHex || !keyHex) return false;
+  const expected = Buffer.from(keyHex, 'hex');
+  const actual = await scrypt(password, Buffer.from(saltHex, 'hex'), expected.length) as Buffer;
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
 
 app.use(cors());
 app.use(express.json());
@@ -113,8 +131,7 @@ app.post('/api/auth/login', async (req, res) => {
     const user = await getUserByEmail(email);
     if (!user) return res.status(401).json({ error: 'Account not found. Please register or verify credentials.' });
 
-    const cleanPass = password.trim();
-    const ok = user.password === cleanPass;
+    const ok = await verifyPassword(String(password), user.passwordHash);
 
     if (!ok) return res.status(401).json({ error: 'Invalid password. Please check your credentials.' });
     res.json({ success: true, user });
@@ -130,7 +147,7 @@ app.post('/api/auth/register', async (req, res) => {
     const password = String(req.body.password || '');
     if (!GMAIL_EMAIL_PATTERN.test(email)) return res.status(400).json({ error: 'Registration requires a valid @gmail.com email address.' });
     if (!STRONG_PASSWORD_PATTERN.test(password)) return res.status(400).json({ error: 'Password must be at least 8 characters and include uppercase, lowercase, number, and symbol.' });
-    const newUser = await createUser(req.body);
+    const newUser = await createUser({ ...req.body, passwordHash: await hashPassword(password) });
     broadcast('USER_REGISTERED', newUser);
     broadcast('STATS_UPDATED', await getStats());
     res.status(201).json({ success: true, user: newUser });

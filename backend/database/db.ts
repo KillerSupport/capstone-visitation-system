@@ -444,7 +444,7 @@ function mapUserRow(r: any) {
   return {
     id: String(r.id),
     email: r.email,
-    password: r.password,
+
     role: r.role,
     adminTitle: r.admin_title,
     badgeNumber: r.badge_number,
@@ -490,15 +490,19 @@ export async function getUserById(id: string) {
 
 export async function getUserByEmail(email: string) {
   const [rows] = await pool.query<mysql.RowDataPacket[]>('SELECT * FROM users WHERE LOWER(email) = LOWER(?)', [email]);
-  return rows[0] ? mapUserRow(rows[0]) : null;
+  if (!rows[0]) return null;
+  return { ...mapUserRow(rows[0]), passwordHash: rows[0].password };
 }
 
 export async function createUser(u: any) {
   if (!/^[^\s@]+@gmail\.com$/i.test(String(u.email || '').trim())) {
     throw new Error('Registration requires a valid @gmail.com email address.');
   }
-  if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/.test(String(u.password || ''))) {
-    throw new Error('Password must be at least 8 characters and include uppercase, lowercase, number, and symbol.');
+  if (!u.passwordHash || !String(u.passwordHash).startsWith('scrypt:')) {
+    throw new Error('A server-generated password hash is required.');
+  }
+  if (!u.passwordHash || !String(u.passwordHash).startsWith('scrypt:')) {
+    throw new Error('A server-generated password hash is required.');
   }
   const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
   const [result] = await pool.query<mysql.ResultSetHeader>(`
@@ -509,7 +513,7 @@ export async function createUser(u: any) {
        preferred_jail_facility_id, email_verified_at, biometric_scanned_at, biometrics_officer_name, registered_at)
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
-      String(u.email).trim().toLowerCase(), u.password,
+      String(u.email).trim().toLowerCase(), u.passwordHash,
       u.role || 'VISITOR', u.adminTitle || null, u.badgeNumber || null,
       u.firstName, u.middleName || null, u.lastName, u.suffix || null,
       u.dateOfBirth || null, u.gender || null, u.contactNumber || null,
