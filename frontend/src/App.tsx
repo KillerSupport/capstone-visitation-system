@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile, VisitationAppointment, AccountStatus, PDL, isStaffRole } from './types';
-import { INITIAL_DEMO_USERS, INITIAL_APPOINTMENTS } from './data/bjmpData';
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
 import { LoginPage } from './components/Auth/LoginPage';
@@ -10,60 +9,18 @@ import { EmailConfirmationView } from './components/Verification/EmailConfirmati
 import { BiometricNoticeView } from './components/Verification/BiometricNoticeView';
 import { VisitorDashboard } from './components/Dashboard/VisitorDashboard';
 import { AdminDashboard } from './components/Dashboard/AdminDashboard';
+import { WorkerDashboard } from './components/Dashboard/WorkerDashboard';
+import { IdentityVerificationPage } from './components/Verification/IdentityVerificationPage';
+import { AdminKycPanel } from './components/Admin/AdminKycPanel';
 import { GuardScannerModal } from './components/Guard/GuardScannerModal';
 import { Shield, Bell, CheckCircle2 } from 'lucide-react';
 import { api } from './services/api';
 import { realtimeWS } from './services/websocket';
 
-const USERS_STORAGE_KEY = 'bjmp_imus_users_v2';
-const CURRENT_USER_STORAGE_KEY = 'bjmp_imus_current_user_id_v2';
-const APPOINTMENTS_STORAGE_KEY = 'bjmp_imus_appointments_v2';
-
 export default function App() {
-  // Persistence state
-  const [users, setUsers] = useState<UserProfile[]>(() => {
-    try {
-      const saved = localStorage.getItem(USERS_STORAGE_KEY);
-      if (saved) {
-        const parsed: UserProfile[] = JSON.parse(saved);
-        const ramburatEmail = 'ramburat077@gmail.com';
-        const demoRamburat = INITIAL_DEMO_USERS.find((u) => u.email.toLowerCase() === ramburatEmail)!;
-        const existingIdx = parsed.findIndex((u) => u.email.toLowerCase() === ramburatEmail);
-        if (existingIdx >= 0) {
-          parsed[existingIdx] = {
-            ...parsed[existingIdx],
-            role: 'ADMIN',
-            password: 'Password123',
-            adminTitle: parsed[existingIdx].adminTitle || 'BJMP Executive Officer & System Administrator',
-          };
-        } else if (demoRamburat) {
-          parsed.unshift(demoRamburat);
-        }
-        return parsed;
-      }
-    } catch (e) {
-      console.error(e);
-    }
-    return INITIAL_DEMO_USERS;
-  });
-
-  const [currentUserId, setCurrentUserId] = useState<string | null>(() => {
-    try {
-      return localStorage.getItem(CURRENT_USER_STORAGE_KEY) || null;
-    } catch (e) {
-      return null;
-    }
-  });
-
-  const [appointments, setAppointments] = useState<VisitationAppointment[]>(() => {
-    try {
-      const saved = localStorage.getItem(APPOINTMENTS_STORAGE_KEY);
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
-      console.error(e);
-    }
-    return INITIAL_APPOINTMENTS;
-  });
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [appointments, setAppointments] = useState<VisitationAppointment[]>([]);
   const [pdls, setPdls] = useState<PDL[]>([]);
 
   // Modals & Views
@@ -72,30 +29,10 @@ export default function App() {
   const [isGuardScannerOpen, setIsGuardScannerOpen] = useState(false);
   const [guardScannerVisitorId, setGuardScannerVisitorId] = useState<string | undefined>(undefined);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [devVerificationOtp,setDevVerificationOtp]=useState<string|null>(null);
   const [adminViewMode, setAdminViewMode] = useState<'admin' | 'visitor'>('admin');
 
-  // Load initial data from the MySQL database via API.
-  useEffect(() => {
-    async function loadDatabaseData() {
-      try {
-        const [dbUsers, dbAppts, dbPdls] = await Promise.all([
-          api.getUsers(),
-          api.getAppointments(),
-          api.getPdls(),
-        ]);
-        if (dbUsers && dbUsers.length > 0) {
-          setUsers(dbUsers);
-        }
-        if (dbAppts && dbAppts.length > 0) {
-          setAppointments(dbAppts);
-        }
-        setPdls(dbPdls || []);
-      } catch (e) {
-        console.warn('Backend API offline or unreachable, using local storage fallback:', e);
-      }
-    }
-    loadDatabaseData();
-  }, []);
+  useEffect(() => { api.me().then(({user}) => { setUsers(prev => [user,...prev.filter(x=>x.id!==user.id)]); setCurrentUserId(user.id); }).catch(() => setCurrentUserId(null)); }, []);
 
   // Initialize and connect to Real-time WebSocket Server
   useEffect(() => {
@@ -142,41 +79,27 @@ export default function App() {
   const currentUserIsStaff = isStaffRole(currentUser?.role);
 
   useEffect(() => {
+    if (!currentUser) return;
+    const load = async () => {
+      try {
+        if (currentUser.role === 'ADMIN' || currentUser.role === 'SUPER_ADMIN') {
+          const [dbUsers, dbAppts, dbPdls] = await Promise.all([api.getUsers(), api.getAppointments(), api.getPdls()]);
+          setUsers(dbUsers || []); setAppointments(dbAppts || []); setPdls(dbPdls || []);
+        } else if (currentUser.role === 'WORKER' || currentUser.role === 'GUARD' || currentUser.role === 'VERIFICATION_OFFICER') {
+          setUsers([currentUser]); setAppointments([]); setPdls([]);
+        } else {
+          const [ownAppointments, visitorPdls] = await Promise.all([api.getAppointments(), api.getVisitorPdls()]); setUsers([currentUser]); setAppointments(ownAppointments || []); setPdls(visitorPdls || []);
+        }
+      } catch (e) { console.warn('Could not load role-appropriate account data:', e); }
+    };
+    void load();
+  }, [currentUser?.id, currentUser?.role]);
+
+  useEffect(() => {
     if (currentUser) {
       realtimeWS.identify(currentUser.id, currentUser.role);
     }
   }, [currentUser]);
-
-  // Sync users to localStorage as offline cache
-  useEffect(() => {
-    try {
-      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [users]);
-
-  // Sync current user ID to localStorage
-  useEffect(() => {
-    try {
-      if (currentUserId) {
-        localStorage.setItem(CURRENT_USER_STORAGE_KEY, currentUserId);
-      } else {
-        localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  }, [currentUserId]);
-
-  // Sync appointments to localStorage as offline cache
-  useEffect(() => {
-    try {
-      localStorage.setItem(APPOINTMENTS_STORAGE_KEY, JSON.stringify(appointments));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [appointments]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -196,40 +119,11 @@ export default function App() {
   };
 
   // Login handler
-  const handleLogin = (email: string, pass: string): boolean => {
-    const cleanEmail = email.toLowerCase().trim();
-    const cleanPass = pass.trim();
-    if (!/^[^\s@]+@gmail\.com$/i.test(cleanEmail)) return false;
-    const found = users.find((u) => u.email.toLowerCase() === cleanEmail);
-
-    if (found) {
-      const passwordMatch = found.password === cleanPass;
-
-      if (passwordMatch) {
-        setCurrentUserId(found.id);
-        setAdminViewMode('admin');
-        if (isStaffRole(found.role)) {
-          showToast(`🛡️ Officer Logged In: ${found.firstName} ${found.lastName} (${found.adminTitle || 'Jail Command'})`);
-        } else {
-          showToast(`Welcome back, ${found.firstName}!`);
-        }
-        return true;
-      }
-    }
-    return false;
+  const handleLogin = async (identifier: string, pass: string): Promise<boolean> => {
+    try { const result = await api.login(identifier, pass); setUsers(prev => [result.user, ...prev.filter(u => u.id !== result.user.id)]); setCurrentUserId(result.user.id); setAdminViewMode('admin'); showToast(`Welcome back, ${result.user.firstName}!`); return true; } catch { return false; }
   };
-
-  const handleSelectDemoUser = (user: UserProfile) => {
-    setCurrentUserId(user.id);
-    setAdminViewMode('admin');
-    if (isStaffRole(user.role)) {
-      showToast(`🛡️ Officer Profile: ${user.firstName} ${user.lastName}`);
-    } else {
-      showToast(`Switched to visitor: ${user.firstName} (${user.accountStatus})`);
-    }
-  };
-
   const handleLogout = () => {
+    void api.logout().catch(() => {});
     setCurrentUserId(null);
     setAdminViewMode('admin');
     showToast('Logged out successfully.');
@@ -237,190 +131,67 @@ export default function App() {
 
   // Admin Actions
   const handleUpdateUserStatus = async (userId: string, status: AccountStatus, officerNote?: string) => {
-    const isActivated = status === 'ACTIVATED';
-    const updatedUsers = users.map((u) => {
-      if (u.id === userId) {
-        return {
-          ...u,
-          accountStatus: status,
-          biometricScannedAt: isActivated ? (u.biometricScannedAt || new Date().toLocaleString()) : u.biometricScannedAt,
-          biometricsOfficerName: isActivated ? (currentUser?.adminTitle || 'JO2 R. BAUTISTA (BJMP Desk)') : u.biometricsOfficerName,
-        };
-      }
-      return u;
-    });
-    setUsers(updatedUsers);
-
     try {
-      await api.updateUserStatus(userId, status, currentUser?.adminTitle);
-    } catch (e) {
-      console.warn('Updated status saved locally:', e);
-    }
-
-    showToast(`Visitor status updated to: ${status}${officerNote ? ` (${officerNote})` : ''}`);
+      const result=await api.updateUserStatus(userId,status,currentUser?.adminTitle);
+      setUsers(previous=>previous.map(u=>u.id===userId?result.user:u));
+      showToast(`Account status updated to ${status}${officerNote?` (${officerNote})`:''}`);
+    } catch(e) { showToast(e instanceof Error?e.message:'Account status could not be changed.'); }
   };
 
   const handleUpdateAppointmentStatus = async (appointmentId: string, status: VisitationAppointment['status']) => {
-    setAppointments((prev) =>
-      prev.map((a) => (a.id === appointmentId ? { ...a, status } : a))
-    );
-
     try {
-      await api.updateAppointmentStatus(appointmentId, status);
-    } catch (e) {
-      console.warn('Updated appointment status saved locally:', e);
-    }
-
-    showToast(`Appointment status updated to: ${status.toUpperCase()}`);
+      const { appointment } = await api.updateAppointmentStatus(appointmentId, status);
+      setAppointments((prev) => prev.map((item) => item.id === appointmentId ? appointment : item));
+      showToast(`Appointment status updated to: ${status.toUpperCase()}`);
+    } catch (e) { showToast(e instanceof Error ? e.message : 'Appointment status could not be updated.'); }
   };
 
   const handleDeleteAppointment = async (appointmentId: string) => {
-    setAppointments((prev) => prev.filter((a) => a.id !== appointmentId));
-
+    if (!window.confirm('Archive this visit? It will leave active schedules but remain available in Archive for restoration.')) return;
+    const reason=window.prompt('Archive reason:'); if(!reason?.trim()) return;
     try {
-      await api.deleteAppointment(appointmentId);
-    } catch (e) {
-      console.warn('Deleted appointment saved locally:', e);
-    }
-
-    showToast('Appointment removed from system records.');
+      await api.deleteAppointment(appointmentId,reason);
+      setAppointments((prev) => prev.filter((item) => item.id !== appointmentId));
+      showToast('Visit archived.');
+    } catch (e) { showToast(e instanceof Error ? e.message : 'Appointment could not be removed.'); }
   };
 
   // Registration success
   const handleRegisterSuccess = async (newUser: UserProfile) => {
-    setUsers((prev) => [newUser, ...prev]);
-    setCurrentUserId(newUser.id);
-    setIsSignUpOpen(false);
-
     try {
-      await api.register(newUser);
-    } catch (e) {
-      console.warn('Registered visitor saved locally:', e);
+      const result = await api.register(newUser);
+      setUsers(prev => [result.user, ...prev.filter(u => u.id !== result.user.id)]);
+      setDevVerificationOtp(result.developmentOtp||null);
+      setCurrentUserId(result.user.id);
+      setIsSignUpOpen(false);
+      showToast(result.developmentOtp ? `Mock verification code: ${result.developmentOtp}` : 'Account created. Check your email or SMS for the verification code.');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Registration failed.');
     }
-
-    showToast('Registration submitted! Please verify your email address.');
   };
-
-  // Step 3: Email confirmed -> PENDING_BIOMETRICS
-  const handleEmailConfirmed = async () => {
-    if (!currentUser) return;
-    const updatedUsers = users.map((u) => {
-      if (u.id === currentUser.id) {
-        return {
-          ...u,
-          accountStatus: 'PENDING_BIOMETRICS' as AccountStatus,
-          emailVerifiedAt: new Date().toLocaleString(),
-        };
-      }
-      return u;
-    });
-    setUsers(updatedUsers);
-
-    try {
-      await api.updateUserStatus(currentUser.id, 'PENDING_BIOMETRICS');
-    } catch (e) {
-      console.warn('Status update saved locally:', e);
-    }
-
-    showToast('Email verified! You must now visit the jail in person for biometric fingerprint scanning.');
-  };
-
-  // Step 4: Biometrics scanned at jail -> ACTIVATED
-  const handleBiometricScanned = async () => {
-    if (!currentUser) return;
-    const updatedUsers = users.map((u) => {
-      if (u.id === currentUser.id) {
-        return {
-          ...u,
-          accountStatus: 'ACTIVATED' as AccountStatus,
-          biometricScannedAt: new Date().toLocaleString(),
-          biometricsOfficerName: 'JO2 R. BAUTISTA (BJMP Records Desk)',
-        };
-      }
-      return u;
-    });
-    setUsers(updatedUsers);
-
-    try {
-      await api.updateUserStatus(currentUser.id, 'ACTIVATED', 'JO2 R. BAUTISTA (BJMP Records Desk)');
-    } catch (e) {
-      console.warn('Status update saved locally:', e);
-    }
-
-    showToast('Biometric fingerprint verified! Account is now ACTIVATED. You can now book visitation appointments.');
-  };
+  // Contact verification is completed by the auth endpoint; proceed to secure document review.
+  const handleEmailConfirmed = (verifiedUser: UserProfile) => { setUsers(prev => [verifiedUser, ...prev.filter(u => u.id !== verifiedUser.id)]); setDevVerificationOtp(null); showToast('Contact verified. Continue to Identity Verification.'); };
 
   // Appointments
-  const handleAddAppointment = async (newAppt: VisitationAppointment) => {
-    setAppointments((prev) => [newAppt, ...prev]);
-
-    try {
-      await api.createAppointment(newAppt);
-    } catch (e) {
-      console.warn('New appointment saved locally:', e);
-    }
-
-    showToast('Visitation appointment scheduled! Electronic gate pass generated.');
+  const handleAddAppointment = async (newAppt: Partial<VisitationAppointment>): Promise<VisitationAppointment> => {
+    const { appointment } = await api.createAppointment(newAppt);
+    setAppointments((prev) => [appointment, ...prev.filter((item) => item.id !== appointment.id)]);
+    showToast('Appointment request submitted for review.');
+    return appointment;
   };
 
   const handleCancelAppointment = async (apptId: string) => {
-    setAppointments((prev) => prev.filter((a) => a.id !== apptId));
-
     try {
-      await api.updateAppointmentStatus(apptId, 'Cancelled');
-    } catch (e) {
-      console.warn('Cancellation saved locally:', e);
-    }
-
-    showToast('Visitation appointment cancelled.');
+      const { appointment } = await api.updateAppointmentStatus(apptId, 'Cancelled');
+      setAppointments((prev) => prev.map((item) => item.id === apptId ? appointment : item));
+      showToast('Visitation appointment cancelled.');
+    } catch (e) { showToast(e instanceof Error ? e.message : 'Appointment could not be cancelled.'); }
   };
 
-  // Quick Book Helper for Guard/ID testing
-  const handleQuickBookTodayForUser = async (userId: string, targetDate: string) => {
-    const visitor = users.find((u) => u.id === userId);
-    if (!visitor) return;
 
-    const existing = appointments.find((a) => a.userId === userId && a.visitDate === targetDate);
-    if (existing) {
-      showToast(`Visitor already has an appointment booked for ${targetDate}.`);
-      return;
-    }
-
-    const newAppt: VisitationAppointment = {
-      id: `appt-quick-${Date.now()}`,
-      appointmentReference: `BJMP-IMUS-${Math.floor(100000 + Math.random() * 900000)}`,
-      userId: visitor.id,
-      visitorName: `${visitor.firstName} ${visitor.middleName ? `${visitor.middleName} ` : ''}${visitor.lastName} ${visitor.suffix}`.trim(),
-      visitorContact: visitor.contactNumber,
-      pdlId: 'pdl-001',
-      pdlName: 'Danilo M. Cruz',
-      pdlNumber: 'BJMP-2024-0891',
-      jailFacilityId: 'imus-city-jail-male',
-      jailFacilityName: 'BJMP Imus City Jail - Male Dormitory',
-      cellDormitory: 'Brigada Malagasang - Selda 4',
-      visitType: 'Contact Visit',
-      relationshipToPDL: 'Spouse',
-      visitDate: targetDate,
-      timeSlot: 'Morning Batch (09:00 AM - 11:30 AM)',
-      paabotItemsDescription: '1 transparent container with cooked meal, 1 sealed 500ml water bottle.',
-      status: 'Approved',
-      createdAt: new Date().toISOString().split('T')[0],
-      qrToken: `BJMP-IMUS-QR-${visitor.biometricReferenceNumber}-${Date.now()}`,
-    };
-
-    setAppointments((prev) => [newAppt, ...prev]);
-
-    try {
-      await api.createAppointment(newAppt);
-    } catch (e) {
-      console.warn('Quick appointment saved locally:', e);
-    }
-
-    showToast(`Appointment confirmed for ${targetDate}! Gate scanner will now show CONFIRMED.`);
-  };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 font-sans antialiased">
+    <div className="min-h-screen flex flex-col bg-transparent text-slate-100 font-sans antialiased">
       
       {/* Refined Toast Notification */}
       {toastMessage && (
@@ -435,8 +206,8 @@ export default function App() {
         currentUser={currentUser}
         onLogout={handleLogout}
         isAdminView={adminViewMode === 'admin'}
-        onToggleAdminView={currentUser?.role === 'ADMIN' ? () => setAdminViewMode((m) => (m === 'admin' ? 'visitor' : 'admin')) : undefined}
-        onOpenGuardScanner={currentUserIsStaff ? () => {
+        onToggleAdminView={(currentUser?.role === 'ADMIN' || currentUser?.role === 'SUPER_ADMIN') ? () => setAdminViewMode((m) => (m === 'admin' ? 'visitor' : 'admin')) : undefined}
+        onOpenGuardScanner={(currentUser?.role === 'ADMIN' || currentUser?.role === 'SUPER_ADMIN') ? () => {
           setGuardScannerVisitorId(users.find((user) => !isStaffRole(user.role))?.id);
           setIsGuardScannerOpen(true);
         } : undefined}
@@ -449,10 +220,10 @@ export default function App() {
             onLogin={handleLogin}
             onOpenSignUp={() => setIsSignUpOpen(true)}
             onOpenForgotPassword={() => setIsForgotOpen(true)}
-            demoUsers={users}
-            onSelectDemoUser={handleSelectDemoUser}
           />
-        ) : currentUserIsStaff ? (
+        ) : currentUser?.role === 'WORKER' || currentUser?.role === 'GUARD' ? (
+          <WorkerDashboard user={currentUser} />
+        ) : currentUser?.role === 'ADMIN' || currentUser?.role === 'SUPER_ADMIN' ? (
           adminViewMode === 'admin' ? (
             <AdminDashboard
               currentUser={currentUser}
@@ -465,10 +236,10 @@ export default function App() {
                 setGuardScannerVisitorId(visitorId || users[0]?.id);
                 setIsGuardScannerOpen(true);
               }}
-              onAddAppointment={handleAddAppointment}
               onDeleteAppointment={handleDeleteAppointment}
               onSwitchToVisitorView={() => setAdminViewMode('visitor')}
               onSavePdl={handleSavePdl}
+              onUsersRefresh={async()=>{const latest=await api.getUsers();setUsers(latest)}}
             />
           ) : (
             <div>
@@ -487,6 +258,7 @@ export default function App() {
               </div>
               <VisitorDashboard
                 user={currentUser}
+                pdls={pdls}
                 appointments={appointments.filter((a) => a.userId === currentUser.id)}
                 onAddAppointment={handleAddAppointment}
                 onCancelAppointment={handleCancelAppointment}
@@ -494,36 +266,35 @@ export default function App() {
                   setGuardScannerVisitorId(visitorId);
                   setIsGuardScannerOpen(true);
                 }}
-                onQuickBookToday={() => {
-                  handleQuickBookTodayForUser(currentUser.id, new Date().toISOString().split('T')[0]);
-                }}
-              />
+                  />
             </div>
           )
-        ) : currentUser.accountStatus === 'PENDING_EMAIL' ? (
+        ) : currentUser?.role === 'VERIFICATION_OFFICER' ? (
+          <main className="min-h-screen bg-transparent p-4 text-slate-100 sm:p-8"><div className="mx-auto max-w-7xl"><header className="mb-6 flex items-center justify-between"><div><p className="text-xs font-bold uppercase tracking-widest text-blue-300">Verification Officer</p><h1 className="text-2xl font-bold">Identity Review Workspace</h1></div><button onClick={handleLogout} className="rounded-lg border border-white/15 px-3 py-2 text-sm">Log out</button></header><AdminKycPanel /></div></main>
+        ) : currentUser.accountStatus === 'PENDING_EMAIL' || (!currentUser.emailVerified && !currentUser.phoneVerified) ? (
           <EmailConfirmationView
             user={currentUser}
             onEmailConfirmed={handleEmailConfirmed}
             onLogout={handleLogout}
+            initialDevelopmentOtp={devVerificationOtp}
           />
+        ) : currentUser.accountStatus === 'PENDING_VERIFICATION' ? (
+          <IdentityVerificationPage user={currentUser} onLogout={handleLogout} />
         ) : currentUser.accountStatus === 'PENDING_BIOMETRICS' ? (
           <BiometricNoticeView
             user={currentUser}
-            onBiometricScanned={handleBiometricScanned}
             onLogout={handleLogout}
           />
         ) : (
           <VisitorDashboard
             user={currentUser}
+            pdls={pdls}
             appointments={appointments.filter((a) => a.userId === currentUser.id)}
             onAddAppointment={handleAddAppointment}
             onCancelAppointment={handleCancelAppointment}
             onOpenGuardScanner={(visitorId) => {
               setGuardScannerVisitorId(visitorId);
               setIsGuardScannerOpen(true);
-            }}
-            onQuickBookToday={() => {
-              handleQuickBookTodayForUser(currentUser.id, new Date().toISOString().split('T')[0]);
             }}
           />
         )}
@@ -547,12 +318,11 @@ export default function App() {
 
       {/* Gate 1 Guard Scanner Terminal */}
       <GuardScannerModal
-        isOpen={isGuardScannerOpen}
+        isOpen={isGuardScannerOpen && (currentUser?.role === 'ADMIN' || currentUser?.role === 'SUPER_ADMIN')}
         onClose={() => setIsGuardScannerOpen(false)}
         users={users}
         appointments={appointments}
         initialVisitorId={guardScannerVisitorId}
-        onQuickBookTodayForUser={handleQuickBookTodayForUser}
       />
 
       {/* Official Footer */}

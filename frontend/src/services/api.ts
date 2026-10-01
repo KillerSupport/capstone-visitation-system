@@ -11,6 +11,7 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || `${protocol}//${browserHos
 async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const url = `${API_BASE}${endpoint}`;
   const response = await fetch(url, {
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
     },
@@ -35,20 +36,45 @@ export const api = {
     return request<{ status: string; database: string }>('/health');
   },
 
+  async verifyOtp(code: string) { return request<{success:boolean;user:UserProfile}>('/auth/verify-otp',{method:'POST',body:JSON.stringify({code})}); },
+  async resendOtp() { return request<{success:boolean;developmentOtp?:string}>('/auth/resend-otp',{method:'POST'}); },
+  async getKycStatus() { return request<{status:any}>('/kyc/status'); },
+  async submitKyc(data:{idType:string;idNumber:string;fullName:string;dateOfBirth?:string;address?:string;frontImage:string;backImage?:string}) { return request<{success:boolean;status:string;automatedCheck:any}>('/kyc/submissions',{method:'POST',body:JSON.stringify(data)}); },
+  async getWorkerVisits() { return request<any[]>('/worker/visitors/today'); },
+  async getVisitorPdls(): Promise<PDL[]> { return request<PDL[]>('/visitor/pdls'); },
+  async getWorkerHistory() { return request<any[]>('/worker/history'); },
+  async workerSearchVisitors(query:string) { return request<any[]>(`/worker/visitors/search?q=${encodeURIComponent(query)}`); },
+  async workerScan(code:string) { return request<{result:any;canProceed:boolean}>('/worker/scan',{method:'POST',body:JSON.stringify({code})}); },
+  async workerVerifyVisit(id:string,result:'SUCCESS'|'FAILED') { return request<{success:boolean;result:string;message:string}>(`/worker/visits/${encodeURIComponent(id)}/verify`,{method:'POST',body:JSON.stringify({result})}); },
+  async getAdminUserProfile(id:string) { return request<any>(`/admin/users/${encodeURIComponent(id)}`); },
+  async getAdminKyc(status?:string) { return request<any[]>(`/admin/kyc/${status?`?status=${encodeURIComponent(status)}`:''}`); },
+  async reviewKyc(id:string,status:'VERIFIED'|'REJECTED'|'NEEDS_RESUBMISSION',reason='') { return request<any>(`/admin/kyc/${encodeURIComponent(id)}/review`,{method:'PATCH',body:JSON.stringify({status,reason})}); },
+  async adminKycDetail(id:string) { return request<any>(`/admin/kyc/${encodeURIComponent(id)}`); },
+  async getKycDocument(url:string) { const response=await fetch(`${API_BASE}${url.replace(/^\/api/,'')}`,{credentials:'include'});if(!response.ok)throw new Error('Could not load protected document.');return URL.createObjectURL(await response.blob()); },
+  async getAdminAuditLogs(filters:Record<string,string>={}) { const q=new URLSearchParams(Object.entries(filters).filter(([,v])=>v));return request<any[]>(`/admin/audit-logs${q.size?`?${q}`:''}`); },
+  async getAdminArchive(type='',q='') { const params=new URLSearchParams();if(type)params.set('type',type);if(q)params.set('q',q);return request<any[]>(`/admin/archive${params.size?`?${params}`:''}`); },
+  async restoreArchivedRecord(type:string,id:string) { return request<{success:boolean}>(`/admin/archive/${encodeURIComponent(type)}/${encodeURIComponent(id)}/restore`,{method:'POST'}); },
+  async getArchiveHistory(type:string,id:string) { return request<any[]>(`/admin/archive/${encodeURIComponent(type)}/${encodeURIComponent(id)}/history`); },
+  async getArchivedRecord(type:string,id:string) { return request<any>(`/admin/archive/${encodeURIComponent(type)}/${encodeURIComponent(id)}`); },
+  async archiveRecord(type:string,id:string,reason:string) { return request<{success:boolean}>(`/admin/archive/${encodeURIComponent(type)}/${encodeURIComponent(id)}`,{method:'POST',body:JSON.stringify({reason})}); },
+  async downloadAdminExport(endpoint:string,filters:Record<string,string>={}) { const q=new URLSearchParams(Object.entries(filters).filter(([,v])=>v));const response=await fetch(`${API_BASE}${endpoint}${q.size?`?${q}`:''}`,{credentials:'include'});if(!response.ok){let message='Export failed';try{message=(await response.json()).error||message}catch{}throw new Error(message)}const blob=await response.blob();const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=response.headers.get('Content-Disposition')?.match(/filename="?([^";]+)"?/)?.[1]||'report.csv';a.click();URL.revokeObjectURL(url);return true; },
+  async logout() { return request<{success:boolean}>('/auth/logout',{method:'POST'}); },
+  async me() { return request<{user:UserProfile}>('/auth/me'); },
+
   // Users
   async getUsers(): Promise<UserProfile[]> {
     return request<UserProfile[]>('/users');
   },
 
-  async login(email: string, password: string): Promise<{ success: boolean; user: UserProfile }> {
+  async login(identifier: string, password: string): Promise<{ success: boolean; user: UserProfile }> {
     return request<{ success: boolean; user: UserProfile }>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ identifier, password }),
     });
   },
 
-  async register(userData: Partial<UserProfile>): Promise<{ success: boolean; user: UserProfile }> {
-    return request<{ success: boolean; user: UserProfile }>('/auth/register', {
+  async register(userData: Partial<UserProfile>): Promise<{ success: boolean; user: UserProfile; developmentOtp?:string }> {
+    return request<{ success: boolean; user: UserProfile; developmentOtp?:string }>('/auth/register', {
       method: 'POST',
       body: JSON.stringify(userData),
     });
@@ -80,9 +106,9 @@ export const api = {
     });
   },
 
-  async deleteAppointment(id: string): Promise<{ success: boolean }> {
-    return request<{ success: boolean }>(`/appointments/${id}`, {
-      method: 'DELETE',
+  async deleteAppointment(id: string, reason='Administrator archive'): Promise<{ success: boolean }> {
+    return request<{ success: boolean }>(`/admin/archive/VISITS/${encodeURIComponent(id)}`, {
+      method: 'POST', body: JSON.stringify({reason}),
     });
   },
 

@@ -1,8 +1,5 @@
-export type AccountStatus = 
-  | 'PENDING_EMAIL'        // Registration done, waiting for email confirmation
-  | 'PENDING_BIOMETRICS'   // Email confirmed, must go to jail for in-person biometric scan
-  | 'ACTIVATED'            // Biometric scanned at jail facility, fully activated
-  | 'SUSPENDED';
+export type AccountStatus = 'PENDING_VERIFICATION' | 'PENDING_EMAIL' | 'PENDING_BIOMETRICS' | 'ACTIVE' | 'ACTIVATED' | 'SUSPENDED' | 'REJECTED';
+export type KycStatus = 'NOT_SUBMITTED' | 'PENDING_REVIEW' | 'PROCESSING' | 'VERIFIED' | 'REJECTED' | 'NEEDS_RESUBMISSION';
 
 export type Gender = 'Male' | 'Female' | 'Other' | 'Prefer not to say';
 
@@ -27,10 +24,10 @@ export type ValidIdType =
 
 export type VisitType = 'Contact Visit' | 'Non-Contact (Glass Barrier)' | 'E-Dalaw (Online Video Call)';
 
-export type UserRole = 'ADMIN' | 'WORKER' | 'GUARD' | 'VISITOR';
+export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'VERIFICATION_OFFICER' | 'WORKER' | 'GUARD' | 'VISITOR';
 
 /** GUARD is retained for the existing database account; WORKER is the general staff role. */
-export const isStaffRole = (role?: UserRole) => role === 'ADMIN' || role === 'WORKER' || role === 'GUARD';
+export const isStaffRole = (role?: UserRole) => role === 'SUPER_ADMIN' || role === 'ADMIN' || role === 'VERIFICATION_OFFICER' || role === 'WORKER' || role === 'GUARD';
 
 export interface UserAddress {
   houseUnitStreet: string;
@@ -47,16 +44,19 @@ export interface UserProfile {
   suffix: string;
   dateOfBirth: string;
   gender: Gender;
-  contactNumber: string;
   email: string;
+  mobileNumber?: string;
   password?: string;
   role?: UserRole;
   adminTitle?: string;
   badgeNumber?: string;
   address: UserAddress;
-  validIdType: ValidIdType;
-  idPhotoUrl: string;
-  facePhotoUrl: string;
+  validIdType?: ValidIdType;
+  idPhotoUrl?: string;
+  facePhotoUrl?: string;
+  emailVerified?: boolean;
+  phoneVerified?: boolean;
+  lastLoginAt?: string;
   accountStatus: AccountStatus;
   emailVerifiedAt?: string;
   biometricReferenceNumber: string;

@@ -14,10 +14,10 @@
 }
 
 @theme {
-  --color-slate-950: #060632;
-  --color-slate-900: #0c0c3e;
-  --color-slate-800: #151547;
-  --color-slate-700: #232352;
+  --color-slate-950: rgb(6 6 50 / 76%);
+  --color-slate-900: rgb(12 12 62 / 82%);
+  --color-slate-800: rgb(21 21 71 / 86%);
+  --color-slate-700: rgb(35 35 82 / 90%);
   --color-slate-600: #36365f;
   --color-slate-500: #696986;
   --color-slate-400: #a6a6bb;
@@ -40,6 +40,10 @@
     min-height: 100vh;
     font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
     background-color: var(--page-bg);
+    background-image: linear-gradient(rgb(4 14 34 / 58%), rgb(4 14 34 / 68%)), url('/assets/project-background.jpg');
+    background-position: center;
+    background-size: cover;
+    background-attachment: fixed;
     color: var(--text-primary);
     -webkit-font-smoothing: antialiased;
   }

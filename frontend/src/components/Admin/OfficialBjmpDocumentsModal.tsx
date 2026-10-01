@@ -177,10 +177,10 @@ export const OfficialBjmpDocumentsModal: React.FC<OfficialBjmpDocumentsModalProp
                     IMUS CITY JAIL - MALE DORMITORY
                   </div>
                   <div className="text-[10px] text-slate-600">
-                    Cavite Civic Center, Palico IV, Imus City, Cavite | Tel: (046) 472-3671 / +63 923-426-3892
+                    Imus City, Cavite
                   </div>
                   <div className="text-[9px] text-slate-500 font-mono">
-                    Email: r4a.imuscjmd@bjmp.gov.ph | ISO 9001:2015 Certified
+                    
                   </div>
                 </div>
 
@@ -399,7 +399,7 @@ export const OfficialBjmpDocumentsModal: React.FC<OfficialBjmpDocumentsModalProp
                   {' '}born on <strong>{currentPdl.dateOfBirth || '1992-04-15'}</strong>, with File Number{' '}
                   <span className="font-mono font-bold">{currentPdl.fileNumber || 'FN-2024-0192'}</span>, 
                   is a bona fide <strong>Person Deprived of Liberty (PDL)</strong> currently detained in custody 
-                  at the <strong>BJMP Imus City Jail - Male Dormitory</strong>, located at Cavite Civic Center, Imus City, Cavite.
+                  at the <strong>BJMP Imus City Jail - Male Dormitory</strong>, located in Imus City, Cavite.
                 </p>
 
                 <p className="text-justify indent-8 text-slate-800">

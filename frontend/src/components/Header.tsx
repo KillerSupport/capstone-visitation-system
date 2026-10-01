@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile, AccountStatus, isStaffRole } from '../types';
-import { Shield, Lock, User, LogOut, CheckCircle2, Clock, Fingerprint, QrCode, Radio, Wifi, WifiOff } from 'lucide-react';
+import { Lock, User, LogOut, CheckCircle2, Clock, Fingerprint, QrCode, Radio, Wifi, WifiOff } from 'lucide-react';
 import { realtimeWS, WebSocketStatus } from '../services/websocket';
 
 interface HeaderProps {
@@ -87,11 +87,6 @@ export const Header: React.FC<HeaderProps> = ({
               </>
             )}
           </div>
-
-          <span className="text-slate-600 hidden sm:inline">|</span>
-          <span className="text-slate-300 hidden sm:inline">
-            Jail Desk: <span className="font-mono text-blue-300 font-semibold">(046) 471-2854</span>
-          </span>
         </div>
       </div>
 
@@ -100,10 +95,9 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="flex items-center space-x-4">
           {/* Official BJMP Seal Crest */}
           <div className="flex items-center space-x-3.5">
-            <div className="w-11 h-11 rounded-lg bg-gradient-to-br from-blue-500 via-blue-600 to-blue-700 p-0.5 shadow-md flex items-center justify-center shrink-0">
-              <div className="w-full h-full bg-slate-900 rounded-[6px] flex flex-col items-center justify-center border border-blue-400/40">
-                <Shield className="w-5 h-5 text-blue-400" />
-                <span className="text-[7.5px] font-black tracking-tighter text-blue-300">BJMP</span>
+            <div className="w-11 h-11 flex items-center justify-center shrink-0">
+              <div className="w-full h-full flex items-center justify-center overflow-hidden">
+                <img src="/assets/bjmp_icon.png" alt="BJMP" className="w-full h-full object-contain" />
               </div>
             </div>
             <div>
@@ -116,7 +110,7 @@ export const Header: React.FC<HeaderProps> = ({
                 </span>
               </div>
               <p className="text-[11px] text-slate-300">
-                Inmate Visitation & Biometric Electronic Gate Pass Portal • Brgy. Malagasang 1-G
+                Inmate Visitation & Biometric Electronic Gate Pass Portal
               </p>
             </div>
           </div>
@@ -178,7 +172,7 @@ export const Header: React.FC<HeaderProps> = ({
                       )}
                       {currentUser.accountStatus === 'PENDING_EMAIL' && (
                         <span className="text-blue-400 font-medium flex items-center gap-1">
-                          <Clock className="w-3 h-3" /> Email Pending
+                          <Clock className="w-3 h-3" /> Verify Contact
                         </span>
                       )}
                     </>

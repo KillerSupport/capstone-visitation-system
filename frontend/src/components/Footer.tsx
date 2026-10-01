@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, Phone, FileText, AlertCircle } from 'lucide-react';
+import { Phone, FileText, AlertCircle } from 'lucide-react';
 
 export const Footer: React.FC = () => {
   return (
@@ -8,14 +8,14 @@ export const Footer: React.FC = () => {
       <div className="max-w-7xl mx-auto px-6 py-8 grid grid-cols-4 gap-8">
         <div>
           <div className="flex items-center space-x-2 text-slate-200 font-bold mb-3">
-            <Shield className="w-4 h-4 text-blue-400" />
+            <img src="/assets/bjmp_icon.png" alt="BJMP" className="w-5 h-5 object-contain" />
             <span>BJMP IMUS CITY JAIL</span>
           </div>
           <p className="text-slate-400 leading-relaxed text-[11px] mb-2">
             Bureau of Jail Management and Penology (BJMP) Region IV-A (CALABARZON). Male and Female Dormitories serving Imus City, Cavite.
           </p>
           <div className="text-[11px] text-slate-300 font-medium mb-1">
-            📍 Brgy. Malagasang 1-G, Imus City, Cavite 4103
+            📍 Imus City, Cavite
           </div>
           <div className="text-[10px] text-slate-500">
             Near Imus City Government Center • Republic Act No. 6975
@@ -39,25 +39,14 @@ export const Footer: React.FC = () => {
         <div>
           <h4 className="text-slate-200 font-semibold mb-3 flex items-center gap-1.5">
             <Phone className="w-3.5 h-3.5 text-blue-400" />
-            Imus City Jail & Local Hotlines
+            Imus City Emergency Contacts
           </h4>
           <div className="space-y-1.5 text-[11px] text-slate-400">
-            <p className="flex justify-between">
-              <span>BJMP Imus City Jail Desk:</span>
-              <strong className="text-blue-300 font-mono">(046) 471-2854</strong>
-            </p>
-            <p className="flex justify-between">
-              <span>Imus Jail Mobile Hotline:</span>
-              <strong className="text-blue-300 font-mono">+63 917 839 2044</strong>
-            </p>
-            <p className="flex justify-between">
-              <span>Imus Police Station (PNP):</span>
-              <strong className="text-slate-300 font-mono">(046) 471-2868</strong>
-            </p>
-            <p className="flex justify-between">
-              <span>Imus CDRRMO / Emergency:</span>
-              <strong className="text-slate-300 font-mono">(046) 472-2432 / 911</strong>
-            </p>
+            <p className="flex justify-between gap-2"><span>City emergency:</span><strong className="text-blue-300 font-mono">(046) 888-9911</strong></p>
+            <p className="flex justify-between gap-2"><span>CDRRMO:</span><strong className="text-blue-300 font-mono text-right">(046) 472-2618 / 2623 / 2625</strong></p>
+            <p className="flex justify-between gap-2"><span>CDRRMO Mobile:</span><strong className="text-blue-300 font-mono">0919-069-1703</strong></p>
+            <p className="flex justify-between gap-2"><span>Imus PNP:</span><strong className="text-slate-300 font-mono">0998 598 5601 / 911</strong></p>
+            <a className="inline-flex mt-3 text-blue-300 hover:text-white underline underline-offset-2" href="https://odbs.bjmp.gov.ph/" target="_blank" rel="noreferrer">BJMP Online Dalaw Booking System ↗</a>
           </div>
         </div>
 
@@ -67,7 +56,7 @@ export const Footer: React.FC = () => {
             Privacy & Governance
           </h4>
           <p className="text-[11px] text-slate-400 leading-relaxed mb-2">
-            In compliance with the Data Privacy Act of 2012 (Republic Act No. 10173), all personal data, valid ID copies, and biometric records are securely encrypted and used exclusively for jail security clearance and visitor authentication.
+            Personal information is collected for account and visitation processing under the Data Privacy Act of 2012 (Republic Act No. 10173).
           </p>
           <div className="flex items-center space-x-2 text-[11px] text-blue-400/90 font-medium">
             <span>Official Government Desktop System</span>

@@ -1,4 +1,7 @@
+import { normalizePhilippineMobileNumber } from '../identity.js';
 import mysql from 'mysql2/promise';
+import { randomBytes, scrypt as scryptCallback } from 'node:crypto';
+import { promisify } from 'node:util';
 import 'dotenv/config';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -52,7 +55,8 @@ export async function initDatabase() {
 
       CREATE TABLE IF NOT EXISTS users (
         id                          INT AUTO_INCREMENT PRIMARY KEY,
-        email                       VARCHAR(255) UNIQUE NOT NULL,
+        email                       VARCHAR(255) NULL,
+        mobile_number               VARCHAR(30) NULL,
         password                    VARCHAR(255) NOT NULL,
         role                        VARCHAR(50)  NOT NULL DEFAULT 'VISITOR',
         admin_title                 VARCHAR(200),
@@ -63,7 +67,6 @@ export async function initDatabase() {
         suffix                      VARCHAR(20),
         date_of_birth               DATE,
         gender                      VARCHAR(20),
-        contact_number              VARCHAR(50),
         address_street              TEXT,
         address_municipality        VARCHAR(200),
         marital_status              VARCHAR(50),
@@ -89,7 +92,6 @@ export async function initDatabase() {
         first_name                      VARCHAR(100) NOT NULL,
         middle_name                     VARCHAR(100),
         suffix                          VARCHAR(20),
-        full_name                       VARCHAR(255) NOT NULL,
         aliases                         TEXT,
         date_of_birth                   DATE,
         age_at_admission                INT,
@@ -224,6 +226,109 @@ export async function initDatabase() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
+    // Preserve existing accounts while upgrading older installations.
+    const [userCols] = await conn.query<mysql.RowDataPacket[]>("SHOW COLUMNS FROM users");
+    const cols = new Set(userCols.map((col: any) => col.Field));
+    if (!cols.has('mobile_number')) await conn.query('ALTER TABLE users ADD COLUMN mobile_number VARCHAR(30) NULL AFTER email');
+    await conn.query('ALTER TABLE users MODIFY email VARCHAR(255) NULL');
+    const extraCols = new Set(cols);
+    if (!extraCols.has('phone_verified_at')) await conn.query('ALTER TABLE users ADD COLUMN phone_verified_at DATETIME NULL AFTER email_verified_at');
+    if (!extraCols.has('last_login_at')) await conn.query('ALTER TABLE users ADD COLUMN last_login_at DATETIME NULL AFTER phone_verified_at');
+
+    // Merge the legacy contact_number into the canonical mobile_number without losing or
+    // silently changing any values. Abort before writes if records conflict or are not PH mobile numbers.
+    if (cols.has('contact_number')) {
+      const [legacyUsers] = await conn.query<mysql.RowDataPacket[]>('SELECT id,mobile_number,contact_number FROM users');
+      const canonicalByUser = new Map<number,string>();
+      const ownerByPhone = new Map<string,number>();
+      for (const row of legacyUsers) {
+        const mobileRaw=String(row.mobile_number||'').trim(), contactRaw=String(row.contact_number||'').trim();
+        const mobile=mobileRaw?normalizePhilippineMobileNumber(mobileRaw):null;
+        const contact=contactRaw?normalizePhilippineMobileNumber(contactRaw):null;
+        if ((mobileRaw&&!mobile)||(contactRaw&&!contact)) throw new Error('Cannot remove users.contact_number safely: a stored account contact is not a valid Philippine mobile number. Reconcile that account first.');
+        if (mobile&&contact&&mobile!==contact) throw new Error('Cannot remove users.contact_number safely: an account has conflicting mobile and contact values. Reconcile that account first.');
+        const phone=mobile||contact;
+        if(phone){const existing=ownerByPhone.get(phone);if(existing&&existing!==Number(row.id))throw new Error('Cannot merge legacy account contacts: duplicate normalized Philippine mobile numbers exist. Reconcile duplicates first.');ownerByPhone.set(phone,Number(row.id));canonicalByUser.set(Number(row.id),phone);}
+      }
+      for (const [id,phone] of canonicalByUser) await conn.query('UPDATE users SET mobile_number=? WHERE id=?',[phone,id]);
+      await conn.query('ALTER TABLE users DROP COLUMN contact_number');
+    }
+
+    const [phoneRows] = await conn.query<mysql.RowDataPacket[]>('SELECT id,mobile_number FROM users WHERE mobile_number IS NOT NULL');
+    const normalizedPhones=new Map<string,number>();
+    const normalizedRows: {id:number;phone:string}[]=[];
+    for (const row of phoneRows) { const normalized=normalizePhilippineMobileNumber(String(row.mobile_number)); if (!normalized) continue; const existing=normalizedPhones.get(normalized); if (existing && existing!==Number(row.id)) throw new Error('Duplicate Philippine mobile numbers in existing users. Resolve duplicate accounts before starting the server.'); normalizedPhones.set(normalized,Number(row.id)); if (normalized!==row.mobile_number) normalizedRows.push({id:Number(row.id),phone:normalized}); }
+    for (const row of normalizedRows) await conn.query('UPDATE users SET mobile_number=? WHERE id=?',[row.phone,row.id]);
+    const [idx] = await conn.query<mysql.RowDataPacket[]>("SHOW INDEX FROM users");
+    if (!idx.some((i: any) => i.Column_name === 'email' && i.Non_unique === 0)) await conn.query('CREATE UNIQUE INDEX uq_users_email ON users(email)');
+    if (!idx.some((i: any) => i.Column_name === 'mobile_number' && i.Non_unique === 0)) await conn.query('CREATE UNIQUE INDEX uq_users_mobile ON users(mobile_number)');
+
+    const [pdlCols] = await conn.query<mysql.RowDataPacket[]>("SHOW COLUMNS FROM pdls");
+    const hasPdlFullName=pdlCols.some((col:any)=>col.Field==='full_name');
+    const [pdlRows] = await conn.query<mysql.RowDataPacket[]>(`SELECT p.*, r.id AS profile_record_id, r.form_data AS profile_data FROM pdls p LEFT JOIN pdl_form_records r ON r.pdl_id=p.id AND r.record_type='PDL_PROFILE'`);
+    for (const row of pdlRows) {
+      const parts=[row.first_name,row.middle_name,row.last_name,row.suffix].map((x:any)=>String(x||'').trim()).filter(Boolean);
+      const derived=parts.join(' ').replace(/\s+/g,' ').trim();
+      if(hasPdlFullName&&(!derived||derived.toLowerCase()!==String(row.full_name||'').replace(/\s+/g,' ').trim().toLowerCase())) throw new Error('Cannot remove pdls.full_name safely: at least one display name differs from its name parts. Reconcile that PDL first.');
+      if(!row.profile_record_id||!row.profile_data)continue;
+      const profile=parseRecordData(row.profile_data);
+      // The current mapper prefers PDL_PROFILE dates over the duplicate columns, so
+      // migrate those displayed values into the canonical columns before trimming JSON.
+      const dateValue=(value:any)=>{const d=String(value||'').slice(0,10);if(!/^\d{4}-\d{2}-\d{2}$/.test(d))return null;const parsed=new Date(`${d}T00:00:00Z`);return Number.isNaN(parsed.getTime())||parsed.toISOString().slice(0,10)!==d?null:d};
+      const profileDob=dateValue(profile.dateOfBirth), profileCommitted=dateValue(profile.dateCommitted);
+      const storedDob=dateOnly(row.date_of_birth)||null, storedCommitted=dateOnly(row.date_committed)||null;
+      const nextDob=profileDob||storedDob, nextCommitted=profileCommitted||storedCommitted;
+      if(nextDob!==storedDob||nextCommitted!==storedCommitted){await conn.query('UPDATE pdls SET date_of_birth=?,date_committed=? WHERE id=?',[nextDob,nextCommitted,row.id]);row.date_of_birth=nextDob;row.date_committed=nextCommitted;}
+      const extras=removeDuplicatePdlProfileFields(profile,row);
+      await conn.query('UPDATE pdl_form_records SET form_data=? WHERE id=?',[JSON.stringify(extras),row.profile_record_id]);
+    }
+    if(hasPdlFullName)await conn.query('ALTER TABLE pdls DROP COLUMN full_name');
+
+    await conn.query(`CREATE TABLE IF NOT EXISTS auth_sessions (token_hash CHAR(64) PRIMARY KEY, user_id INT NOT NULL, expires_at DATETIME NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, INDEX idx_session_user(user_id), FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    await conn.query(`CREATE TABLE IF NOT EXISTS auth_otps (id BIGINT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, purpose VARCHAR(30) NOT NULL, code_hash CHAR(64) NOT NULL, expires_at DATETIME NOT NULL, attempts INT NOT NULL DEFAULT 0, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, INDEX idx_otp_lookup(user_id,purpose,created_at), FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    await conn.query(`CREATE TABLE IF NOT EXISTS kyc_submissions (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, id_type VARCHAR(100) NOT NULL,
+      id_number_encrypted TEXT NOT NULL, id_number_hash CHAR(64) NOT NULL, id_number_last4 CHAR(4) NOT NULL, full_name VARCHAR(255) NOT NULL,
+      date_of_birth DATE NULL, address TEXT NULL, status VARCHAR(30) NOT NULL DEFAULT 'PENDING_REVIEW',
+      automated_check JSON NULL, submitted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      reviewed_at DATETIME NULL, reviewer_id INT NULL, rejection_reason TEXT NULL,
+      INDEX idx_kyc_status_submitted(status, submitted_at), INDEX idx_kyc_user(user_id, submitted_at),
+      INDEX idx_kyc_id_hash(id_number_hash), FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    await conn.query(`CREATE TABLE IF NOT EXISTS kyc_documents (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY, submission_id BIGINT NOT NULL, side VARCHAR(10) NOT NULL,
+      mime_type VARCHAR(40) NOT NULL, sha256 CHAR(64) NOT NULL, image_data LONGBLOB NOT NULL,
+      UNIQUE KEY uq_kyc_document_side(submission_id, side),
+      FOREIGN KEY(submission_id) REFERENCES kyc_submissions(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    await conn.query(`CREATE TABLE IF NOT EXISTS audit_logs (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY, actor_user_id INT NULL, actor_role VARCHAR(30) NOT NULL,
+      action VARCHAR(80) NOT NULL, target_type VARCHAR(40) NOT NULL, target_id VARCHAR(100) NULL,
+      result VARCHAR(30) NOT NULL, details JSON NULL, ip_address VARCHAR(45) NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_audit_created(created_at), INDEX idx_audit_target(target_type,target_id),
+      FOREIGN KEY(actor_user_id) REFERENCES users(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    const archiveTables = ['users','pdls','appointments','announcements','security_incidents'] as const;
+    for (const table of archiveTables) {
+      const [columns] = await conn.query<mysql.RowDataPacket[]>(`SHOW COLUMNS FROM \`${table}\``);
+      const names = new Set(columns.map((column:any) => column.Field));
+      if (!names.has('is_archived')) await conn.query(`ALTER TABLE \`${table}\` ADD COLUMN is_archived TINYINT(1) NOT NULL DEFAULT 0`);
+      if (!names.has('archived_at')) await conn.query(`ALTER TABLE \`${table}\` ADD COLUMN archived_at DATETIME NULL`);
+      if (!names.has('archived_by')) await conn.query(`ALTER TABLE \`${table}\` ADD COLUMN archived_by INT NULL`);
+      if (!names.has('archive_reason')) await conn.query(`ALTER TABLE \`${table}\` ADD COLUMN archive_reason TEXT NULL`);
+    }
+    const [auditColumns] = await conn.query<mysql.RowDataPacket[]>('SHOW COLUMNS FROM audit_logs');
+    if (!auditColumns.some((column:any) => column.Field === 'ip_address')) await conn.query('ALTER TABLE audit_logs ADD COLUMN ip_address VARCHAR(45) NULL AFTER details');
+    await conn.query(`CREATE TABLE IF NOT EXISTS record_archive_events (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY, record_type VARCHAR(40) NOT NULL, record_id VARCHAR(100) NOT NULL,
+      action VARCHAR(20) NOT NULL, record_label VARCHAR(255) NOT NULL, original_created_at DATETIME NULL,
+      previous_status VARCHAR(50) NULL, reason TEXT NULL, actor_user_id INT NULL, performed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_archive_record(record_type,record_id,performed_at), INDEX idx_archive_action(action,performed_at),
+      FOREIGN KEY(actor_user_id) REFERENCES users(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    const [kycCols] = await conn.query<mysql.RowDataPacket[]>('SHOW COLUMNS FROM kyc_submissions');
+    if (!kycCols.some((col:any)=>col.Field==='id_number_last4')) await conn.query("ALTER TABLE kyc_submissions ADD COLUMN id_number_last4 CHAR(4) NOT NULL DEFAULT '****' AFTER id_number_hash");
+
     // Seed default data only if the users table is empty
     const [rows] = await conn.query<mysql.RowDataPacket[]>('SELECT COUNT(*) as cnt FROM users');
     if (rows[0].cnt === 0) {
@@ -231,6 +336,8 @@ export async function initDatabase() {
       await seedDatabase(conn);
       console.log('✅ Database seeded successfully.');
     }
+
+    await conn.query(`UPDATE jail_facilities SET region='Region IV-A (CALABARZON)', address='Imus City, Cavite', contact_number='Check BJMP ODBS for current contact details', visiting_days='Confirm current days in BJMP ODBS', visiting_hours='Check official system for available dates and time slots', biometric_desk_hours='Confirm biometric desk hours with the facility before traveling' WHERE id IN ('imus-city-jail-male','imus-city-jail-female')`);
   } finally {
     conn.release();
   }
@@ -240,202 +347,23 @@ export async function initDatabase() {
 // Seed default BJMP data
 // ─────────────────────────────────────────────────────────────────────────────
 async function seedDatabase(conn: mysql.PoolConnection) {
-  // Minimal fresh-install records. The legacy detailed seed below is retained
-  // only as historical reference and is intentionally not executed.
+  const adminPassword=process.env.INITIAL_ADMIN_PASSWORD;
+  if(!adminPassword||adminPassword.length<12) throw new Error('Set INITIAL_ADMIN_PASSWORD (12+ characters) before initializing an empty database.');
+  if(process.env.INITIAL_WORKER_PASSWORD&&process.env.INITIAL_WORKER_PASSWORD.length<12) throw new Error('INITIAL_WORKER_PASSWORD must contain at least 12 characters.');
   await conn.query(`INSERT INTO jail_facilities VALUES
-    ('imus-city-jail-male','BJMP Imus City Jail - Male Dormitory','Region IV-A','Imus City, Cavite','Cavite Civic Center, Imus City, Cavite','(046) 472-3671','Tuesday to Sunday','8:00 AM - 4:00 PM','Monday to Friday: 8:00 AM - 4:00 PM',40)`);
-  await conn.query(`INSERT INTO users
-    (email,password,role,admin_title,badge_number,first_name,middle_name,last_name,registered_at)
-    VALUES
-    ('tongtongornamental@gmail.com','AdminAcc@123','ADMIN','System Administrator','BJMP-ADM-001','Maria','S.','Reyes',NOW()),
-    ('mharijie@gmail.com','WorkerAcc@123','WORKER','PDL Records Worker','BJMP-WRK-001','Jose','D.','Santos',NOW()),
-    ('harijiem@gmail.com','VisitorTest@123','VISITOR',NULL,NULL,'Ana','M.','Cruz',NOW())`);
-  return;
-  // Facilities
-  await conn.query(`
-    INSERT IGNORE INTO jail_facilities VALUES
-    ('imus-city-jail-male',
-     'BJMP Imus City Jail - Male Dormitory',
-     'Region IV-A (CALABARZON)', 'Imus City, Cavite',
-     'Brgy. Malagasang 1-G, Imus City, Cavite 4103 (Near City Government Center)',
-     '(046) 471-2854 / +63 917 839 2044',
-     'Tuesday to Sunday (Closed Mondays for Maintenance & Sanitation)',
-     'Morning: 8:00 AM - 11:30 AM | Afternoon: 1:00 PM - 4:00 PM',
-     'Monday to Friday: 8:00 AM - 4:00 PM (Admin & Records Section, Gate 1)', 40),
-    ('imus-city-jail-female',
-     'BJMP Imus City Jail - Female Dormitory',
-     'Region IV-A (CALABARZON)', 'Imus City, Cavite',
-     'Brgy. Malagasang 1-G, Imus City, Cavite 4103',
-     '(046) 471-2855 / +63 917 839 2045',
-     'Wednesday, Friday, Saturday, Sunday',
-     'Morning: 8:30 AM - 11:30 AM | Afternoon: 1:00 PM - 3:30 PM',
-     'Monday to Friday: 8:00 AM - 4:00 PM (Female Dorm Records Unit)', 30)
-  `);
-
-  // Users
-  await conn.query(`
-    INSERT IGNORE INTO users
-      (id, email, password, role, admin_title, badge_number, first_name, middle_name, last_name,
-       suffix, date_of_birth, gender, contact_number, address_street, address_municipality,
-       marital_status, zip_code, valid_id_type, valid_id_photo_url, face_photo_url,
-       account_status, biometric_reference_number, preferred_jail_facility_id,
-       email_verified_at, biometric_scanned_at, biometrics_officer_name, registered_at)
-    VALUES
-    ('user-admin-01','admin@bjmp.gov.ph','password123','ADMIN',
-     'Jail Warden & Command Administrator','BJMP-OFF-40192',
-     'JCInsp. Renato','Villanueva','Bautista','','1978-08-14','Male',
-     '(046) 471-2854','BJMP Imus Executive Command, Brgy. Malagasang 1-G','Imus City, Cavite',
-     'Married','4103','Philippine National ID (PhilSys)',
-     'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=600&q=80',
-     'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80',
-     'ACTIVATED','BJMP-EXEC-0001','imus-city-jail-male',
-     '2026-01-01 08:00:00','2026-01-01 08:00:00','BJMP National Headquarters Command','2026-01-01 08:00:00'),
-
-    ('user-admin-02','ramburat077@gmail.com','Password123','ADMIN',
-     'BJMP Executive Officer & System Administrator','BJMP-SYS-077',
-     'Admin Executive','M.','Ramburat','','1985-06-25','Male',
-     '+63 917 839 2044','Executive Quarters, Brgy. Malagasang 1-G','Imus City, Cavite',
-     'Married','4103','Philippine Passport (DFA)',
-     'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=600&q=80',
-     'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=400&q=80',
-     'ACTIVATED','BJMP-EXEC-0077','imus-city-jail-male',
-     '2026-01-01 08:00:00','2026-01-01 08:00:00','BJMP National Headquarters Command','2026-01-01 08:00:00'),
-
-    ('user-guard-01','guard.santos@bjmp.gov.ph','password123','GUARD',
-     'Gate 1 Sentinel Officer','BJMP-GRD-0192',
-     'JO2 Ramon','Cruz','Santos','','1990-03-15','Male',
-     '+63 917 888 1234','Gate 1 Officers Station, Brgy. Malagasang 1-G','Imus City, Cavite',
-     'Married','4103','Philippine National ID (PhilSys)',
-     'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=600&q=80',
-     'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80',
-     'ACTIVATED','BJMP-EXEC-0192','imus-city-jail-male',
-     '2026-01-01 08:00:00','2026-01-01 08:00:00','BJMP National Headquarters Command','2026-01-01 08:00:00'),
-
-    ('user-activated-01','maria.santos@gmail.com','password123','VISITOR',
-     NULL,NULL,'Maria Corazon','Alvarez','Santos','','1989-05-14','Female',
-     '+63 917 555 4321','#42 Aguinaldo Highway, Brgy. Malagasang 1-G','Imus City, Cavite',
-     'Married','4103','Philippine National ID (PhilSys)',
-     'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=600&q=80',
-     'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80',
-     'ACTIVATED','BJMP-BIO-IMUS-9921','imus-city-jail-male',
-     '2026-09-02 10:14:00','2026-09-03 14:22:15','JO2 R. BAUTISTA (BJMP Imus Records Desk)','2026-09-02 09:40:00'),
-
-    ('user-biometrics-pending-02','roberto.reyes@yahoo.com','password123','VISITOR',
-     NULL,NULL,'Roberto','Gomez','Reyes','Jr.','1995-11-20','Male',
-     '+63 920 889 1234','Block 5 Lot 18, Bucandala Subd., Brgy. Bucandala III','Imus City, Cavite',
-     'Single','4103','Driver''s License (LTO)',
-     'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&w=600&q=80',
-     'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80',
-     'PENDING_BIOMETRICS','BJMP-BIO-IMUS-7841','imus-city-jail-male',
-     '2026-09-07 16:30:00',NULL,NULL,'2026-09-07 16:15:00'),
-
-    ('user-email-pending-03','elena.mercado@outlook.com','password123','VISITOR',
-     NULL,NULL,'Elena','Soriano','Mercado','','1992-03-08','Female',
-     '+63 918 334 9901','Unit 304, Anabu Green Estates, Brgy. Anabu II-D','Imus City, Cavite',
-     'Single','4103','UMID (Unified Multi-Purpose ID)',
-     'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=600&q=80',
-     'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=400&q=80',
-     'PENDING_EMAIL','BJMP-BIO-IMUS-4432','imus-city-jail-female',
-     NULL,NULL,NULL,'2026-09-12 11:20:00')
-  `);
-
-  // PDLs
-  await conn.query(`
-    INSERT IGNORE INTO pdls
-      (id, pdl_number, file_number, bjmp_id_number, last_name, first_name, middle_name,
-       suffix, full_name, aliases, date_of_birth, age_at_admission, place_of_birth,
-       sex, civil_status, citizenship, religion, tribal_affiliation, present_address,
-       provincial_address, highest_educational_attainment, course, occupation, skills,
-       gang_group_affiliation, height, weight, built, complexion, eyes, hair, blood_type,
-       mannerism, dialects_spoken, bertillion_marks, emergency_contact_person,
-       emergency_contact_relation, emergency_contact_address, emergency_contact_phone,
-       date_committed, jail_facility_id, cell_dormitory, status,
-       primary_offense, court_branch, presiding_judge, case_status)
-    VALUES
-    ('pdl-001','PDL-2024-00192','FN-2024-0192','BJMP-R4A-ICJ-00192',
-     'Dela Cruz','Juan','Santos','Jr.','Juan Santos Dela Cruz Jr.','Johnny / "Totoy Bato"',
-     '1992-04-15',32,'Imus City, Cavite','Male','Married','Filipino','Roman Catholic','Tagalog',
-     'Blk 12 Lot 4, Villa Celina, Brgy. Malagasang 1-G, Imus City, Cavite',
-     'Brgy. San Miguel, Hagonoy, Bulacan','High School Graduate','General Academic',
-     'Tricycle Driver / Welder','Metal Arc Welding, Driving, Carpentry','None (Non-Affiliated)',
-     '5''6" (167 cm)','64 kg (141 lbs)','Medium / Muscular','Brown (Kayumanggi)','Brown','Wavy Black',
-     'O+','Blinks rapidly when nervous','Tagalog, Basic English',
-     'Dragon tattoo on left shoulder; 3cm surgical scar on right appendectomy site',
-     'Maria Corazon Santos Dela Cruz','Spouse','Malagasang 1-G, Imus City, Cavite','+63 917 555 4321',
-     '2024-02-14','imus-city-jail-male','Brigada Malagasang - Selda 4','In Custody',
-     'Violation of Sec. 11, Art. II, Republic Act 9165 (Comprehensive Dangerous Drugs Act of 2002)',
-     'RTC Branch 20, Imus City, Cavite','Hon. Amy Ana L. De Villa-Rosales','Under Trial'),
-
-    ('pdl-002','PDL-2023-01844','FN-2023-0184','BJMP-R4A-ICJ-01844',
-     'Reyes','Danilo','Mendoza','','Danilo Mendoza Reyes','Danny / "Commander"',
-     '1987-09-22',36,'Dasmariñas City, Cavite','Male','Married','Filipino','Iglesia Ni Cristo','Tagalog',
-     'Phase 3, Golden City, Brgy. Anabu II-F, Imus City, Cavite',
-     'Brgy. San Jose, Antipolo, Rizal','College Graduate','BS Criminology',
-     'Former Security Guard Supervisor','Security protocols, CCTV monitoring, First Aid',
-     'None (Non-Affiliated)','5''9" (175 cm)','78 kg (172 lbs)','Heavy / Stocky','Fair','Black',
-     'Short Military Cut','A+','Stands strictly in attention posture','Tagalog, English, Ilocano',
-     'Cross tattoo on chest; Mole under right eyelid','Lorna Santos Reyes','Spouse',
-     'Anabu II-F, Imus City, Cavite','+63 918 200 4110',
-     '2023-11-08','imus-city-jail-male','Brigada 1 - Main Dorm','In Custody',
-     'Homicide under Article 249 of the Revised Penal Code',
-     'RTC Branch 21, Imus City, Cavite','Hon. Francisco P. Sibal','Under Trial'),
-
-    ('pdl-006','PDL-2024-05521','FN-2024-0552','BJMP-R4A-ICJ-05521',
-     'Castillo','Jennifer','Alcantara','','Jennifer Alcantara Castillo','Jenny / "Jen"',
-     '1993-03-27',31,'Kawit, Cavite','Female','Single','Filipino','Roman Catholic','Tagalog',
-     'Brgy. Toclong 1-C, Imus City, Cavite','Brgy. Binakayan, Kawit, Cavite',
-     'High School Graduate','Secondary Education','Market Stall Assistant',
-     'Cooking, Sales, Handicrafts','None (Non-Affiliated)','5''3" (160 cm)','52 kg (114 lbs)',
-     'Medium','Fair','Dark Brown','Shoulder-length Black','O+','None','Tagalog, English',
-     'Rose flower tattoo on right ankle; Linear scar on left index finger',
-     'Rosalina Alcantara Castillo','Mother','Toclong 1-C, Imus City, Cavite','+63 922 411 9081',
-     '2024-08-05','imus-city-jail-female','Female Brigada 2 - Dorm B','In Custody',
-     'Qualified Theft under Art. 310 in rel. to Art. 308 of Revised Penal Code',
-     'MTCC Branch 1, Imus City, Cavite','Hon. Roberto C. Ramos','Under Trial')
-  `);
-
-  // Appointment (today's date)
-  const today = new Date().toISOString().split('T')[0];
-  await conn.query(`
-    INSERT IGNORE INTO appointments VALUES
-    ('appt-001','BJMP-IMUS-2026-88190','user-activated-01',
-     'Maria Corazon Santos Dela Cruz','+63 917 555 4321',
-     'pdl-001','Juan Santos Dela Cruz Jr.','PDL-2024-00192',
-     'imus-city-jail-male','BJMP Imus City Jail - Male Dormitory',
-     'Brigada Malagasang - Selda 4','Contact Visit','Spouse',
-     ?, 'Morning Batch (09:00 AM - 11:30 AM)',
-     '2 transparent plastic containers: Chicken adobo with boiled eggs and steamed white rice.',
-     'Approved','2026-09-18 00:00:00','BJMP-IMUS-PASS-001-QR-SECURE')
-  `, [today]);
-
-  // Security Incidents
-  await conn.query(`
-    INSERT IGNORE INTO security_incidents VALUES
-    ('inc-01','2026-09-17 09:15 AM','Rodrigo B. Perez','BJMP Imus Male Dormitory',
-     'Contraband Interception',
-     'Attempted to bring 2 canned sardines with sharp metal pull-tabs inside paabot bag.',
-     'Item confiscated; visitor warned and admitted with clear containers only.',
-     'JO1 G. Santos (Gate 1 Inspection)'),
-    ('inc-02','2026-09-16 01:45 PM','Carmen V. Ramos','BJMP Imus Male Dormitory',
-     'Dress Code Non-Compliance',
-     'Visitor arrived wearing a bright yellow t-shirt (violates BJMP anti-inmate uniform confusion rule).',
-     'Advised to rent a plain white visitor t-shirt from DILG-BJMP cooperative booth.',
-     'JO2 R. Bautista (Gate 1 Sentinel)')
-  `);
-
-  // Announcements
-  await conn.query(`
-    INSERT IGNORE INTO announcements VALUES
-    ('ann-01',
-     'Gate 1 Biometric Verification Policy in Effect',
-     'All first-time visitors must present their original valid government ID and undergo digital fingerprint scanning at the Gate 1 Records Section before gate admittance.',
-     'info','JCInsp. Renato Bautista (Jail Warden)','2026-09-01 08:00:00',1),
-    ('ann-02',
-     'Strict Paabot Food Container Protocol',
-     'Food items must be placed strictly in clear, transparent reusable plastic containers. Canned goods with pull-tabs and glass containers are strictly prohibited.',
-     'warning','JO2 R. Bautista (Security Sentinel)','2026-09-10 09:00:00',1)
-  `);
+    ('imus-city-jail-male','BJMP Imus City Jail - Male Dormitory','Region IV-A (CALABARZON)','Imus City, Cavite','Imus City, Cavite','Check BJMP ODBS for current contact details','Confirm current days in BJMP ODBS','Check official system for available dates and time slots','Confirm biometric desk hours with the facility before traveling',40)`);
+  const adminHash=await hashSeedPassword(adminPassword);
+  const rows:string[][]=[
+    [process.env.INITIAL_ADMIN_EMAIL||'admin@bjmp.gov.ph',adminHash,'ADMIN','System Administrator','BJMP-ADM-001','Maria','S.','Reyes']
+  ];
+  if(process.env.INITIAL_WORKER_PASSWORD){
+    if(process.env.INITIAL_WORKER_PASSWORD.length<12) throw new Error('INITIAL_WORKER_PASSWORD must contain at least 12 characters.');
+    rows.push([process.env.INITIAL_WORKER_EMAIL||'worker@bjmp.gov.ph',await hashSeedPassword(process.env.INITIAL_WORKER_PASSWORD),'WORKER','Visitation Worker','BJMP-WRK-001','Jose','D.','Santos']);
+  }
+  for(const row of rows) await conn.query('INSERT INTO users(email,password,role,admin_title,badge_number,first_name,middle_name,last_name,account_status,email_verified_at,registered_at) VALUES(?,?,?,?,?,?,?,?,?,?,NOW())',[row[0],row[1],row[2],row[3],row[4],row[5],row[6],row[7],'ACTIVATED',new Date()]);
 }
+const seedScrypt=promisify(scryptCallback);
+async function hashSeedPassword(password:string){const salt=randomBytes(16),key=await seedScrypt(password,salt,64) as Buffer;return `scrypt:${salt.toString('hex')}:${key.toString('hex')}`}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Row mapper helpers
@@ -443,7 +371,8 @@ async function seedDatabase(conn: mysql.PoolConnection) {
 function mapUserRow(r: any) {
   return {
     id: String(r.id),
-    email: r.email,
+    email: r.email || "",
+    mobileNumber: r.mobile_number || "",
 
     role: r.role,
     adminTitle: r.admin_title,
@@ -454,7 +383,6 @@ function mapUserRow(r: any) {
     suffix: r.suffix,
     dateOfBirth: r.date_of_birth,
     gender: r.gender,
-    contactNumber: r.contact_number,
     address: {
       houseUnitStreet: r.address_street,
       municipality: r.address_municipality,
@@ -463,8 +391,9 @@ function mapUserRow(r: any) {
     },
     maritalStatus: r.marital_status,
     validIdType: r.valid_id_type,
-    validIdPhotoUrl: r.valid_id_photo_url,
-    facePhotoUrl: r.face_photo_url,
+    emailVerified: !!r.email_verified_at,
+    phoneVerified: !!r.phone_verified_at,
+    lastLoginAt: r.last_login_at,
     accountStatus: r.account_status,
     biometricReferenceNumber: r.biometric_reference_number,
     preferredJailFacilityId: r.preferred_jail_facility_id,
@@ -479,25 +408,56 @@ function mapUserRow(r: any) {
 // User functions
 // ─────────────────────────────────────────────────────────────────────────────
 export async function getAllUsers() {
-  const [rows] = await pool.query<mysql.RowDataPacket[]>('SELECT * FROM users ORDER BY registered_at DESC');
+  const [rows] = await pool.query<mysql.RowDataPacket[]>('SELECT * FROM users WHERE is_archived=0 ORDER BY registered_at DESC');
   return rows.map(mapUserRow);
 }
 
 export async function getUserById(id: string) {
-  const [rows] = await pool.query<mysql.RowDataPacket[]>('SELECT * FROM users WHERE id = ?', [id]);
+  const [rows] = await pool.query<mysql.RowDataPacket[]>('SELECT * FROM users WHERE id = ? AND is_archived=0', [id]);
   return rows[0] ? mapUserRow(rows[0]) : null;
 }
 
 export async function getUserByEmail(email: string) {
-  const [rows] = await pool.query<mysql.RowDataPacket[]>('SELECT * FROM users WHERE LOWER(email) = LOWER(?)', [email]);
+  const [rows] = await pool.query<mysql.RowDataPacket[]>('SELECT * FROM users WHERE LOWER(email) = LOWER(?) AND is_archived=0', [email]);
   if (!rows[0]) return null;
   return { ...mapUserRow(rows[0]), passwordHash: rows[0].password };
 }
 
+export async function getUserByLogin(login: string, type: 'email' | 'phone' = 'email') {
+  const [rows] = type === 'phone'
+    ? await pool.query<mysql.RowDataPacket[]>('SELECT * FROM users WHERE mobile_number=? AND is_archived=0 LIMIT 1', [login])
+    : await pool.query<mysql.RowDataPacket[]>('SELECT * FROM users WHERE LOWER(email)=LOWER(?) AND is_archived=0 LIMIT 1', [login]);
+  return rows[0] ? { ...mapUserRow(rows[0]), passwordHash: rows[0].password } : null;
+}
+export async function recordLastLogin(userId: string) { await pool.query('UPDATE users SET last_login_at=NOW() WHERE id=?', [userId]); }
+
+export async function hashLegacyPasswords(hash: (password: string) => Promise<string>) {
+  const [rows] = await pool.query<mysql.RowDataPacket[]>('SELECT id,password FROM users');
+  for (const row of rows) if (!String(row.password).startsWith('scrypt:')) await pool.query('UPDATE users SET password=? WHERE id=?', [await hash(String(row.password)), row.id]);
+}
+export async function createSession(tokenHash: string, userId: string, expires: Date) { await pool.query('INSERT INTO auth_sessions(token_hash,user_id,expires_at) VALUES(?,?,?)', [tokenHash,userId,expires]); }
+export async function getSessionUser(tokenHash: string) { const [rows] = await pool.query<mysql.RowDataPacket[]>('SELECT u.* FROM auth_sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>NOW() AND u.is_archived=0', [tokenHash]); return rows[0] ? mapUserRow(rows[0]) : null; }
+export async function deleteSession(tokenHash: string) { await pool.query('DELETE FROM auth_sessions WHERE token_hash=?',[tokenHash]); }
+export async function saveOtp(userId: string, purpose: string, hash: string, expires: Date) {
+ const [recent] = await pool.query<mysql.RowDataPacket[]>('SELECT COUNT(*) AS n, MAX(created_at) AS last_sent FROM auth_otps WHERE user_id=? AND purpose=? AND created_at>DATE_SUB(NOW(), INTERVAL 15 MINUTE)', [userId,purpose]);
+ if (Number(recent[0]?.n || 0) >= 3 || (recent[0]?.last_sent && Date.now()-new Date(recent[0].last_sent).getTime()<60000)) throw new Error('Verification request rate limit reached.');
+ await pool.query('INSERT INTO auth_otps(user_id,purpose,code_hash,expires_at) VALUES(?,?,?,?)',[userId,purpose,hash,expires]);
+}
+export async function checkOtp(userId: string, purpose: string, hash: string) {
+ const [rows] = await pool.query<mysql.RowDataPacket[]>('SELECT * FROM auth_otps WHERE user_id=? AND purpose=? ORDER BY id DESC LIMIT 1',[userId,purpose]);
+ const row=rows[0]; if(!row) return 'INVALID'; if(new Date(row.expires_at).getTime()<Date.now()) return 'EXPIRED'; if(row.attempts>=5) return 'LOCKED';
+ if(row.code_hash!==hash){ await pool.query('UPDATE auth_otps SET attempts=attempts+1 WHERE id=?',[row.id]); return 'INVALID'; }
+ await pool.query('DELETE FROM auth_otps WHERE id=?',[row.id]); return 'OK';
+}
+export async function markEmailVerified(userId: string) {
+ const u=await getUserById(userId);
+ if(u?.email) await pool.query('UPDATE users SET email_verified_at=COALESCE(email_verified_at,NOW()) WHERE id=?',[userId]);
+ else await pool.query('UPDATE users SET phone_verified_at=COALESCE(phone_verified_at,NOW()) WHERE id=?',[userId]);
+ return getUserById(userId);
+}
+
 export async function createUser(u: any) {
-  if (!/^[^\s@]+@gmail\.com$/i.test(String(u.email || '').trim())) {
-    throw new Error('Registration requires a valid @gmail.com email address.');
-  }
+  if (!u.email && !u.mobileNumber) throw new Error('Email or mobile number is required.');
   if (!u.passwordHash || !String(u.passwordHash).startsWith('scrypt:')) {
     throw new Error('A server-generated password hash is required.');
   }
@@ -507,19 +467,19 @@ export async function createUser(u: any) {
   const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
   const [result] = await pool.query<mysql.ResultSetHeader>(`
     INSERT INTO users
-      (email, password, role, admin_title, badge_number, first_name, middle_name, last_name, suffix,
-       date_of_birth, gender, contact_number, address_street, address_municipality, marital_status, zip_code,
+      (email, mobile_number, password, role, admin_title, badge_number, first_name, middle_name, last_name, suffix,
+       date_of_birth, gender, address_street, address_municipality, marital_status, zip_code,
        valid_id_type, valid_id_photo_url, face_photo_url, account_status, biometric_reference_number,
        preferred_jail_facility_id, email_verified_at, biometric_scanned_at, biometrics_officer_name, registered_at)
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
-      String(u.email).trim().toLowerCase(), u.passwordHash,
+      (u.email ? String(u.email).trim().toLowerCase() : null), u.mobileNumber || null, u.passwordHash,
       u.role || 'VISITOR', u.adminTitle || null, u.badgeNumber || null,
       u.firstName, u.middleName || null, u.lastName, u.suffix || null,
-      u.dateOfBirth || null, u.gender || null, u.contactNumber || null,
+      u.dateOfBirth || null, u.gender || null,
       u.address?.houseUnitStreet || null, u.address?.municipality || null,
       u.address?.maritalStatus || null, u.address?.zipCode || '4103',
-      u.validIdType || null, u.validIdPhotoUrl || null, u.facePhotoUrl || null,
+      u.validIdType || null, null, null,
       u.accountStatus || 'PENDING_EMAIL',
       u.biometricReferenceNumber || `BJMP-BIO-IMUS-${Math.floor(1000 + Math.random() * 9000)}`,
       u.preferredJailFacilityId || 'imus-city-jail-male',
@@ -551,6 +511,29 @@ export async function updateUserStatus(userId: string, status: string, officerNa
 // ─────────────────────────────────────────────────────────────────────────────
 // PDL functions
 // ─────────────────────────────────────────────────────────────────────────────
+
+const pdlColumnKeys = new Set([
+  'id','pdlNumber','fileNumber','bjmpIdNumber','lastName','firstName','middleName','suffix','fullName','aliases',
+  'dateOfBirth','ageAtAdmission','placeOfBirth','sex','civilStatus','citizenship','religion','tribalAffiliation',
+  'presentAddress','provincialAddress','highestEducationalAttainment','course','occupation','skills','gangGroupAffiliation',
+  'height','weight','built','complexion','eyes','hair','bloodType','mannerism','dialectsSpoken','bertillionMarks',
+  'emergencyContactPerson','emergencyContactRelation','emergencyContactAddress','emergencyContactPhone','dateCommitted',
+  'jailFacilityId','cellDormitory','status','primaryOffense','courtBranch','presidingJudge','caseStatus',
+]);
+function pdlProfileExtras(profile:Record<string,any>){return Object.fromEntries(Object.entries(profile).filter(([key])=>!pdlColumnKeys.has(key)))}
+function removeDuplicatePdlProfileFields(profile:Record<string,any>,row:any){
+  const jsonToColumn:Record<string,string>={id:'id',pdlNumber:'pdl_number',fileNumber:'file_number',bjmpIdNumber:'bjmp_id_number',lastName:'last_name',firstName:'first_name',middleName:'middle_name',suffix:'suffix',fullName:'full_name',aliases:'aliases',dateOfBirth:'date_of_birth',ageAtAdmission:'age_at_admission',placeOfBirth:'place_of_birth',sex:'sex',civilStatus:'civil_status',citizenship:'citizenship',religion:'religion',tribalAffiliation:'tribal_affiliation',presentAddress:'present_address',provincialAddress:'provincial_address',highestEducationalAttainment:'highest_educational_attainment',course:'course',occupation:'occupation',skills:'skills',gangGroupAffiliation:'gang_group_affiliation',height:'height',weight:'weight',built:'built',complexion:'complexion',eyes:'eyes',hair:'hair',bloodType:'blood_type',mannerism:'mannerism',dialectsSpoken:'dialects_spoken',bertillionMarks:'bertillion_marks',emergencyContactPerson:'emergency_contact_person',emergencyContactRelation:'emergency_contact_relation',emergencyContactAddress:'emergency_contact_address',emergencyContactPhone:'emergency_contact_phone',dateCommitted:'date_committed',jailFacilityId:'jail_facility_id',cellDormitory:'cell_dormitory',status:'status',primaryOffense:'primary_offense',courtBranch:'court_branch',presidingJudge:'presiding_judge',caseStatus:'case_status'};
+  const extras={...profile};
+  for(const [key,column] of Object.entries(jsonToColumn)){
+    if(!(key in extras))continue;
+    let a=extras[key],b=column==='full_name'?(row.full_name??[row.first_name,row.middle_name,row.last_name,row.suffix].map((x:any)=>String(x||'').trim()).filter(Boolean).join(' ')):row[column];
+    if(a instanceof Date)a=a.toISOString().slice(0,10);if(b instanceof Date)b=b.toISOString().slice(0,10);
+    const norm=(x:any,key:string)=>{if(x===null||x===undefined||x==='')return null;const text=String(x).trim().replace(/\s+/g,' ');return ['dateOfBirth','dateCommitted'].includes(key)?text.slice(0,10):text.toLowerCase()};
+    if(norm(a,key)===null||norm(a,key)===norm(b,key))delete extras[key];
+  }
+  return extras;
+}
+
 function mapPdlRow(row: any, profile: Record<string, any> = {}) {
   return {
     ...profile,
@@ -562,7 +545,7 @@ function mapPdlRow(row: any, profile: Record<string, any> = {}) {
     firstName: row.first_name,
     middleName: row.middle_name || '',
     suffix: row.suffix || '',
-    fullName: row.full_name,
+    fullName: [row.first_name,row.middle_name,row.last_name,row.suffix].map((x:any)=>String(x||'').trim()).filter(Boolean).join(' '),
     aliases: row.aliases || '',
     dateOfBirth: profile.dateOfBirth || dateOnly(row.date_of_birth),
     ageAtAdmission: row.age_at_admission,
@@ -605,7 +588,7 @@ export async function getAllPdls() {
     SELECT p.*, r.form_data AS profile_data
     FROM pdls p
     LEFT JOIN pdl_form_records r ON r.pdl_id = p.id AND r.record_type = 'PDL_PROFILE'
-    ORDER BY p.last_name ASC`);
+    WHERE p.is_archived=0 ORDER BY p.last_name ASC`);
   return rows.map((row) => mapPdlRow(row, parseRecordData(row.profile_data)));
 }
 
@@ -613,18 +596,18 @@ export async function createPdl(pdl: any) {
   const id = pdl.id || `pdl-${Date.now()}`;
   await pool.query(`
     INSERT INTO pdls
-      (id, pdl_number, file_number, bjmp_id_number, last_name, first_name, middle_name, suffix, full_name,
+      (id, pdl_number, file_number, bjmp_id_number, last_name, first_name, middle_name, suffix,
        aliases, date_of_birth, age_at_admission, place_of_birth, sex, civil_status, citizenship, religion,
        tribal_affiliation, present_address, provincial_address, highest_educational_attainment, course,
        occupation, skills, gang_group_affiliation, height, weight, built, complexion, eyes, hair, blood_type,
        mannerism, dialects_spoken, bertillion_marks, emergency_contact_person, emergency_contact_relation,
        emergency_contact_address, emergency_contact_phone, date_committed, jail_facility_id, cell_dormitory,
        status, primary_offense, court_branch, presiding_judge, case_status)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     ON DUPLICATE KEY UPDATE
       pdl_number=VALUES(pdl_number), file_number=VALUES(file_number), bjmp_id_number=VALUES(bjmp_id_number),
       last_name=VALUES(last_name), first_name=VALUES(first_name), middle_name=VALUES(middle_name), suffix=VALUES(suffix),
-      full_name=VALUES(full_name), aliases=VALUES(aliases), date_of_birth=VALUES(date_of_birth),
+      aliases=VALUES(aliases), date_of_birth=VALUES(date_of_birth),
       age_at_admission=VALUES(age_at_admission), place_of_birth=VALUES(place_of_birth), sex=VALUES(sex),
       civil_status=VALUES(civil_status), citizenship=VALUES(citizenship), religion=VALUES(religion),
       tribal_affiliation=VALUES(tribal_affiliation), present_address=VALUES(present_address), provincial_address=VALUES(provincial_address),
@@ -643,7 +626,6 @@ export async function createPdl(pdl: any) {
       pdl.bjmpIdNumber || `BJMP-R4A-ICJ-${Math.floor(10000 + Math.random() * 90000)}`,
       pdl.lastName || pdl.last_name, pdl.firstName || pdl.first_name,
       pdl.middleName || '', pdl.suffix || '',
-      pdl.fullName || `${pdl.firstName} ${pdl.lastName}`,
       pdl.aliases || 'None', pdl.dateOfBirth || null, pdl.ageAtAdmission || 30,
       pdl.placeOfBirth || 'Imus City, Cavite', pdl.sex || 'Male',
       pdl.civilStatus || 'Single', pdl.citizenship || 'Filipino',
@@ -668,7 +650,7 @@ export async function createPdl(pdl: any) {
     INSERT INTO pdl_form_records (id, pdl_id, record_type, status, form_data, prepared_by, created_at, updated_at)
     VALUES (?, ?, 'PDL_PROFILE', 'ACTIVE', ?, ?, ?, ?)
     ON DUPLICATE KEY UPDATE form_data=VALUES(form_data), prepared_by=VALUES(prepared_by), updated_at=VALUES(updated_at)`,
-    [`record-profile-${id}`, id, JSON.stringify(pdl), pdl.preparedBy || null, now, now]);
+    [`record-profile-${id}`, id, JSON.stringify(pdlProfileExtras(pdl)), pdl.preparedBy || null, now, now]);
   const allPdls = await getAllPdls();
   return allPdls.find((item) => item.id === id) || null;
 }
@@ -690,7 +672,7 @@ export async function savePdlFormRecord(record: any) {
     INSERT INTO pdl_form_records (id, pdl_id, record_type, status, form_data, prepared_by, approved_by, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON DUPLICATE KEY UPDATE status=VALUES(status), form_data=VALUES(form_data), prepared_by=VALUES(prepared_by), approved_by=VALUES(approved_by), updated_at=VALUES(updated_at)`,
-    [id, record.pdlId, record.recordType, record.status || 'DRAFT', JSON.stringify(record.formData || {}),
+    [id, record.pdlId, record.recordType, record.status || 'DRAFT', JSON.stringify(record.recordType === 'PDL_PROFILE' ? pdlProfileExtras(record.formData || {}) : record.formData || {}),
       record.preparedBy || null, record.approvedBy || null, now, now]);
   return (await getPdlFormRecords(record.pdlId)).find((item) => item.id === id) || null;
 }
@@ -699,7 +681,7 @@ export async function savePdlFormRecord(record: any) {
 // Appointment functions
 // ─────────────────────────────────────────────────────────────────────────────
 export async function getAllAppointments() {
-  const [rows] = await pool.query<mysql.RowDataPacket[]>('SELECT * FROM appointments ORDER BY visit_date DESC');
+  const [rows] = await pool.query<mysql.RowDataPacket[]>('SELECT * FROM appointments WHERE is_archived=0 ORDER BY visit_date DESC');
   return rows.map((r: any) => ({
     id: r.id,
     appointmentReference: r.appointment_reference,
@@ -713,10 +695,10 @@ export async function getAllAppointments() {
     jailFacilityName: r.jail_facility_name,
     cellDormitory: r.cell_dormitory,
     visitType: r.visit_type,
-    relationshipToPdl: r.relationship_to_pdl,
-    visitDate: r.visit_date,
+    relationshipToPDL: r.relationship_to_pdl,
+    visitDate: dateOnly(r.visit_date) || String(r.visit_date),
     timeSlot: r.time_slot,
-    paaботItemsDescription: r.paabot_items_description,
+    paabotItemsDescription: r.paabot_items_description,
     status: r.status,
     createdAt: r.created_at,
     qrToken: r.qr_token,
@@ -736,23 +718,21 @@ export async function createAppointment(a: any) {
     [
       id, ref, a.userId, a.visitorName, a.visitorContact, a.pdlId, a.pdlName, a.pdlNumber,
       a.jailFacilityId, a.jailFacilityName, a.cellDormitory, a.visitType, a.relationshipToPdl,
-      a.visitDate, a.timeSlot, a.paaботItemsDescription || null,
+      a.visitDate, a.timeSlot, a.paabotItemsDescription || null,
       a.status || 'Approved', a.createdAt || now,
       a.qrToken || `BJMP-QR-${Date.now()}-${Math.random().toString(36).substring(7)}`,
     ]
   );
-  const [rows] = await pool.query<mysql.RowDataPacket[]>('SELECT * FROM appointments WHERE id=?', [id]);
-  return rows[0];
+  return (await getAllAppointments()).find((appointment) => appointment.id === id) || null;
 }
 
 export async function updateAppointmentStatus(id: string, status: string) {
-  await pool.query('UPDATE appointments SET status=? WHERE id=?', [status, id]);
-  const [rows] = await pool.query<mysql.RowDataPacket[]>('SELECT * FROM appointments WHERE id=?', [id]);
-  return rows[0] || null;
+  await pool.query('UPDATE appointments SET status=? WHERE id=? AND is_archived=0', [status, id]);
+  return (await getAllAppointments()).find((appointment) => appointment.id === id) || null;
 }
 
-export async function deleteAppointment(id: string) {
-  await pool.query('DELETE FROM appointments WHERE id=?', [id]);
+export async function archiveAppointment(id: string, adminId: string, reason: string) {
+  await pool.query('UPDATE appointments SET is_archived=1,archived_at=NOW(),archived_by=?,archive_reason=? WHERE id=? AND is_archived=0', [adminId,reason,id]);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -779,7 +759,7 @@ export async function logGateScan(data: {
   // Keep a printable PDL visitor log in sync with the gate workflow.
   if (data.appointmentId && data.action === 'ADMITTED') {
     const [rows] = await pool.query<mysql.RowDataPacket[]>(`
-      SELECT a.*, u.gender, u.address_street, u.contact_number
+      SELECT a.*, u.gender, u.address_street, u.mobile_number AS contact_number
       FROM appointments a LEFT JOIN users u ON u.id = a.user_id WHERE a.id=?`, [data.appointmentId]);
     const appointment = rows[0];
     if (appointment) {
@@ -806,7 +786,7 @@ export async function getGateLogs() {
 // Security Incidents
 // ─────────────────────────────────────────────────────────────────────────────
 export async function getIncidents() {
-  const [rows] = await pool.query<mysql.RowDataPacket[]>('SELECT * FROM security_incidents ORDER BY timestamp DESC');
+  const [rows] = await pool.query<mysql.RowDataPacket[]>('SELECT * FROM security_incidents WHERE is_archived=0 ORDER BY timestamp DESC');
   return rows;
 }
 
@@ -827,7 +807,7 @@ export async function createIncident(data: any) {
 // Announcements
 // ─────────────────────────────────────────────────────────────────────────────
 export async function getAnnouncements() {
-  const [rows] = await pool.query<mysql.RowDataPacket[]>('SELECT * FROM announcements WHERE is_active=1 ORDER BY created_at DESC');
+  const [rows] = await pool.query<mysql.RowDataPacket[]>('SELECT * FROM announcements WHERE is_active=1 AND is_archived=0 ORDER BY created_at DESC');
   return rows;
 }
 
@@ -854,32 +834,26 @@ export async function getDatabaseStatus() {
   return { database: process.env.DB_NAME || 'bjmp_visitation', users: users.count, pdls: pdls.count, appointments: appointments.count, pdlFormRecords: forms.count };
 }
 
-/** Deletes only the named local demo database content, then creates three test accounts. */
+/** Explicit local reset utility; the command is never run automatically. */
 export async function resetDemoData() {
   const databaseName = process.env.DB_NAME || 'bjmp_visitation';
   if (databaseName !== 'bjmp_visitation') throw new Error(`Refusing to reset ${databaseName}; only bjmp_visitation is allowed.`);
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    for (const table of ['visitor_log_entries', 'pdl_form_records', 'gate_logs', 'appointments', 'security_incidents', 'announcements', 'pdls', 'users', 'jail_facilities']) await conn.query(`DELETE FROM ${table}`);
-    await conn.query('ALTER TABLE users MODIFY id INT NOT NULL AUTO_INCREMENT');
-    await conn.query('ALTER TABLE users AUTO_INCREMENT = 1');
-    await conn.query("INSERT INTO jail_facilities VALUES ('imus-city-jail-male','BJMP Imus City Jail - Male Dormitory','Region IV-A','Imus City, Cavite','Cavite Civic Center, Imus City, Cavite','(046) 472-3671','Tuesday to Sunday','8:00 AM - 4:00 PM','Monday to Friday: 8:00 AM - 4:00 PM',40)");
-    await conn.query("INSERT INTO users (email,password,role,admin_title,badge_number,first_name,middle_name,last_name,suffix,date_of_birth,gender,contact_number,address_street,address_municipality,marital_status,zip_code,valid_id_type,account_status,biometric_reference_number,preferred_jail_facility_id,email_verified_at,biometric_scanned_at,biometrics_officer_name,registered_at) VALUES ('tongtongornamental@gmail.com','AdminAcc@123','ADMIN','System Administrator','BJMP-ADM-001','Maria','S.','Reyes','','1985-01-15','Female','09170000001','BJMP Imus Records Office','Imus City, Cavite','Married','4103','Philippine National ID','ACTIVATED','BJMP-ADMIN-001','imus-city-jail-male',NOW(),NOW(),'System setup',NOW()),('mharijie@gmail.com','WorkerAcc@123','WORKER','PDL Records Worker','BJMP-WRK-001','Jose','D.','Santos','','1991-06-20','Male','09170000002','BJMP Imus Records Office','Imus City, Cavite','Single','4103','Philippine National ID','ACTIVATED','BJMP-WORKER-001','imus-city-jail-male',NOW(),NOW(),'System setup',NOW()),('harijiem@gmail.com','VisitorTest@123','VISITOR',NULL,NULL,'Ana','M.','Cruz','','1995-04-10','Female','09170000003','Imus City, Cavite','Imus City, Cavite','Single','4103','Philippine National ID','ACTIVATED','BJMP-VISITOR-001','imus-city-jail-male',NOW(),NOW(),'System setup',NOW())");
+    for (const table of ['record_archive_events','visitor_log_entries','pdl_form_records','gate_logs','appointments','security_incidents','announcements','kyc_documents','kyc_submissions','auth_otps','auth_sessions','audit_logs','pdls','users','jail_facilities']) await conn.query(`DELETE FROM ${table}`);
+    await seedDatabase(conn);
     await conn.commit();
   } catch (error) { await conn.rollback(); throw error; } finally { conn.release(); }
-  const samplePdl = await createPdl({ id: 'sample-pdl-001', pdlNumber: 'PDL-DEMO-001', fileNumber: 'FN-DEMO-001', bjmpIdNumber: 'BJMP-R4A-DEMO-001', firstName: 'Juan', middleName: 'Dela', lastName: 'Cruz', fullName: 'Juan Dela Cruz', aliases: 'Juan', dateOfBirth: '1994-02-12', ageAtAdmission: 31, placeOfBirth: 'Imus City, Cavite', sex: 'Male', civilStatus: 'Single', citizenship: 'Filipino', religion: 'Roman Catholic', tribalAffiliation: 'Tagalog', presentAddress: 'Imus City, Cavite', provincialAddress: 'Imus City, Cavite', highestEducationalAttainment: 'High School', occupation: 'Laborer', height: '170 cm', weight: '65 kg', built: 'Medium', complexion: 'Brown', eyes: 'Brown', hair: 'Black', bloodType: 'O+', dialectsSpoken: 'Tagalog', bertillionMarks: 'None recorded', dateCommitted: '2026-09-01', jailFacilityId: 'imus-city-jail-male', cellDormitory: 'Brigada 1 - Main Dorm', status: 'In Custody', primaryOffense: 'Demo record - replace before use', courtBranch: 'RTC Imus', presidingJudge: 'For assignment', caseStatus: 'Under Trial', allowedVisitorRelationship: ['Spouse', 'Parent', 'Child', 'Sibling', 'Legal Counsel'], bodyMarks: [], preparedBy: '2' });
-  for (const recordType of ['JAIL_BOOKING_REPORT', 'PALM_FINGERPRINT_RECORD', 'PDL_RECORD', 'PDL_PROPERTY_RECEIPT', 'MANIFESTO_NG_DETENIDO', 'CERTIFICATE_OF_DETENTION', 'CERTIFICATE_OF_DISCHARGE', 'COMMITMENT_REGISTER', 'RELEASE_REGISTER']) await savePdlFormRecord({ pdlId: samplePdl!.id, recordType, status: 'DRAFT', preparedBy: '2', formData: { pdlId: samplePdl!.id, createdFor: recordType } });
-  await pool.query("INSERT INTO appointments (id,appointment_reference,user_id,visitor_name,visitor_contact,pdl_id,pdl_name,pdl_number,jail_facility_id,jail_facility_name,cell_dormitory,visit_type,relationship_to_pdl,visit_date,time_slot,paabot_items_description,status,created_at,qr_token) VALUES ('sample-appointment-001','BJMP-DEMO-001','3','Ana M. Cruz','09170000003','sample-pdl-001','Juan Dela Cruz','PDL-DEMO-001','imus-city-jail-male','BJMP Imus City Jail - Male Dormitory','Brigada 1 - Main Dorm','Regular Visit','Sibling',CURDATE(),'09:00 AM - 10:00 AM','None','Approved',NOW(),'BJMP-DEMO-001')");
   return getDatabaseStatus();
 }
 
 export async function getStats() {
   const today = new Date().toISOString().split('T')[0];
-  const [[pdls]]      = await pool.query<mysql.RowDataPacket[]>('SELECT COUNT(*) as cnt FROM pdls WHERE status="In Custody"') as any;
-  const [[scheduled]] = await pool.query<mysql.RowDataPacket[]>('SELECT COUNT(*) as cnt FROM appointments WHERE visit_date=? AND status="Approved"', [today]) as any;
+  const [[pdls]]      = await pool.query<mysql.RowDataPacket[]>('SELECT COUNT(*) as cnt FROM pdls WHERE is_archived=0 AND status="In Custody"') as any;
+  const [[scheduled]] = await pool.query<mysql.RowDataPacket[]>('SELECT COUNT(*) as cnt FROM appointments WHERE is_archived=0 AND visit_date=? AND status="Approved"', [today]) as any;
   const [[admitted]]  = await pool.query<mysql.RowDataPacket[]>('SELECT COUNT(*) as cnt FROM gate_logs WHERE DATE(timestamp)=? AND action="ADMITTED"', [today]) as any;
-  const [[pending]]   = await pool.query<mysql.RowDataPacket[]>('SELECT COUNT(*) as cnt FROM users WHERE account_status="PENDING_BIOMETRICS"') as any;
+  const [[pending]]   = await pool.query<mysql.RowDataPacket[]>('SELECT COUNT(*) as cnt FROM users WHERE is_archived=0 AND account_status="PENDING_BIOMETRICS"') as any;
   return {
     totalPdls:         pdls.cnt,
     scheduledToday:    scheduled.cnt,

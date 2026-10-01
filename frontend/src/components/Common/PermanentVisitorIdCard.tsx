@@ -111,8 +111,8 @@ export const PermanentVisitorIdCard: React.FC<PermanentVisitorIdCardProps> = ({
     ctx.font = '14px sans-serif';
     ctx.fillText(`Valid ID: ${user.validIdType}`, 245, 235);
     ctx.fillText(`Address: ${user.address.municipality} (Zip: ${user.address.zipCode})`, 245, 260);
-    ctx.fillText(`Contact: ${user.contactNumber}`, 245, 285);
-    ctx.fillText(`Designated Facility: BJMP Imus City Jail (Brgy. Malagasang 1-G)`, 245, 310);
+    ctx.fillText(`Contact: ${(user.mobileNumber || '')}`, 245, 285);
+    ctx.fillText(`Designated Facility: BJMP Imus City Jail, Imus City, Cavite`, 245, 310);
 
     // Status Pill
     ctx.fillStyle = '#065f46';
@@ -198,7 +198,7 @@ export const PermanentVisitorIdCard: React.FC<PermanentVisitorIdCardProps> = ({
       {/* Intro Explanation Card */}
       <div className="bg-gradient-to-r from-blue-500/15 via-blue-900/20 to-slate-900 border border-blue-500/40 rounded-2xl p-6 shadow-xl flex items-start justify-between">
         <div className="flex items-start space-x-4">
-          <div className="w-12 h-12 rounded-xl bg-blue-500/20 border border-blue-500/50 flex items-center justify-center text-blue-400 shrink-0">
+          <div className="w-12 h-12 flex items-center justify-center shrink-0">
             <QrCode className="w-7 h-7" />
           </div>
           <div>
@@ -239,8 +239,8 @@ export const PermanentVisitorIdCard: React.FC<PermanentVisitorIdCardProps> = ({
         {/* Card Header */}
         <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-blue-950 px-8 py-5 border-b-2 border-blue-500/60 flex items-center justify-between relative">
           <div className="flex items-center space-x-4">
-            <div className="w-12 h-12 rounded-xl bg-blue-500/20 border border-blue-500/50 flex items-center justify-center text-blue-400">
-              <Shield className="w-7 h-7" />
+            <div className="w-12 h-12 flex items-center justify-center">
+              <img src="/assets/bjmp_icon.png" alt="BJMP" className="w-9 h-9 object-contain" />
             </div>
             <div>
               <span className="text-[10px] font-bold uppercase tracking-widest text-blue-400 block">
@@ -314,7 +314,7 @@ export const PermanentVisitorIdCard: React.FC<PermanentVisitorIdCardProps> = ({
               </div>
               <div>
                 <span className="text-[10px] text-slate-400 block">Contact Phone:</span>
-                <strong className="text-slate-200">{user.contactNumber}</strong>
+                <strong className="text-slate-200">{(user.mobileNumber || '')}</strong>
               </div>
               <div>
                 <span className="text-[10px] text-slate-400 block">Government ID on File:</span>
@@ -409,11 +409,9 @@ export const PermanentVisitorIdCard: React.FC<PermanentVisitorIdCardProps> = ({
         <div className="bg-slate-950 px-8 py-3 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
           <div className="flex items-center space-x-2">
             <MapPin className="w-3.5 h-3.5 text-blue-400" />
-            <span>BJMP Imus City Jail • Brgy. Malagasang 1-G, Imus City, Cavite 4103</span>
+            <span>BJMP Imus City Jail • Imus City, Cavite</span>
           </div>
           <div className="flex items-center space-x-4 text-[11px]">
-            <span>Hotline: <strong className="text-slate-300">(046) 471-2854</strong></span>
-            <span>•</span>
             <span className="text-blue-400">Official DILG Pass</span>
           </div>
         </div>

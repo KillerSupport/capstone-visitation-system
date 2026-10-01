@@ -67,7 +67,8 @@ class RealtimeWebSocketService {
       this.ws.onclose = (event) => {
         this.cleanupHeartbeat();
         console.warn(`[WebSocket] 🔴 Connection closed (code: ${event.code})`);
-        this.attemptReconnect();
+        if (event.code !== 1008) this.attemptReconnect();
+        else this.setStatus('DISCONNECTED');
       };
 
       this.ws.onerror = (err) => {
@@ -119,6 +120,7 @@ class RealtimeWebSocketService {
 
   public identify(userId?: string, role?: string) {
     this.identifiedUser = { userId, role };
+    if (!this.ws || this.ws.readyState === WebSocket.CLOSED) { this.connect(); return; }
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({
         type: 'IDENTIFY',

@@ -9,7 +9,7 @@ import {
   UserProfile, VisitationAppointment, VisitType
 } from '../../types';
 import { 
-  BJMP_JAIL_FACILITIES, SAMPLE_PDL_ROSTER,
+  BJMP_JAIL_FACILITIES,
   BJMP_RULES_AND_DRESS_CODE 
 } from '../../data/bjmpData';
 import { PrintablePassModal } from '../Common/PrintablePassModal';
@@ -18,10 +18,10 @@ import { PermanentVisitorIdCard } from '../Common/PermanentVisitorIdCard';
 interface VisitorDashboardProps {
   user: UserProfile;
   appointments: VisitationAppointment[];
-  onAddAppointment: (newAppt: VisitationAppointment) => void;
+  onAddAppointment: (newAppt: Partial<VisitationAppointment>) => Promise<VisitationAppointment>;
   onCancelAppointment: (apptId: string) => void;
   onOpenGuardScanner: (visitorId: string) => void;
-  onQuickBookToday?: () => void;
+  pdls: import('../../types').PDL[];
 }
 
 export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
@@ -30,18 +30,14 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
   onAddAppointment,
   onCancelAppointment,
   onOpenGuardScanner,
-  onQuickBookToday,
+  pdls,
 }) => {
   const [activeTab, setActiveTab] = useState<'ID_CARD' | 'BOOK' | 'APPOINTMENTS' | 'RULES' | 'PROFILE'>('ID_CARD');
   const [selectedPass, setSelectedPass] = useState<VisitationAppointment | null>(null);
 
   // Booking Form State
   const [facilityId, setFacilityId] = useState(user.preferredJailFacilityId || BJMP_JAIL_FACILITIES[0].id);
-  const [selectedPdlId, setSelectedPdlId] = useState(SAMPLE_PDL_ROSTER[0].id);
-  const [customPdlMode, setCustomPdlMode] = useState(false);
-  const [customPdlName, setCustomPdlName] = useState('');
-  const [customPdlNumber, setCustomPdlNumber] = useState('');
-  const [customCell, setCustomCell] = useState('Brigada 1 - Main Dorm');
+  const [selectedPdlId, setSelectedPdlId] = useState('');
   const [visitType, setVisitType] = useState<VisitType>('Contact Visit');
   const [relationship, setRelationship] = useState('Spouse');
   const [visitDate, setVisitDate] = useState(() => {
@@ -64,72 +60,39 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
 
   // Facility and PDL computation
   const activeFacility = BJMP_JAIL_FACILITIES.find((f) => f.id === facilityId) || BJMP_JAIL_FACILITIES[0];
-  const facilityPdls = SAMPLE_PDL_ROSTER.filter((p) => p.jailFacilityId === facilityId);
+  const facilityPdls = pdls.filter((p) => p.jailFacilityId === facilityId && p.status === 'In Custody');
 
-  const handleBookingSubmit = (e: React.FormEvent) => {
+  const handleBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBookingError(null);
-
     if (!agreeNoOrangeYellow || !agreeValidIdOriginal || !agreeNoElectronics) {
       setBookingError('Please confirm all BJMP Security & Dress Code Undertakings before submitting.');
       return;
     }
-
-    let pdlName = '';
-    let pdlNumber = '';
-    let cellDorm = '';
-
-    if (customPdlMode) {
-      if (!customPdlName.trim() || !customPdlNumber.trim()) {
-        setBookingError('Please provide both the PDL Full Name and Institutional Number.');
-        return;
-      }
-      pdlName = customPdlName.trim();
-      pdlNumber = customPdlNumber.trim();
-      cellDorm = customCell.trim();
-    } else {
-      const found = SAMPLE_PDL_ROSTER.find((p) => p.id === selectedPdlId) || SAMPLE_PDL_ROSTER[0];
-      pdlName = found.fullName;
-      pdlNumber = found.pdlNumber;
-      cellDorm = found.cellDormitory;
+    const selectedPdl = facilityPdls.find((p) => p.id === selectedPdlId);
+    if (!selectedPdl) {
+      setBookingError('Select a current PDL record from the available facility list.');
+      return;
     }
-
-    const randomSuffix = Math.floor(10000 + Math.random() * 90000);
-    const newAppointment: VisitationAppointment = {
-      id: `appt-${Date.now()}`,
-      appointmentReference: `BJMP-VIS-2026-${randomSuffix}`,
-      userId: user.id,
-      visitorName: `${user.firstName} ${user.middleName ? `${user.middleName} ` : ''}${user.lastName} ${user.suffix}`.trim(),
-      visitorContact: user.contactNumber,
-      pdlId: customPdlMode ? 'custom-pdl' : selectedPdlId,
-      pdlName,
-      pdlNumber,
-      jailFacilityId: activeFacility.id,
-      jailFacilityName: activeFacility.name,
-      cellDormitory: cellDorm,
-      visitType,
-      relationshipToPDL: relationship,
-      visitDate,
-      timeSlot,
-      paabotItemsDescription: paabotDescription,
-      status: 'Approved',
-      createdAt: new Date().toLocaleString(),
-      qrToken: `BJMP-GATE-${randomSuffix}-${activeFacility.id.substring(0, 4).toUpperCase()}`,
-    };
-
-    onAddAppointment(newAppointment);
-    setBookingSuccess(true);
-    confetti({
-      particleCount: 120,
-      spread: 80,
-      origin: { y: 0.6 },
-    });
-
-    setTimeout(() => {
-      setSelectedPass(newAppointment);
-      setActiveTab('APPOINTMENTS');
-      setBookingSuccess(false);
-    }, 1200);
+    if (new Date(`${visitDate}T00:00:00`) <= new Date(new Date().toDateString())) {
+      setBookingError('Choose a future visit date.');
+      return;
+    }
+    try {
+      const created = await onAddAppointment({
+        pdlId: selectedPdl.id, visitType, relationshipToPDL: relationship,
+        visitDate, timeSlot, paabotItemsDescription: paabotDescription,
+      } as Partial<VisitationAppointment>);
+      setBookingSuccess(true);
+      confetti({ particleCount: 60, spread: 65, origin: { y: 0.6 } });
+      window.setTimeout(() => {
+        setSelectedPass(created.status === 'Approved' ? created : null);
+        setActiveTab('APPOINTMENTS');
+        setBookingSuccess(false);
+      }, 700);
+    } catch (error) {
+      setBookingError(error instanceof Error ? error.message : 'Could not submit the appointment. Please try again.');
+    }
   };
 
   return (
@@ -144,17 +107,15 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
           <div>
             <div className="flex items-center space-x-2">
               <span className="bg-blue-500/10 text-blue-400 border border-blue-500/30 text-[10px] uppercase font-bold px-2 py-0.5 rounded flex items-center gap-1">
-                <CheckCircle2 className="w-3 h-3" /> Account Activated & Biometric Verified
+                <CheckCircle2 className="w-3 h-3" /> Account Status: {user.accountStatus}
               </span>
-              <span className="text-slate-400 text-xs font-mono">
-                Bio Ref: <strong className="text-slate-200">{user.biometricReferenceNumber}</strong>
-              </span>
+
             </div>
             <h2 className="text-xl font-bold text-white tracking-tight mt-1">
               Welcome, {user.firstName} {user.lastName}
             </h2>
             <p className="text-xs text-slate-400">
-              Verified with {user.validIdType} • Authorized for BJMP Jail Visitation and E-Dalaw
+              Manage your visitation requests and verification details.
             </p>
           </div>
         </div>
@@ -247,7 +208,6 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
           user={user}
           appointments={appointments}
           onOpenGuardScanner={onOpenGuardScanner}
-          onQuickBookToday={onQuickBookToday}
         />
       )}
 
@@ -276,8 +236,8 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
               <div className="mb-6 bg-blue-500/10 border border-blue-500/30 rounded-xl p-4 flex items-center space-x-3 text-xs text-blue-300">
                 <CheckCircle2 className="w-5 h-5 text-blue-400 shrink-0" />
                 <div>
-                  <strong className="block font-bold">Appointment Successfully Scheduled!</strong>
-                  <span>Generating your official BJMP Electronic Gate Pass...</span>
+                  <strong className="block font-bold">Appointment request submitted.</strong>
+                  <span>Your request is pending staff review. A gate pass becomes available after approval.</span>
                 </div>
               </div>
             )}
@@ -304,81 +264,25 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
                   </select>
                 </div>
                 <span className="text-[11px] text-slate-400 mt-1 block">
-                  Visiting Schedule: {activeFacility.visitingDays} ({activeFacility.visitingHours})
+                  Visitation availability: {activeFacility.visitingDays} {activeFacility.visitingHours}
                 </span>
               </div>
 
               {/* 2. PDL Selection */}
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-semibold text-slate-300">
-                    2. Person Deprived of Liberty (PDL / Inmate) <span className="text-blue-400">*</span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setCustomPdlMode(!customPdlMode)}
-                    className="text-xs text-blue-400 hover:text-blue-300 font-medium cursor-pointer"
-                  >
-                    {customPdlMode ? '← Choose from facility roster' : '+ Search / Enter Custom PDL'}
-                  </button>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  2. Person Deprived of Liberty (PDL) <span className="text-blue-400">*</span>
+                </label>
+                <div className="relative">
+                  <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+                  <select required value={selectedPdlId} onChange={(e) => setSelectedPdlId(e.target.value)}
+                    disabled={facilityPdls.length === 0}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-10 pr-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-blue-400 disabled:opacity-60">
+                    <option value="">{facilityPdls.length ? 'Choose a PDL' : 'No current PDL records available'}</option>
+                    {facilityPdls.map((pdl) => <option key={pdl.id} value={pdl.id}>{pdl.fullName} ({pdl.pdlNumber})</option>)}
+                  </select>
                 </div>
-
-                {customPdlMode ? (
-                  <div className="grid grid-cols-3 gap-3 bg-slate-950/60 p-3 rounded-lg border border-slate-800">
-                    <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">PDL Full Name</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Juan Dela Cruz"
-                        value={customPdlName}
-                        onChange={(e) => setCustomPdlName(e.target.value)}
-                        className="w-full bg-slate-800 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">PDL Institutional No.</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. PDL-2024-0099"
-                        value={customPdlNumber}
-                        onChange={(e) => setCustomPdlNumber(e.target.value)}
-                        className="w-full bg-slate-800 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">Dormitory / Cell</label>
-                      <input
-                        type="text"
-                        value={customCell}
-                        onChange={(e) => setCustomCell(e.target.value)}
-                        className="w-full bg-slate-800 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white"
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="relative">
-                    <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
-                    <select
-                      value={selectedPdlId}
-                      onChange={(e) => setSelectedPdlId(e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-10 pr-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-blue-400"
-                    >
-                      {facilityPdls.length > 0 ? (
-                        facilityPdls.map((pdl) => (
-                          <option key={pdl.id} value={pdl.id}>
-                            {pdl.fullName} ({pdl.pdlNumber}) – {pdl.cellDormitory}
-                          </option>
-                        ))
-                      ) : (
-                        SAMPLE_PDL_ROSTER.map((pdl) => (
-                          <option key={pdl.id} value={pdl.id}>
-                            {pdl.fullName} ({pdl.pdlNumber}) – {pdl.cellDormitory}
-                          </option>
-                        ))
-                      )}
-                    </select>
-                  </div>
-                )}
+                <p className="text-[11px] text-slate-400 mt-1">Only current PDL records for this facility can be selected.</p>
               </div>
 
               {/* 3. Visit Type & Relationship */}
@@ -492,7 +396,7 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
                     className="mt-0.5 rounded border-slate-700 bg-slate-800 text-blue-500"
                   />
                   <span className="text-slate-300">
-                    I will bring the original copy of my registered valid ID (<strong className="text-slate-200">{user.validIdType}</strong>) on the appointment date.
+                    I will bring the original government-issued ID submitted for document review on the appointment date.
                   </span>
                 </label>
                 <label className="flex items-start space-x-2.5 cursor-pointer">
@@ -515,7 +419,7 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
                   className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 text-slate-950 font-extrabold py-3.5 px-4 rounded-xl text-xs flex items-center justify-center space-x-2 shadow-lg shadow-blue-500/20 transition-all cursor-pointer"
                 >
                   <Calendar className="w-4 h-4" />
-                  <span>Confirm Reservation & Generate Official BJMP Gate Pass</span>
+                  <span>Submit Appointment Request</span>
                 </button>
               </div>
 
@@ -540,12 +444,12 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
                   <strong className="text-slate-200 text-right">{activeFacility.visitingDays}</strong>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Desk Telephone:</span>
-                  <strong className="text-blue-300 font-mono">{activeFacility.contactNumber}</strong>
+                  <span className="text-slate-400">Official contact:</span>
+                  <a className="text-blue-300 hover:text-white text-right underline underline-offset-2" href="https://odbs.bjmp.gov.ph/" target="_blank" rel="noreferrer">Check BJMP booking system ↗</a>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Slot Capacity:</span>
-                  <span className="text-blue-400 font-bold">{activeFacility.capacityPerSlot} visitors / batch</span>
+                  <span className="text-slate-400">Available slots:</span>
+                  <a className="text-blue-300 hover:text-white text-right underline underline-offset-2" href="https://odbs.bjmp.gov.ph/" target="_blank" rel="noreferrer">View official schedule ↗</a>
                 </div>
               </div>
             </div>
@@ -588,7 +492,7 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
             <div>
               <h3 className="text-xl font-bold text-white tracking-tight">My Visitation Passes & Appointments</h3>
               <p className="text-xs text-slate-400">
-                View upcoming appointments, download official gate passes, or present QR code at Gate 1
+                Track appointment requests. Gate passes are available only after staff approval.
               </p>
             </div>
             <button
@@ -678,20 +582,18 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
                   <div className="border-t border-slate-800 pt-3 flex items-center justify-between">
                     <button
                       type="button"
+                      disabled={['Completed','Cancelled'].includes(appt.status)}
                       onClick={() => onCancelAppointment(appt.id)}
-                      className="text-xs text-rose-400 hover:text-rose-300 flex items-center gap-1 cursor-pointer transition-colors"
+                      className="text-xs text-rose-400 hover:text-rose-300 flex items-center gap-1 cursor-pointer transition-colors disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                       <span>Cancel Visit</span>
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedPass(appt)}
-                      className="bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold px-4 py-2 rounded-lg text-xs flex items-center space-x-1.5 shadow-md transition-colors cursor-pointer"
-                    >
-                      <QrCode className="w-3.5 h-3.5" />
-                      <span>View & Print Gate Pass</span>
-                    </button>
+                    {appt.status === 'Approved' ? (
+                      <button type="button" onClick={() => setSelectedPass(appt)} className="bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold px-4 py-2 rounded-lg text-xs flex items-center space-x-1.5 shadow-md transition-colors cursor-pointer">
+                        <QrCode className="w-3.5 h-3.5" /><span>View Approved Gate Pass</span>
+                      </button>
+                    ) : <span className="text-[11px] text-slate-400">Gate pass available after approval</span>}
                   </div>
                 </div>
               ))}
@@ -770,23 +672,19 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
           <div className="border-b border-slate-800 pb-5 mb-6 flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <div className="w-16 h-16 rounded-2xl bg-slate-800 border border-slate-700 overflow-hidden shrink-0">
-                {user.facePhotoUrl ? (
-                  <img src={user.facePhotoUrl} alt="Face" className="w-full h-full object-cover" />
-                ) : (
-                  <User className="w-8 h-8 text-slate-500 m-auto" />
-                )}
+                <User className="w-8 h-8 text-slate-500 m-auto" />
               </div>
               <div>
                 <h3 className="text-xl font-bold text-white">
                   {user.firstName} {user.middleName ? `${user.middleName} ` : ''}{user.lastName} {user.suffix}
                 </h3>
                 <p className="text-xs text-slate-400">
-                  Registered BJMP Visitor ID: <strong className="text-blue-400 font-mono">{user.biometricReferenceNumber}</strong>
+                  Account status: <strong className="text-blue-400">{user.accountStatus}</strong>
                 </p>
               </div>
             </div>
             <span className="bg-blue-500/10 text-blue-400 border border-blue-500/30 text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1.5">
-              <CheckCircle2 className="w-3.5 h-3.5" /> Biometrics Verified
+              <CheckCircle2 className="w-3.5 h-3.5" /> {user.biometricScannedAt ? 'In-Person Check Recorded' : 'In-Person Check Pending'}
             </span>
           </div>
 
@@ -799,11 +697,11 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
               </div>
               <div className="flex justify-between border-b border-slate-800 pb-1.5">
                 <span className="text-slate-400">Gender & Civil Status:</span>
-                <span className="text-slate-200 font-medium">{user.gender} • {user.address.maritalStatus}</span>
+                <span className="text-slate-200 font-medium">{user.gender} • {user.address?.maritalStatus || 'Not provided'}</span>
               </div>
               <div className="flex justify-between border-b border-slate-800 pb-1.5">
                 <span className="text-slate-400">Contact Number:</span>
-                <span className="text-slate-200 font-medium">{user.contactNumber}</span>
+                <span className="text-slate-200 font-medium">{(user.mobileNumber || '')}</span>
               </div>
               <div className="flex justify-between border-b border-slate-800 pb-1.5">
                 <span className="text-slate-400">Email Address:</span>
@@ -812,41 +710,25 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
               <div className="flex justify-between">
                 <span className="text-slate-400">Home Address:</span>
                 <span className="text-slate-200 font-medium text-right max-w-[200px]">
-                  {user.address.houseUnitStreet}, {user.address.municipality} (Zip: {user.address.zipCode})
+                  {user.address?.houseUnitStreet || 'Not provided'}, {user.address?.municipality || ''} {user.address?.zipCode ? `(Zip: ${user.address.zipCode})` : ''}
                 </span>
               </div>
             </div>
 
             <div className="space-y-3 bg-slate-950/60 p-4 rounded-xl border border-slate-800">
-              <h4 className="font-bold text-blue-400 uppercase text-[11px]">Biometric & ID Verification Record</h4>
+              <h4 className="font-bold text-blue-400 uppercase text-[11px]">Identity verification</h4>
               <div className="flex justify-between border-b border-slate-800 pb-1.5">
-                <span className="text-slate-400">Valid ID Presented:</span>
-                <span className="text-blue-300 font-bold">{user.validIdType}</span>
-              </div>
-              <div className="flex justify-between border-b border-slate-800 pb-1.5">
-                <span className="text-slate-400">Biometric Desk:</span>
-                <span className="text-slate-200 font-medium">Gate 1 Records Division</span>
-              </div>
-              <div className="flex justify-between border-b border-slate-800 pb-1.5">
-                <span className="text-slate-400">Scanning Timestamp:</span>
-                <span className="text-slate-200 font-medium font-mono">{user.biometricScannedAt || 'Completed at Jail Desk'}</span>
+                <span className="text-slate-400">Document type:</span>
+                <span className="text-blue-300 font-bold">{user.validIdType || 'Not submitted'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Verification Officer:</span>
-                <span className="text-blue-400 font-medium">{user.biometricsOfficerName || 'JO2 R. BAUTISTA (BJMP Records)'}</span>
+                <span className="text-slate-400">In-person check:</span>
+                <span className="text-slate-200 font-medium">{user.biometricScannedAt || 'Not recorded'}</span>
               </div>
             </div>
           </div>
 
-          {/* Valid ID Photo Card */}
-          <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800">
-            <span className="font-bold text-blue-400 uppercase text-[11px] block mb-2">
-              Submitted Valid Government ID Snapshot
-            </span>
-            <div className="max-w-md aspect-[16/10] bg-slate-900 border border-slate-700 rounded-lg overflow-hidden">
-              <img src={user.idPhotoUrl} alt="Valid ID" className="w-full h-full object-cover" />
-            </div>
-          </div>
+
 
         </div>
       )}

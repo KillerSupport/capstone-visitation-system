@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
-  Shield, Users, Calendar, Clock, CheckCircle2, AlertTriangle, AlertCircle,
+  Shield, Users, Calendar, Clock, CheckCircle2, AlertTriangle, AlertCircle, Archive,
   Fingerprint, Search, Filter, Eye, Printer, Plus, Trash2,
   Building, RefreshCw, Check, X, ArrowUpDown, ExternalLink, QrCode,
   FileCheck, ShieldAlert, UserPlus, Sliders, Sparkles, MapPin,
@@ -14,6 +14,11 @@ import { BJMP_JAIL_FACILITIES } from '../../data/bjmpData';
 import { PrintablePassModal } from '../Common/PrintablePassModal';
 import { PDLRegistrationModal } from '../Admin/PDLRegistrationModal';
 import { OfficialBjmpDocumentsModal } from '../Admin/OfficialBjmpDocumentsModal';
+import { AdminKycPanel } from '../Admin/AdminKycPanel';
+import { AdminAuditPanel } from '../Admin/AdminAuditPanel';
+import { AdminArchivePanel } from '../Admin/AdminArchivePanel';
+import { AdminReportsPanel } from '../Admin/AdminReportsPanel';
+import { api } from '../../services/api';
 
 interface AdminDashboardProps {
   currentUser: UserProfile;
@@ -23,10 +28,10 @@ interface AdminDashboardProps {
   onUpdateUserStatus: (userId: string, status: AccountStatus, officerNote?: string) => void;
   onUpdateAppointmentStatus: (appointmentId: string, status: VisitationAppointment['status']) => void;
   onOpenGuardScanner: (visitorId?: string) => void;
-  onAddAppointment: (newAppt: VisitationAppointment) => void;
   onDeleteAppointment: (appointmentId: string) => void;
   onSwitchToVisitorView: () => void;
   onSavePdl: (pdl: PDL) => Promise<void>;
+  onUsersRefresh?: () => Promise<void> | void;
 }
 
 interface SecurityIncident {
@@ -40,39 +45,6 @@ interface SecurityIncident {
   reportingOfficer: string;
 }
 
-const INITIAL_INCIDENTS: SecurityIncident[] = [
-  {
-    id: 'inc-01',
-    timestamp: '2026-09-17 09:15 AM',
-    visitorName: 'Rodrigo B. Perez',
-    facility: 'BJMP Imus Male Dormitory',
-    incidentType: 'Contraband Interception',
-    description: 'Attempted to bring 2 canned sardines with sharp metal pull-tabs inside paabot bag.',
-    actionTaken: 'Item confiscated and placed in visitor deposit locker; visitor warned and admitted with clear food containers only.',
-    reportingOfficer: 'JO1 G. Santos (Gate 1 Inspection)',
-  },
-  {
-    id: 'inc-02',
-    timestamp: '2026-09-16 01:45 PM',
-    visitorName: 'Carmen V. Ramos',
-    facility: 'BJMP Imus Male Dormitory',
-    incidentType: 'Dress Code Non-Compliance',
-    description: 'Visitor arrived wearing a bright yellow t-shirt (violates BJMP anti-inmate uniform confusion rule).',
-    actionTaken: 'Advised to rent clean plain white visitors t-shirt from DILG-BJMP cooperative booth before entering.',
-    reportingOfficer: 'JO2 R. Bautista (Gate 1 Sentinel)',
-  },
-  {
-    id: 'inc-03',
-    timestamp: '2026-09-15 10:20 AM',
-    visitorName: 'Reynaldo S. Alcantara',
-    facility: 'BJMP Imus Female Dormitory',
-    incidentType: 'Fake/Expired ID',
-    description: 'Visitor presented expired photocopied company ID without valid government photo credential.',
-    actionTaken: 'Entry deferred. Assisted in scheduling online appointment once Philippine National ID (PhilSys) is presented.',
-    reportingOfficer: 'JO1 M. Ramos (Records Unit)',
-  },
-];
-
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   currentUser,
   users,
@@ -81,20 +53,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onUpdateUserStatus,
   onUpdateAppointmentStatus,
   onOpenGuardScanner,
-  onAddAppointment,
   onDeleteAppointment,
   onSwitchToVisitorView,
   onSavePdl,
+  onUsersRefresh,
 }) => {
   // Navigation Tabs
-  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'VISITORS' | 'APPOINTMENTS' | 'PDL_ROSTER' | 'SECURITY_LOGS' | 'FACILITY_SETTINGS'>('OVERVIEW');
+  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'VISITORS' | 'KYC' | 'APPOINTMENTS' | 'PDL_ROSTER' | 'SECURITY_LOGS' | 'AUDIT' | 'ARCHIVE' | 'REPORTS' | 'FACILITY_SETTINGS'>('OVERVIEW');
 
   // Visitor Management State
-  const [visitorFilter, setVisitorFilter] = useState<'ALL' | 'ACTIVATED' | 'PENDING_BIOMETRICS' | 'PENDING_EMAIL'>('ALL');
+  const [visitorFilter, setVisitorFilter] = useState<'ALL' | 'ACTIVATED' | 'ACTIVE' | 'PENDING_VERIFICATION' | 'PENDING_BIOMETRICS' | 'PENDING_EMAIL' | 'SUSPENDED' | 'REJECTED'>('ALL');
   const [visitorSearch, setVisitorSearch] = useState('');
   const [selectedVisitorForKyc, setSelectedVisitorForKyc] = useState<UserProfile | null>(null);
+  const [selectedUserDetails,setSelectedUserDetails]=useState<any|null>(null);
+  const [profileLoading,setProfileLoading]=useState(false);
+  const [pendingKycCount,setPendingKycCount]=useState(0);
   const [biometricScanningUser, setBiometricScanningUser] = useState<UserProfile | null>(null);
-  const [biometricScanningStep, setBiometricScanningStep] = useState<'IDLE' | 'SCANNING' | 'SUCCESS'>('IDLE');
+
 
   // Appointment Management State
   const [apptFilterDate, setApptFilterDate] = useState<'ALL' | 'TODAY' | 'UPCOMING'>('ALL');
@@ -116,9 +91,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [newPdlCell, setNewPdlCell] = useState('Brigada 2 - Male Cell C');
 
   useEffect(() => { setPdlList(pdls); }, [pdls]);
+  useEffect(() => { api.getIncidents().then(rows=>setIncidentList(rows.map((r:any)=>({id:r.id,timestamp:r.timestamp,visitorName:r.visitor_name,facility:r.facility,incidentType:r.incident_type,description:r.description,actionTaken:r.action_taken,reportingOfficer:r.reporting_officer})))).catch(()=>setIncidentList([])); }, []);
+  useEffect(()=>{api.getAdminKyc('PENDING_REVIEW').then(rows=>setPendingKycCount(rows.length)).catch(()=>setPendingKycCount(0))},[users,activeTab]);
+  const openUserProfile=async(user:UserProfile)=>{setSelectedVisitorForKyc(user);setSelectedUserDetails(null);setProfileLoading(true);try{setSelectedUserDetails(await api.getAdminUserProfile(user.id))}catch{setSelectedUserDetails({user})}finally{setProfileLoading(false)}};
 
   // Security Incident Logs State
-  const [incidentList, setIncidentList] = useState<SecurityIncident[]>(INITIAL_INCIDENTS);
+  const [incidentList, setIncidentList] = useState<SecurityIncident[]>([]);
   const [isAddIncidentOpen, setIsAddIncidentOpen] = useState(false);
   const [newIncidentVisitor, setNewIncidentVisitor] = useState('');
   const [newIncidentType, setNewIncidentType] = useState<SecurityIncident['incidentType']>('Contraband Interception');
@@ -144,7 +122,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         const email = u.email.toLowerCase();
         const bio = (u.biometricReferenceNumber || '').toLowerCase();
         const idType = (u.validIdType || '').toLowerCase();
-        return fullName.includes(query) || email.includes(query) || bio.includes(query) || idType.includes(query);
+        const phone=(u.mobileNumber||'').toLowerCase();
+        return fullName.includes(query) || email.includes(query) || phone.includes(query) || bio.includes(query) || idType.includes(query);
       }
       return true;
     });
@@ -169,27 +148,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   }, [appointments, apptFilterDate, apptFilterStatus, apptSearch, todayStr]);
 
   // Metric aggregates
-  const totalVisitors = users.filter((u) => !isStaffRole(u.role)).length;
-  const activatedVisitors = users.filter((u) => u.accountStatus === 'ACTIVATED' && !isStaffRole(u.role)).length;
+  const totalVisitors = users.filter((u) => u.role === 'VISITOR' || !u.role).length;
+  const activatedVisitors = users.filter((u) => ['ACTIVE','ACTIVATED'].includes(u.accountStatus) && (u.role === 'VISITOR' || !u.role)).length;
   const pendingBiometricVisitors = users.filter((u) => u.accountStatus === 'PENDING_BIOMETRICS').length;
-  const pendingEmailVisitors = users.filter((u) => u.accountStatus === 'PENDING_EMAIL').length;
+  const pendingEmailVisitors = users.filter((u) => u.accountStatus === 'PENDING_EMAIL' || u.accountStatus === 'PENDING_VERIFICATION').length;
+  const pendingRegistrationUsers = users.filter((u) => ['PENDING_VERIFICATION','PENDING_EMAIL','PENDING_BIOMETRICS'].includes(u.accountStatus)).length;
 
   const todayAppointments = appointments.filter((a) => a.visitDate === todayStr);
   const pendingAppointments = appointments.filter((a) => a.status === 'Pending Review');
 
   // Biometric Desk Scanner Execution
-  const handleStartBiometricScan = (visitor: UserProfile) => {
-    setBiometricScanningUser(visitor);
-    setBiometricScanningStep('SCANNING');
-    setTimeout(() => {
-      setBiometricScanningStep('SUCCESS');
-      setTimeout(() => {
-        onUpdateUserStatus(visitor.id, 'ACTIVATED', 'Biometric thumbprint captured & authenticated at BJMP Imus Gate 1 Desk');
-        setBiometricScanningStep('IDLE');
-        setBiometricScanningUser(null);
-      }, 1200);
-    }, 1800);
-  };
+  const handleStartBiometricScan = (visitor: UserProfile) => { setBiometricScanningUser(visitor); };
 
   // Save PDL (from comprehensive registration form)
   const handleSavePdl = async (savedPdl: PDL) => {
@@ -227,7 +196,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   // Add Incident
-  const handleAddIncident = (e: React.FormEvent) => {
+  const handleAddIncident = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newIncidentVisitor || !newIncidentDesc) return;
     const item: SecurityIncident = {
@@ -240,7 +209,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       actionTaken: newIncidentAction || 'Recorded in BJMP Gate blotter.',
       reportingOfficer: `${currentUser.firstName} ${currentUser.lastName} (${currentUser.badgeNumber || 'Command'})`,
     };
-    setIncidentList((prev) => [item, ...prev]);
+    try {const result=await api.reportIncident(item);const r=result.incident;setIncidentList((prev) => [{id:r.id,timestamp:r.timestamp,visitorName:r.visitor_name,facility:r.facility,incidentType:r.incident_type,description:r.description,actionTaken:r.action_taken,reportingOfficer:r.reporting_officer}, ...prev]);} catch(e:any) {window.alert(e.message);return}
     setIsAddIncidentOpen(false);
     setNewIncidentVisitor('');
     setNewIncidentDesc('');
@@ -248,60 +217,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   return (
-    <div className="min-h-[calc(100vh-140px)] bg-slate-950 text-slate-100 pb-16">
+    <div className="min-h-[calc(100vh-140px)] bg-transparent text-slate-100 pb-16">
       
-      {/* Executive Command Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-blue-950/80 to-slate-900 border-b border-blue-500/30 px-6 py-4 shadow-xl">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          
-          <div className="flex items-center space-x-4">
-            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 p-0.5 shadow-lg flex items-center justify-center shrink-0">
-              <div className="w-full h-full bg-slate-950 rounded-[10px] flex flex-col items-center justify-center border border-blue-400/50">
-                <Shield className="w-7 h-7 text-blue-400" />
-                <span className="text-[9px] font-black text-blue-300">EXEC</span>
-              </div>
-            </div>
-            <div>
-              <div className="flex items-center gap-2.5">
-                <span className="bg-blue-500/20 text-blue-300 border border-blue-500/40 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider flex items-center gap-1">
-                  <Shield className="w-3 h-3 text-blue-400" />
-                  Auto-Recognized Administrator
-                </span>
-                <span className="text-slate-400 text-xs font-mono">Badge #{currentUser.badgeNumber || 'BJMP-OFF-40192'}</span>
-              </div>
-              <h1 className="text-xl font-black text-white tracking-tight flex items-center gap-2 mt-0.5">
-                BJMP Imus City Jail — Executive Command & Admin Dashboard
-              </h1>
-              <p className="text-xs text-slate-300">
-                Logged in as <span className="text-blue-300 font-bold">{currentUser.firstName} {currentUser.lastName}</span> ({currentUser.adminTitle || 'Jail Warden / Administrator'}) • Brgy. Malagasang 1-G, Imus City, Cavite
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center flex-wrap gap-2.5">
-            <button
-              type="button"
-              onClick={() => onOpenGuardScanner()}
-              className="bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold px-3.5 py-2 rounded-lg text-xs flex items-center space-x-2 border border-blue-400/40 shadow-lg cursor-pointer transition-all"
-            >
-              <QrCode className="w-4 h-4 text-blue-300" />
-              <span>Gate 1 Guard Scanner</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={onSwitchToVisitorView}
-              className="bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-semibold px-3.5 py-2 rounded-lg text-xs flex items-center space-x-2 border border-slate-700 shadow cursor-pointer transition-colors"
-              title="Preview the visitor experience without logging out"
-            >
-              <ExternalLink className="w-4 h-4 text-blue-400" />
-              <span>Preview Visitor View</span>
-            </button>
-          </div>
-
-        </div>
-      </div>
-
       {/* Broadcast Alert Banner */}
       {systemNotice && (
         <div className="bg-blue-500/10 border-b border-blue-500/30 px-6 py-2 text-xs text-blue-300 flex items-center justify-between">
@@ -313,14 +230,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       )}
 
       {/* Main Container */}
-      <div className="max-w-7xl mx-auto px-6 pt-6">
+      <div className="mx-auto w-full max-w-[1600px] px-4 pt-6 sm:px-6 lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-6">
         
         {/* Navigation Tabs Bar */}
-        <div className="flex items-center space-x-1.5 border-b border-slate-800 pb-3 overflow-x-auto mb-6">
+        <nav aria-label="Admin navigation" className="flex items-center space-x-1.5 border-b border-slate-800 pb-3 overflow-x-auto mb-6 lg:sticky lg:top-24 lg:col-start-1 lg:row-start-1 lg:mb-0 lg:h-fit lg:flex-col lg:items-stretch lg:space-x-0 lg:space-y-1.5 lg:overflow-visible lg:border-b-0 lg:border-r lg:pb-0 lg:pr-4">
           <button
             type="button"
             onClick={() => setActiveTab('OVERVIEW')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center space-x-2 transition-all cursor-pointer whitespace-nowrap ${
+            className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center space-x-2 transition-all cursor-pointer whitespace-nowrap lg:w-full lg:justify-start ${
               activeTab === 'OVERVIEW'
                 ? 'bg-blue-500 text-slate-950 shadow-md shadow-blue-500/20'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
@@ -333,14 +250,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('VISITORS')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center space-x-2 transition-all cursor-pointer whitespace-nowrap relative ${
+            className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center space-x-2 transition-all cursor-pointer whitespace-nowrap lg:w-full lg:justify-start relative ${
               activeTab === 'VISITORS'
                 ? 'bg-blue-500 text-slate-950 shadow-md shadow-blue-500/20'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
             }`}
           >
             <Users className="w-4 h-4" />
-            <span>Visitors & Biometrics Desk</span>
+            <span>Users & Visitor Accounts</span>
             {pendingBiometricVisitors > 0 && (
               <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
                 activeTab === 'VISITORS' ? 'bg-slate-950 text-blue-400' : 'bg-blue-500 text-slate-950'
@@ -350,10 +267,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             )}
           </button>
 
+          <button type="button" onClick={() => setActiveTab('KYC')} className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center space-x-2 whitespace-nowrap ${activeTab==='KYC'?'bg-blue-500 text-slate-950':'text-slate-400 hover:text-slate-200 hover:bg-slate-900'}`}><FileCheck className="w-4 h-4"/><span>Identity Verification</span></button>
+
           <button
             type="button"
             onClick={() => setActiveTab('APPOINTMENTS')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center space-x-2 transition-all cursor-pointer whitespace-nowrap relative ${
+            className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center space-x-2 transition-all cursor-pointer whitespace-nowrap lg:w-full lg:justify-start relative ${
               activeTab === 'APPOINTMENTS'
                 ? 'bg-blue-500 text-slate-950 shadow-md shadow-blue-500/20'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
@@ -371,7 +290,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('PDL_ROSTER')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center space-x-2 transition-all cursor-pointer whitespace-nowrap ${
+            className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center space-x-2 transition-all cursor-pointer whitespace-nowrap lg:w-full lg:justify-start ${
               activeTab === 'PDL_ROSTER'
                 ? 'bg-blue-500 text-slate-950 shadow-md shadow-blue-500/20'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
@@ -385,7 +304,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('SECURITY_LOGS')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center space-x-2 transition-all cursor-pointer whitespace-nowrap ${
+            className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center space-x-2 transition-all cursor-pointer whitespace-nowrap lg:w-full lg:justify-start ${
               activeTab === 'SECURITY_LOGS'
                 ? 'bg-blue-500 text-slate-950 shadow-md shadow-blue-500/20'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
@@ -396,10 +315,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <span className="text-[10px] opacity-75 font-mono">({incidentList.length})</span>
           </button>
 
+          <button type="button" onClick={() => setActiveTab('AUDIT')} className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center space-x-2 whitespace-nowrap ${activeTab==='AUDIT'?'bg-blue-500 text-slate-950':'text-slate-400 hover:text-slate-200 hover:bg-slate-900'}`}><FileText className="w-4 h-4"/><span>Audit Logs</span></button>
+          <button type="button" onClick={() => setActiveTab('ARCHIVE')} className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center space-x-2 whitespace-nowrap ${activeTab==='ARCHIVE'?'bg-blue-500 text-slate-950':'text-slate-400 hover:text-slate-200 hover:bg-slate-900'}`}><Archive className="w-4 h-4"/><span>Archive / Recycle Bin</span></button>
+          <button type="button" onClick={() => setActiveTab('REPORTS')} className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center space-x-2 whitespace-nowrap ${activeTab==='REPORTS'?'bg-blue-500 text-slate-950':'text-slate-400 hover:text-slate-200 hover:bg-slate-900'}`}><Table className="w-4 h-4"/><span>Reports & Exports</span></button>
+
           <button
             type="button"
             onClick={() => setActiveTab('FACILITY_SETTINGS')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center space-x-2 transition-all cursor-pointer whitespace-nowrap ${
+            className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center space-x-2 transition-all cursor-pointer whitespace-nowrap lg:w-full lg:justify-start ${
               activeTab === 'FACILITY_SETTINGS'
                 ? 'bg-blue-500 text-slate-950 shadow-md shadow-blue-500/20'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
@@ -408,7 +331,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <Sliders className="w-4 h-4" />
             <span>Facility Slot Limits</span>
           </button>
-        </div>
+        </nav>
 
         {/* ========================================================
             TAB 1: COMMAND OVERVIEW
@@ -416,80 +339,62 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         {activeTab === 'OVERVIEW' && (
           <div className="space-y-6">
             
-            {/* Top Stat Metrics Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              
-              {/* Card 1: Registered Visitors */}
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 relative overflow-hidden">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Registered Visitors</span>
-                  <div className="w-8 h-8 rounded-lg bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
-                    <Users className="w-4 h-4" />
-                  </div>
+            {/* Infographic: account health, visit flow, and population snapshot */}
+            <section className="grid grid-cols-1 lg:grid-cols-3 gap-4" aria-label="Facility infographic overview">
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
+                <div className="flex items-center justify-between mb-4">
+                  <div><p className="text-[10px] uppercase tracking-[0.18em] text-slate-400 font-bold">Visitor accounts</p><h3 className="text-lg font-extrabold text-white mt-1">Verification health</h3></div>
+                  <Users className="w-5 h-5 text-blue-300" />
                 </div>
-                <div className="mt-2 text-3xl font-extrabold text-white">
-                  {totalVisitors}
+                <div className="h-3 rounded-full bg-slate-950 overflow-hidden flex" role="img" aria-label={`${activatedVisitors} verified, ${pendingBiometricVisitors} awaiting biometrics, ${pendingEmailVisitors} awaiting email`}>
+                  <span className="bg-emerald-400 h-full" style={{ width: `${totalVisitors ? activatedVisitors / totalVisitors * 100 : 0}%` }} />
+                  <span className="bg-amber-300 h-full" style={{ width: `${totalVisitors ? pendingBiometricVisitors / totalVisitors * 100 : 0}%` }} />
+                  <span className="bg-sky-400 h-full" style={{ width: `${totalVisitors ? pendingEmailVisitors / totalVisitors * 100 : 0}%` }} />
                 </div>
-                <div className="mt-2 text-[11px] text-slate-400 flex items-center gap-2">
-                  <span className="text-blue-400 font-semibold">{activatedVisitors} Verified</span>
-                  <span>•</span>
-                  <span className="text-blue-400 font-semibold">{pendingBiometricVisitors} Awaiting Bio</span>
+                <div className="grid grid-cols-3 gap-2 mt-4">
+                  <div><span className="block text-xl font-black text-emerald-300">{activatedVisitors}</span><span className="text-[10px] text-slate-400">Verified</span></div>
+                  <div><span className="block text-xl font-black text-amber-200">{pendingBiometricVisitors}</span><span className="text-[10px] text-slate-400">Biometrics</span></div>
+                  <div><span className="block text-xl font-black text-sky-300">{pendingEmailVisitors}</span><span className="text-[10px] text-slate-400">Email check</span></div>
                 </div>
               </div>
 
-              {/* Card 2: Today's Scheduled Visits */}
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 relative overflow-hidden">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Today's Visits ({todayStr})</span>
-                  <div className="w-8 h-8 rounded-lg bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
-                    <Calendar className="w-4 h-4" />
-                  </div>
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
+                <div className="flex items-center justify-between mb-4">
+                  <div><p className="text-[10px] uppercase tracking-[0.18em] text-slate-400 font-bold">Today's schedule</p><h3 className="text-lg font-extrabold text-white mt-1">Visit pass flow</h3></div>
+                  <Calendar className="w-5 h-5 text-blue-300" />
                 </div>
-                <div className="mt-2 text-3xl font-extrabold text-blue-300">
-                  {todayAppointments.length}
+                <div className="flex items-end gap-1.5 h-12 mb-3" aria-label={`${todayAppointments.length} visits scheduled today`}>
+                  {Array.from({ length: 12 }, (_, i) => <span key={i} className={`flex-1 rounded-t-sm ${i < Math.min(todayAppointments.length, 12) ? 'bg-gradient-to-t from-blue-700 to-cyan-300' : 'bg-slate-800'}`} style={{ height: `${22 + ((i * 17 + todayAppointments.length * 11) % 75)}%` }} />)}
                 </div>
-                <div className="mt-2 text-[11px] text-slate-400 flex items-center gap-2">
-                  <span className="text-blue-300 font-semibold">{appointments.length} Total on Record</span>
-                  <span>•</span>
-                  <span className="text-slate-300">Morning & Afternoon</span>
+                <div className="flex items-end justify-between border-t border-slate-800 pt-3">
+                  <div><span className="text-2xl font-black text-white">{todayAppointments.length}</span><span className="text-xs text-slate-400 ml-2">scheduled today</span></div>
+                  <button type="button" onClick={() => setActiveTab('APPOINTMENTS')} className="text-[11px] text-blue-300 hover:text-white font-bold cursor-pointer">Open schedule →</button>
                 </div>
+                <div className="flex gap-3 mt-3 text-[10px] text-slate-400"><span><i className="inline-block w-2 h-2 rounded-full bg-emerald-400 mr-1" />{todayAppointments.filter(a => a.status === 'Approved').length} approved</span><span><i className="inline-block w-2 h-2 rounded-full bg-amber-300 mr-1" />{todayAppointments.filter(a => a.status === 'Pending Review').length} in review</span></div>
               </div>
 
-              {/* Card 3: Biometrics Desk Queue */}
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 relative overflow-hidden">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Gate Biometric Desk</span>
-                  <div className="w-8 h-8 rounded-lg bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
-                    <Fingerprint className="w-4 h-4" />
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
+                <div className="flex items-center justify-between mb-4">
+                  <div><p className="text-[10px] uppercase tracking-[0.18em] text-slate-400 font-bold">Custody snapshot</p><h3 className="text-lg font-extrabold text-white mt-1">Dorm population</h3></div>
+                  <Building className="w-5 h-5 text-blue-300" />
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="w-20 h-20 rounded-full grid place-items-center shrink-0" style={{ background: 'conic-gradient(#60a5fa 0 74.8%, #fbbf24 74.8% 100%)' }} role="img" aria-label="Population split: 184 male, 62 female">
+                    <div className="w-[58px] h-[58px] rounded-full bg-slate-900 grid place-items-center text-center"><span className="text-sm leading-tight font-black text-white">246<small className="block text-[8px] text-slate-400 font-semibold">IN CUSTODY</small></span></div>
+                  </div>
+                  <div className="space-y-3 flex-1">
+                    <div className="flex items-center justify-between text-xs"><span className="text-slate-300"><i className="inline-block w-2 h-2 rounded-full bg-blue-400 mr-2" />Male dorm</span><strong className="text-white">184 <small className="text-slate-400">75%</small></strong></div>
+                    <div className="flex items-center justify-between text-xs"><span className="text-slate-300"><i className="inline-block w-2 h-2 rounded-full bg-amber-300 mr-2" />Female dorm</span><strong className="text-white">62 <small className="text-slate-400">25%</small></strong></div>
+                    <div className="h-1.5 rounded-full bg-slate-950 overflow-hidden"><div className="h-full bg-gradient-to-r from-blue-500 to-sky-300 rounded-full" style={{ width: '74.8%' }} /></div>
                   </div>
                 </div>
-                <div className="mt-2 text-3xl font-extrabold text-blue-400">
-                  {pendingBiometricVisitors}
-                </div>
-                <div className="mt-2 text-[11px] text-slate-400">
-                  Visitors requiring physical fingerprint scan at Gate 1
-                </div>
               </div>
-
-              {/* Card 4: Inmate Population & Selda Status */}
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 relative overflow-hidden">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Inmates (PDL) In Custody</span>
-                  <div className="w-8 h-8 rounded-lg bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
-                    <Building className="w-4 h-4" />
-                  </div>
-                </div>
-                <div className="mt-2 text-3xl font-extrabold text-white">
-                  246
-                </div>
-                <div className="mt-2 text-[11px] text-slate-400 flex items-center gap-2">
-                  <span className="text-slate-300">184 Male Dorm</span>
-                  <span>•</span>
-                  <span className="text-slate-300">62 Female Dorm</span>
-                </div>
-              </div>
-
-            </div>
+            </section>
+            <section className="grid gap-3 sm:grid-cols-3" aria-label="Administrative queues">
+              <button type="button" onClick={() => setActiveTab('VISITORS')} className="rounded-xl border border-white/10 bg-slate-900/90 p-4 text-left hover:border-blue-300/40"><span className="text-[10px] uppercase tracking-widest text-slate-400">Registered accounts</span><strong className="mt-1 block text-2xl text-white">{totalVisitors}</strong><span className="text-xs text-blue-300">Open user management →</span></button>
+              <button type="button" onClick={() => {setActiveTab('VISITORS');setVisitorFilter('PENDING_VERIFICATION')}} className="rounded-xl border border-amber-300/15 bg-slate-900/90 p-4 text-left hover:border-amber-300/40"><span className="text-[10px] uppercase tracking-widest text-slate-400">Pending registrations</span><strong className="mt-1 block text-2xl text-amber-200">{pendingRegistrationUsers}</strong><span className="text-xs text-amber-100">Review account readiness →</span></button>
+              <button type="button" onClick={() => setActiveTab('KYC')} className="rounded-xl border border-blue-300/15 bg-slate-900/90 p-4 text-left hover:border-blue-300/40"><span className="text-[10px] uppercase tracking-widest text-slate-400">Identity verification queue</span><strong className="mt-1 block text-2xl text-blue-200">{pendingKycCount}</strong><span className="text-xs text-blue-100">Open ID submissions →</span></button>
+            </section>
 
             {/* Quick Actions & Facility Status Bar */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -619,7 +524,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center space-x-1 shadow-md cursor-pointer transition-colors"
                           >
                             <Fingerprint className="w-3.5 h-3.5" />
-                            <span>Scan Thumb</span>
+                            <span>Device unavailable</span>
                           </button>
                         </div>
                       ))}
@@ -695,7 +600,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <div className="flex items-center space-x-2">
                 <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Filter:</span>
                 <div className="flex items-center space-x-1.5">
-                  {(['ALL', 'ACTIVATED', 'PENDING_BIOMETRICS', 'PENDING_EMAIL'] as const).map((filterVal) => (
+                  {(['ALL', 'ACTIVE', 'ACTIVATED', 'PENDING_VERIFICATION', 'PENDING_BIOMETRICS', 'PENDING_EMAIL', 'SUSPENDED', 'REJECTED'] as const).map((filterVal) => (
                     <button
                       key={filterVal}
                       type="button"
@@ -707,7 +612,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       }`}
                     >
                       {filterVal === 'ALL' && `All (${users.length})`}
+                      {filterVal === 'ACTIVE' && `Active (${users.filter(u=>u.accountStatus==='ACTIVE').length})`}
                       {filterVal === 'ACTIVATED' && `Activated (${activatedVisitors})`}
+                      {filterVal === 'PENDING_VERIFICATION' && `Pending registration (${users.filter(u=>u.accountStatus==='PENDING_VERIFICATION').length})`}
+                      {filterVal === 'SUSPENDED' && `Suspended (${users.filter(u=>u.accountStatus==='SUSPENDED').length})`}
+                      {filterVal === 'REJECTED' && `Rejected (${users.filter(u=>u.accountStatus==='REJECTED').length})`}
                       {filterVal === 'PENDING_BIOMETRICS' && `Pending Bio (${pendingBiometricVisitors})`}
                       {filterVal === 'PENDING_EMAIL' && `Pending Email (${pendingEmailVisitors})`}
                     </button>
@@ -775,7 +684,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                           {/* Contact & Location */}
                           <td className="py-3 px-4">
-                            <div className="text-slate-200 font-medium">{u.contactNumber}</div>
+                            <div className="text-slate-200 font-medium">{u.mobileNumber || 'Not provided'}</div>
                             <div className="text-[11px] text-slate-400">{u.address.municipality}</div>
                           </td>
 
@@ -784,11 +693,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             <div className="font-medium text-slate-300">{u.validIdType}</div>
                             <button
                               type="button"
-                              onClick={() => setSelectedVisitorForKyc(u)}
+                              onClick={() => void openUserProfile(u)}
                               className="text-[10px] text-blue-400 hover:text-blue-300 flex items-center gap-1 mt-0.5 cursor-pointer"
                             >
                               <Eye className="w-3 h-3" />
-                              <span>Inspect Submitted ID Photo</span>
+                              <span>View account profile</span>
                             </button>
                           </td>
 
@@ -816,6 +725,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 <Fingerprint className="w-3 h-3" /> Pending Biometrics
                               </span>
                             )}
+                            {u.accountStatus === 'PENDING_VERIFICATION' && <span className="inline-flex items-center gap-1 text-[11px] rounded-full border border-amber-300/30 bg-amber-300/10 px-2.5 py-1 font-bold text-amber-100"><Clock className="h-3 w-3"/>Pending contact / ID review</span>}
+                            {u.accountStatus === 'SUSPENDED' && <span className="inline-flex items-center gap-1 text-[11px] rounded-full border border-rose-300/30 bg-rose-300/10 px-2.5 py-1 font-bold text-rose-100">Suspended</span>}
+                            {u.accountStatus === 'REJECTED' && <span className="inline-flex items-center gap-1 text-[11px] rounded-full border border-rose-300/30 bg-rose-300/10 px-2.5 py-1 font-bold text-rose-100">Rejected</span>}
                             {u.accountStatus === 'PENDING_EMAIL' && (
                               <span className="inline-flex items-center gap-1 text-[11px] bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2.5 py-1 rounded-full font-bold">
                                 <Clock className="w-3 h-3" /> Pending Email OTP
@@ -829,11 +741,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               <button
                                 type="button"
                                 onClick={() => handleStartBiometricScan(u)}
-                                className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-1.5 rounded-lg text-xs inline-flex items-center space-x-1.5 shadow cursor-pointer transition-colors"
+                                className="bg-slate-800 text-slate-300 font-bold px-3 py-1.5 rounded-lg text-xs inline-flex items-center space-x-1.5 shadow cursor-pointer transition-colors"
                                 title="Capture fingerprint at Gate 1 Desk & Activate"
                               >
                                 <Fingerprint className="w-3.5 h-3.5" />
-                                <span>Enroll Fingerprint</span>
+                                <span>Device unavailable</span>
                               </button>
                             )}
 
@@ -847,7 +759,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 Re-verify
                               </button>
                             )}
+                            <button type="button" onClick={async()=>{if(!window.confirm('Archive this visitor account? Its history will remain retained.'))return;const reason=window.prompt('Archive reason:');if(!reason?.trim())return;try{await api.archiveRecord('USERS',u.id,reason);await onUsersRefresh?.()}catch(e:any){window.alert(e.message)}}} className="rounded border border-rose-300/20 px-2 py-1 text-[11px] text-rose-200">Archive</button>
 
+                            {u.accountStatus === 'PENDING_VERIFICATION' && <span className="inline-flex items-center gap-1 text-[11px] rounded-full border border-amber-300/30 bg-amber-300/10 px-2.5 py-1 font-bold text-amber-100"><Clock className="h-3 w-3"/>Pending contact / ID review</span>}
+                            {u.accountStatus === 'SUSPENDED' && <span className="inline-flex items-center gap-1 text-[11px] rounded-full border border-rose-300/30 bg-rose-300/10 px-2.5 py-1 font-bold text-rose-100">Suspended</span>}
+                            {u.accountStatus === 'REJECTED' && <span className="inline-flex items-center gap-1 text-[11px] rounded-full border border-rose-300/30 bg-rose-300/10 px-2.5 py-1 font-bold text-rose-100">Rejected</span>}
                             {u.accountStatus === 'PENDING_EMAIL' && (
                               <button
                                 type="button"
@@ -1293,6 +1209,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <Edit3 className="w-3.5 h-3.5 text-blue-400" />
                           <span>Edit Booking</span>
                         </button>
+                        <button type="button" onClick={async()=>{if(!window.confirm(`Archive PDL ${pdl.fullName}? Related visit history will be retained.`))return;const reason=window.prompt('Archive reason:');if(!reason?.trim())return;try{await api.archiveRecord('PDLS',pdl.id,reason);setPdlList(list=>list.filter(item=>item.id!==pdl.id))}catch(e:any){window.alert(e.message)}}} className="col-span-2 rounded-lg border border-rose-300/20 py-1.5 text-[11px] font-semibold text-rose-200">Archive PDL record</button>
                       </div>
 
                     </div>
@@ -1448,6 +1365,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       <th className="py-3 px-4">Occurrence Description</th>
                       <th className="py-3 px-4">Security Action Enforced</th>
                       <th className="py-3 px-4">Reporting Guard Officer</th>
+                      <th className="py-3 px-4">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/80">
@@ -1479,6 +1397,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <td className="py-3 px-4 font-mono text-slate-400 text-[11px]">
                           {inc.reportingOfficer}
                         </td>
+                        <td className="py-3 px-4"><button type="button" onClick={async()=>{if(!window.confirm('Archive this security incident? Its audit history will remain available.'))return;const reason=window.prompt('Archive reason:');if(!reason?.trim())return;try{await api.archiveRecord('INCIDENTS',inc.id,reason);setIncidentList(list=>list.filter(item=>item.id!==inc.id))}catch(e:any){window.alert(e.message)}}} className="rounded border border-rose-300/20 px-2 py-1 text-[11px] text-rose-200">Archive</button></td>
                       </tr>
                     ))}
                   </tbody>
@@ -1492,6 +1411,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         {/* ========================================================
             TAB 6: FACILITY CAPACITY & SETTINGS
         ======================================================== */}
+        {activeTab === 'KYC' && <AdminKycPanel initialStatus={new URLSearchParams(window.location.search).get('kycStatus')||''} onReviewed={onUsersRefresh} />}
+        {activeTab === 'AUDIT' && <AdminAuditPanel />}
+        {activeTab === 'ARCHIVE' && <AdminArchivePanel />}
+        {activeTab === 'REPORTS' && <AdminReportsPanel />}
+
         {activeTab === 'FACILITY_SETTINGS' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             
@@ -1603,14 +1527,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <div className="bg-slate-900 border border-blue-500/50 rounded-2xl max-w-md w-full shadow-2xl overflow-hidden p-6 text-center text-slate-100 relative">
             
             <div className="w-16 h-16 rounded-2xl bg-blue-500/20 border border-blue-500/40 flex items-center justify-center text-blue-400 mx-auto mb-4">
-              <Fingerprint className={`w-10 h-10 ${biometricScanningStep === 'SCANNING' ? 'animate-pulse' : ''}`} />
+              <Fingerprint className="w-10 h-10" />
             </div>
 
             <h3 className="text-lg font-bold text-white tracking-tight">
               Gate 1 Biometrics Enrollment Terminal
             </h3>
             <p className="text-xs text-slate-400 mt-1">
-              Enrolling in-person physical fingerprint for:
+              In-person fingerprint enrollment for:
             </p>
             <div className="mt-2 text-sm font-extrabold text-blue-300">
               {biometricScanningUser.firstName} {biometricScanningUser.lastName}
@@ -1634,22 +1558,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
             </div>
 
-            {biometricScanningStep === 'SCANNING' ? (
-              <div className="space-y-2">
-                <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
-                  <div className="bg-blue-400 h-full w-3/4 animate-pulse"></div>
-                </div>
-                <p className="text-xs text-blue-400 font-semibold flex items-center justify-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-blue-400 animate-ping"></span>
-                  Optical sensor scanning right thumb print...
-                </p>
-              </div>
-            ) : biometricScanningStep === 'SUCCESS' ? (
-              <div className="bg-blue-500/20 border border-blue-500/40 p-3 rounded-lg text-blue-300 text-xs font-bold flex items-center justify-center gap-2">
-                <Check className="w-4 h-4" />
-                <span>Biometric Authenticated! Account ACTIVATED.</span>
-              </div>
-            ) : null}
+            <div className="rounded-xl border border-amber-300/20 bg-amber-300/10 p-4 text-left text-xs leading-relaxed text-amber-100"><strong className="mb-1 block">Fingerprint device not connected</strong>No biometric data was captured. This account cannot be activated from this screen; connect an authorized biometric provider and complete an in-person scan first.</div>
 
             <div className="mt-6 flex justify-end">
               <button
@@ -1665,96 +1574,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </div>
       )}
 
-      {/* ========================================================
-          MODAL: Inspect Submitted Government ID (KYC)
-      ======================================================== */}
+      {/* Account profile modal: documents open from the protected KYC review workspace. */}
       {selectedVisitorForKyc && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full shadow-2xl overflow-hidden p-6 text-slate-100">
-            
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
-              <div>
-                <span className="text-[10px] uppercase tracking-wider font-bold text-blue-400">Official KYC Document Verification</span>
-                <h3 className="text-base font-bold text-white">
-                  {selectedVisitorForKyc.firstName} {selectedVisitorForKyc.lastName}
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedVisitorForKyc(null)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              
-              {/* ID Photo */}
-              <div>
-                <span className="text-xs font-semibold text-slate-300 block mb-1.5">
-                  Submitted Valid Government ID: {selectedVisitorForKyc.validIdType}
-                </span>
-                <div className="h-52 bg-slate-950 rounded-lg overflow-hidden border border-slate-800 flex items-center justify-center">
-                  <img
-                    src={selectedVisitorForKyc.idPhotoUrl}
-                    alt="Valid ID"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              </div>
-
-              {/* Face Photo */}
-              <div>
-                <span className="text-xs font-semibold text-slate-300 block mb-1.5">
-                  Facial Photo (Selfie KYC)
-                </span>
-                <div className="h-52 bg-slate-950 rounded-lg overflow-hidden border border-slate-800 flex items-center justify-center">
-                  <img
-                    src={selectedVisitorForKyc.facePhotoUrl}
-                    alt="Face KYC"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              </div>
-
-            </div>
-
-            <div className="mt-4 bg-slate-950 p-3 rounded-lg border border-slate-800 text-xs space-y-1">
-              <div><strong className="text-slate-400">Address:</strong> {selectedVisitorForKyc.address.houseUnitStreet}, {selectedVisitorForKyc.address.municipality}</div>
-              <div><strong className="text-slate-400">Contact:</strong> {selectedVisitorForKyc.contactNumber} | {selectedVisitorForKyc.email}</div>
-              <div><strong className="text-slate-400">Biometric Reference:</strong> <span className="font-mono text-blue-300">{selectedVisitorForKyc.biometricReferenceNumber}</span></div>
-            </div>
-
-            <div className="mt-5 pt-3 border-t border-slate-800 flex items-center justify-between">
-              <span className="text-xs text-slate-400">
-                Status: <strong className="text-blue-400">{selectedVisitorForKyc.accountStatus}</strong>
-              </span>
-
-              <div className="space-x-2">
-                {selectedVisitorForKyc.accountStatus !== 'ACTIVATED' && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onUpdateUserStatus(selectedVisitorForKyc.id, 'ACTIVATED', 'Manual Admin ID KYC Approval');
-                      setSelectedVisitorForKyc(null);
-                    }}
-                    className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-1.5 rounded-lg text-xs cursor-pointer"
-                  >
-                    Directly Activate Visitor
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setSelectedVisitorForKyc(null)}
-                  className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg text-xs cursor-pointer"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-
-          </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
+          <section className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-white/15 bg-slate-950 p-6 text-slate-100 shadow-2xl">
+            <header className="flex items-start justify-between border-b border-white/10 pb-4"><div><p className="text-[10px] font-bold uppercase tracking-widest text-blue-300">Administrator user profile</p><h3 className="mt-1 text-xl font-bold">{selectedVisitorForKyc.firstName} {selectedVisitorForKyc.middleName||''} {selectedVisitorForKyc.lastName}</h3></div><button type="button" onClick={()=>{setSelectedVisitorForKyc(null);setSelectedUserDetails(null)}} className="rounded-lg p-2 text-slate-400 hover:bg-white/10"><X/></button></header>
+            {profileLoading?<div className="p-10 text-center text-sm text-slate-400">Loading protected profile…</div>:<>
+            <div className="mt-5 grid gap-4 sm:grid-cols-2"><div className="rounded-xl border border-white/10 bg-slate-900/70 p-4"><h4 className="mb-3 font-bold">Account information</h4><dl className="space-y-2 text-xs"><div><dt className="text-slate-400">User ID</dt><dd>{selectedVisitorForKyc.id}</dd></div><div><dt className="text-slate-400">Email</dt><dd>{selectedVisitorForKyc.email||'Not provided'} · {selectedVisitorForKyc.emailVerified?'Verified':'Not verified'}</dd></div><div><dt className="text-slate-400">Philippine mobile</dt><dd>{selectedVisitorForKyc.mobileNumber||'Not provided'} · {selectedVisitorForKyc.phoneVerified?'Verified':'Not verified'}</dd></div><div><dt className="text-slate-400">Account status</dt><dd>{selectedVisitorForKyc.accountStatus}</dd></div><div><dt className="text-slate-400">Registration / last login</dt><dd>{selectedVisitorForKyc.registeredAt||'—'} / {selectedVisitorForKyc.lastLoginAt||'—'}</dd></div><div><dt className="text-slate-400">Address</dt><dd>{selectedVisitorForKyc.address?.houseUnitStreet||'—'}, {selectedVisitorForKyc.address?.municipality||'—'}</dd></div></dl></div>
+              <div className="rounded-xl border border-white/10 bg-slate-900/70 p-4"><h4 className="mb-3 font-bold">Identity verification</h4>{(selectedUserDetails?.kyc||[]).length?selectedUserDetails.kyc.map((k:any)=><div key={k.id} className="mb-3 rounded-lg bg-slate-950 p-3 text-xs"><p>{k.idType||k.id_type} · {k.status}</p><p className="mt-1 text-slate-400">ID number {k.idNumberMasked||'••••'}</p><p className="text-slate-400">Submitted {k.submitted_at?new Date(k.submitted_at).toLocaleString():'—'}</p>{k.rejection_reason&&<p className="mt-1 text-amber-200">{k.rejection_reason}</p>}</div>):<p className="text-xs text-slate-400">No identity submission on record.</p>}<button type="button" onClick={()=>{setSelectedVisitorForKyc(null);setActiveTab('KYC')}} className="mt-2 rounded-lg border border-blue-300/20 px-3 py-2 text-xs text-blue-200 hover:bg-blue-300/10">Open protected document review</button></div>
+            </div><div className="mt-4 rounded-xl border border-white/10 bg-slate-900/70 p-4"><h4 className="mb-3 font-bold">Visitor history</h4>{(selectedUserDetails?.visits||[]).length?<div className="space-y-2">{selectedUserDetails.visits.map((v:any)=><div key={v.appointment_reference} className="grid grid-cols-2 gap-2 border-b border-white/5 pb-2 text-xs sm:grid-cols-4"><span>{v.visit_date?new Date(v.visit_date).toLocaleDateString():'—'}</span><span>{v.pdl_name} · {v.pdl_number}</span><span>{v.time_slot}</span><span>{v.status}</span></div>)}</div>:<p className="text-xs text-slate-400">No visit history on record.</p>}</div>
+            </>}
+          </section>
         </div>
       )}
 

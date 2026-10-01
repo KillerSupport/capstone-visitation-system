@@ -1,8 +1,5 @@
-export type AccountStatus = 
-  | 'PENDING_EMAIL'        // Registration done, waiting for email confirmation
-  | 'PENDING_BIOMETRICS'   // Email confirmed, must go to jail for in-person biometric scan
-  | 'ACTIVATED'            // Biometric scanned at jail facility, fully activated
-  | 'SUSPENDED';
+export type AccountStatus = 'PENDING_VERIFICATION' | 'PENDING_EMAIL' | 'PENDING_BIOMETRICS' | 'ACTIVE' | 'ACTIVATED' | 'SUSPENDED' | 'REJECTED';
+export type KycStatus = 'NOT_SUBMITTED' | 'PENDING_REVIEW' | 'PROCESSING' | 'VERIFIED' | 'REJECTED' | 'NEEDS_RESUBMISSION';
 
 export type Gender = 'Male' | 'Female' | 'Other' | 'Prefer not to say';
 
@@ -42,8 +39,8 @@ export interface UserProfile {
   suffix: string;
   dateOfBirth: string;
   gender: Gender;
-  contactNumber: string;
   email: string;
+  mobileNumber?: string;
   password?: string;
   address: UserAddress;
   validIdType: ValidIdType;

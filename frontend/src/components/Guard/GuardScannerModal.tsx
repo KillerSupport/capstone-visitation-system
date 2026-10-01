@@ -12,7 +12,6 @@ interface GuardScannerModalProps {
   users: UserProfile[];
   appointments: VisitationAppointment[];
   initialVisitorId?: string;
-  onQuickBookTodayForUser?: (userId: string, targetDate: string) => void;
 }
 
 function playSecurityChime(success: boolean) {
@@ -54,7 +53,6 @@ export const GuardScannerModal: React.FC<GuardScannerModalProps> = ({
   users,
   appointments,
   initialVisitorId,
-  onQuickBookTodayForUser,
 }) => {
   const [selectedVisitorId, setSelectedVisitorId] = useState<string>(
     initialVisitorId || (users[0]?.id || '')
@@ -362,7 +360,7 @@ export const GuardScannerModal: React.FC<GuardScannerModalProps> = ({
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-400">Contact:</span>
-                      <span className="text-slate-300 text-[11px]">{currentVisitor.contactNumber}</span>
+                      <span className="text-slate-300 text-[11px]">{(currentVisitor.mobileNumber || '')}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-400">Relationship:</span>
@@ -470,7 +468,7 @@ export const GuardScannerModal: React.FC<GuardScannerModalProps> = ({
                 </div>
               </div>
 
-              {/* Other Appointments List or Quick Book */}
+              {/* Other Appointments */}
               <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
                 <div className="md:col-span-5 bg-slate-950/70 border border-slate-800 rounded-xl p-4 space-y-2 text-xs">
                   <span className="text-[10px] uppercase font-bold text-slate-400 block">
@@ -505,18 +503,7 @@ export const GuardScannerModal: React.FC<GuardScannerModalProps> = ({
                     </div>
                   )}
 
-                  {onQuickBookTodayForUser && (
-                    <div className="mt-3 pt-3 border-t border-slate-800 flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => onQuickBookTodayForUser(currentVisitor.id, inspectionDate)}
-                        className="bg-slate-800 hover:bg-slate-700 text-blue-300 font-semibold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 border border-slate-700 transition-colors"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Emergency Pass: Issue Today's Pass ({inspectionDate})</span>
-                      </button>
-                    </div>
-                  )}
+
                 </div>
               </div>
 

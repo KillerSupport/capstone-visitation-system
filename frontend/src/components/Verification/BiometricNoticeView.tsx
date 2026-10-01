@@ -1,53 +1,27 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { 
   Fingerprint, MapPin, Clock, Phone, AlertTriangle,
   CheckCircle2, Printer, QrCode, Shield, FileText,
   Sparkles, UserCheck
 } from 'lucide-react';
-import confetti from 'canvas-confetti';
 import { UserProfile } from '../../types';
 import { BJMP_JAIL_FACILITIES, BJMP_RULES_AND_DRESS_CODE } from '../../data/bjmpData';
 
 interface BiometricNoticeViewProps {
   user: UserProfile;
-  onBiometricScanned: () => void;
   onLogout: () => void;
 }
 
 export const BiometricNoticeView: React.FC<BiometricNoticeViewProps> = ({
   user,
-  onBiometricScanned,
   onLogout,
 }) => {
-  const [isScanningSimulation, setIsScanningSimulation] = useState(false);
-  const [scanProgress, setScanProgress] = useState(0);
-  const [officerName] = useState('JO2 R. BAUTISTA (BJMP Records Officer)');
 
   const selectedFacility = BJMP_JAIL_FACILITIES.find(
     (f) => f.id === user.preferredJailFacilityId
   ) || BJMP_JAIL_FACILITIES[0];
 
-  const handleStartBiometricScan = () => {
-    setIsScanningSimulation(true);
-    setScanProgress(10);
-    const interval = setInterval(() => {
-      setScanProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setTimeout(() => {
-            confetti({
-              particleCount: 100,
-              spread: 70,
-              origin: { y: 0.6 },
-            });
-            onBiometricScanned();
-          }, 600);
-          return 100;
-        }
-        return prev + 25;
-      });
-    }, 400);
-  };
+
 
   const handlePrintSlip = () => {
     window.print();
@@ -74,7 +48,7 @@ export const BiometricNoticeView: React.FC<BiometricNoticeViewProps> = ({
               In-Person Biometric Fingerprint Scanning Required for Account Activation
             </h2>
             <p className="text-sm text-slate-200 mt-2 leading-relaxed font-medium">
-              Your email address has been successfully confirmed. Per BJMP Standard Operating Security Procedure, <strong className="text-blue-300 underline underline-offset-2">you need to go to the jail in person to have your biometric fingerprint scanned</strong> for your visitor account to be activated.
+              Your registered contact information has been verified. Per BJMP Standard Operating Security Procedure, <strong className="text-blue-300 underline underline-offset-2">you need to go to the jail in person to have your biometric fingerprint scanned</strong> for your visitor account to be activated.
             </p>
             <div className="mt-4 flex items-center space-x-4 text-xs">
               <span className="text-slate-400">
@@ -82,7 +56,7 @@ export const BiometricNoticeView: React.FC<BiometricNoticeViewProps> = ({
               </span>
               <span className="text-slate-600">•</span>
               <span className="text-slate-400">
-                Desk Schedule: <strong className="text-slate-200">{selectedFacility.biometricDeskHours}</strong>
+                Desk hours: <strong className="text-slate-200">{selectedFacility.biometricDeskHours}</strong>
               </span>
             </div>
           </div>
@@ -188,7 +162,7 @@ export const BiometricNoticeView: React.FC<BiometricNoticeViewProps> = ({
                     Records & Biometric Desk Hours
                   </strong>
                   <span className="text-slate-400 text-[11px]">
-                    {selectedFacility.biometricDeskHours} (No appointment booking needed for biometric enrollment)
+                    {selectedFacility.biometricDeskHours}
                   </span>
                 </div>
               </div>
@@ -197,10 +171,10 @@ export const BiometricNoticeView: React.FC<BiometricNoticeViewProps> = ({
                 <Phone className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
                 <div>
                   <strong className="text-white block font-semibold">
-                    Facility Inquiries Hotline
+                    Official booking & contact details
                   </strong>
                   <span className="text-slate-400 text-[11px]">
-                    {selectedFacility.contactNumber}
+                    <a className="text-blue-300 hover:text-white underline underline-offset-2" href="https://odbs.bjmp.gov.ph/" target="_blank" rel="noreferrer">BJMP Online Dalaw Booking System ↗</a>
                   </span>
                 </div>
               </div>
@@ -209,7 +183,7 @@ export const BiometricNoticeView: React.FC<BiometricNoticeViewProps> = ({
               <div className="border-t border-slate-800/80 pt-2.5 text-[11px] text-slate-300">
                 <span className="text-blue-400 font-semibold block mb-0.5">📍 Getting to BJMP Imus City Jail:</span>
                 <span className="text-slate-400">
-                  Located at Brgy. Malagasang 1-G, Imus City, Cavite (adjacent to the Imus City Government Center complex). Approach Gate 1 Admin & Inmate Records Section for biometric enrollment.
+                  Confirm the current facility address, biometric desk hours, and entrance instructions through BJMP before traveling.
                 </span>
               </div>
             </div>
@@ -245,74 +219,20 @@ export const BiometricNoticeView: React.FC<BiometricNoticeViewProps> = ({
               <div className="flex items-center space-x-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse"></span>
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
-                  BJMP Records Desk Biometric Terminal
+                  Biometric enrollment status
                 </span>
               </div>
               <span className="text-[10px] bg-blue-900/50 text-blue-300 border border-blue-500/30 px-2 py-0.5 rounded font-mono">
-                DigitalPersona 4500
+                Hardware not connected
               </span>
             </div>
 
             <p className="text-xs text-slate-400 leading-relaxed mb-6">
-              When visiting the jail in person, the BJMP records officer will scan your fingerprint on the optical scanner to verify your identity and activate your account.
+              Complete fingerprint enrollment in person at the facility after the authorized biometric equipment is connected.
             </p>
 
-            {/* Fingerprint Scanner Visual Graphic */}
-            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-8 text-center relative overflow-hidden mb-6">
-              {isScanningSimulation && (
-                <div 
-                  className="absolute inset-x-0 h-1 bg-blue-400 shadow-[0_0_15px_rgba(52,211,153,1)] transition-all duration-300 z-10"
-                  style={{ top: `${scanProgress}%` }}
-                ></div>
-              )}
-              <div className={`w-32 h-32 mx-auto rounded-2xl flex items-center justify-center border-2 transition-all relative ${
-                isScanningSimulation
-                  ? 'border-blue-400 bg-blue-950/20 text-blue-400 shadow-[0_0_30px_rgba(52,211,153,0.3)]'
-                  : 'border-slate-800 bg-slate-900/60 text-slate-600 hover:text-blue-400 hover:border-blue-500/50'
-              }`}>
-                <Fingerprint className={`w-20 h-20 ${isScanningSimulation ? 'animate-pulse' : ''}`} />
-                {isScanningSimulation && (
-                  <div className="absolute -bottom-3 bg-blue-500 text-slate-950 text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider">
-                    Scanning {scanProgress}%
-                  </div>
-                )}
-              </div>
-              <div className="mt-4 text-xs font-mono text-slate-400">
-                {isScanningSimulation ? (
-                  <span className="text-blue-400 font-bold">
-                    Analyzing Biometric Minutiae Points (AFIS)...
-                  </span>
-                ) : (
-                  <span>Optical Fingerprint Sensor: Ready</span>
-                )}
-              </div>
-            </div>
-
-            {/* Desk Officer Sign-off */}
-            <div className="bg-slate-950/80 border border-slate-800 rounded-lg p-3 text-xs text-slate-400 mb-6 flex items-center justify-between">
-              <div>
-                <span className="text-[10px] text-slate-500 block">Duty Verification Officer</span>
-                <strong className="text-slate-300 font-medium">{officerName}</strong>
-              </div>
-              <UserCheck className="w-5 h-5 text-blue-400" />
-            </div>
-
-            {/* Test Simulation Button */}
-            <button
-              type="button"
-              disabled={isScanningSimulation}
-              onClick={handleStartBiometricScan}
-              className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 text-slate-950 font-extrabold py-3.5 px-4 rounded-xl text-xs flex items-center justify-center space-x-2 shadow-lg shadow-blue-500/20 transition-all cursor-pointer disabled:opacity-50"
-            >
-              {isScanningSimulation ? (
-                <span>Registering Biometric Fingerprint...</span>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4" />
-                  <span>Simulate Jail Biometric Scan & Activate Account</span>
-                </>
-              )}
-            </button>
+            <div className="mb-4 rounded-lg border border-amber-300/25 bg-amber-300/10 p-4 text-xs leading-relaxed text-amber-100"><strong className="mb-1 block">Fingerprint hardware is not connected</strong>Your account remains pending. Bring your original ID to the facility and complete an in-person fingerprint check when the authorized equipment is available. The website cannot simulate or confirm this scan.</div>
+            <button type="button" onClick={handlePrintSlip} className="w-full rounded-xl border border-white/15 px-4 py-3 text-xs font-semibold text-slate-200 hover:bg-white/5"><Printer className="mr-2 inline h-4 w-4"/>Print visit preparation slip</button>
           </div>
 
           {/* Quick Notice */}
