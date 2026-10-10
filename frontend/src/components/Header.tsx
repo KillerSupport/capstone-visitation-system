@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile, AccountStatus, isStaffRole } from '../types';
-import { Lock, User, LogOut, CheckCircle2, Clock, Fingerprint, QrCode, Radio, Wifi, WifiOff } from 'lucide-react';
+import { Lock, User, LogOut, CheckCircle2, Clock, Fingerprint, QrCode, Radio, Wifi, WifiOff, Menu, X } from 'lucide-react';
 import { realtimeWS, WebSocketStatus } from '../services/websocket';
 
 interface HeaderProps {
@@ -11,6 +11,9 @@ interface HeaderProps {
   onOpenGuardScanner?: () => void;
   isAdminView?: boolean;
   onToggleAdminView?: () => void;
+  onGoHome?: () => void;
+  onToggleSidebar?: () => void;
+  isSidebarOpen?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -19,9 +22,14 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenGuardScanner,
   isAdminView,
   onToggleAdminView,
+  onGoHome,
+  onToggleSidebar,
+  isSidebarOpen = false,
 }) => {
   const isAdmin = currentUser?.role === 'ADMIN';
   const isStaff = isStaffRole(currentUser?.role);
+  const canGoHome = Boolean(currentUser && onGoHome);
+  const BrandContainer = canGoHome ? 'button' : 'div';
   const [wsStatus, setWsStatus] = useState<WebSocketStatus>(realtimeWS.getStatus());
 
   useEffect(() => {
@@ -91,29 +99,50 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Main Nav Bar */}
-      <div className="max-w-7xl mx-auto px-6 py-2.5 flex items-center justify-between">
-        <div className="flex items-center space-x-4">
+      <div className={`${currentUser ? 'w-full px-6' : 'max-w-7xl mx-auto px-4 sm:px-6'} py-2.5 flex flex-wrap items-center justify-between gap-3`}>
+        <div className="flex min-w-0 items-center gap-3">
+          {onToggleSidebar && (
+            <button
+              type="button"
+              onClick={onToggleSidebar}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-slate-200 transition-colors hover:border-blue-400/60 hover:bg-slate-700 hover:text-white cursor-pointer"
+              aria-label={isSidebarOpen ? 'Close navigation menu' : 'Open navigation menu'}
+              aria-expanded={isSidebarOpen}
+              aria-controls="admin-navigation"
+              title={isSidebarOpen ? 'Close navigation menu' : 'Open navigation menu'}
+            >
+              {isSidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
+          )}
           {/* Official BJMP Seal Crest */}
-          <div className="flex items-center space-x-3.5">
+          <BrandContainer
+            {...(canGoHome ? {
+              type: 'button' as const,
+              onClick: onGoHome,
+              'aria-label': 'BJMP IMUS CITY JAIL - Main dashboard',
+              title: 'Return to main dashboard',
+            } : {})}
+            className={`flex min-w-0 items-center gap-3 rounded-lg text-left ${canGoHome ? 'cursor-pointer transition-opacity hover:opacity-85' : ''}`}
+          >
             <div className="w-11 h-11 flex items-center justify-center shrink-0">
               <div className="w-full h-full flex items-center justify-center overflow-hidden">
                 <img src="/assets/bjmp_icon.png" alt="BJMP" className="w-full h-full object-contain" />
               </div>
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h1 className="text-base sm:text-lg font-extrabold tracking-tight text-white font-sans">
+                <h1 className="text-sm sm:text-lg font-extrabold tracking-tight text-white font-sans">
                   BJMP IMUS CITY JAIL
                 </h1>
-                <span className="bg-blue-500/15 text-blue-300 border border-blue-500/30 text-[10px] uppercase font-bold px-2 py-0.5 rounded">
+                <span className="hidden sm:inline-flex bg-blue-500/15 text-blue-300 border border-blue-500/30 text-[10px] uppercase font-bold px-2 py-0.5 rounded">
                   Cavite
                 </span>
               </div>
-              <p className="text-[11px] text-slate-300">
+              <p className="max-w-[15rem] truncate sm:max-w-none text-[10px] sm:text-[11px] text-slate-300">
                 Inmate Visitation & Biometric Electronic Gate Pass Portal
               </p>
             </div>
-          </div>
+          </BrandContainer>
         </div>
 
         {/* User / Session Area & Guard Scanner */}

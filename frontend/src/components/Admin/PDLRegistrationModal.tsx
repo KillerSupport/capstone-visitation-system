@@ -7,6 +7,7 @@ import {
 import { PDL, MaritalStatus, PDLBodyMark } from '../../types';
 import { BJMP_JAIL_FACILITIES } from '../../data/bjmpData';
 import { BodyMarkPicker } from './BodyMarkPicker';
+import { SignatureCapture } from '../Common/SignatureCapture';
 
 interface PDLRegistrationModalProps {
   onClose: () => void;
@@ -22,6 +23,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
   existingPdl,
 }) => {
   const [activeTab, setActiveTab] = useState<TabKey>('DEMOGRAPHICS');
+  const [signatureDataUrl, setSignatureDataUrl] = useState(existingPdl?.signatureDataUrl || '');
 
   // Identification & Demographics
   const [lastName, setLastName] = useState(existingPdl?.lastName || '');
@@ -125,6 +127,8 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
     existingPdl?.cellDormitory || 'Brigada 2 - Selda C'
   );
   const [status, setStatus] = useState<PDL['status']>(existingPdl?.status || 'In Custody');
+  const [releaseDate, setReleaseDate] = useState(existingPdl?.releaseDate || '');
+  const [releaseMode, setReleaseMode] = useState(existingPdl?.releaseMode || '');
 
   // Legal & Court
   const [primaryOffense, setPrimaryOffense] = useState(
@@ -268,6 +272,10 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
 
     const newPDL: PDL = {
       id: existingPdl?.id || `pdl-${Date.now()}`,
+      signatureDataUrl,
+      signatureCapturedAt: signatureDataUrl ? new Date().toISOString() : existingPdl?.signatureCapturedAt,
+      releaseDate: status === 'Released' ? releaseDate : existingPdl?.releaseDate,
+      releaseMode: status === 'Released' ? releaseMode : existingPdl?.releaseMode,
       pdlNumber,
       fileNumber,
       bjmpIdNumber,
@@ -509,6 +517,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                 </div>
               </div>
 
+              {status === 'Released' && <div className="mb-3 grid gap-3 rounded-lg border border-amber-300/20 bg-amber-300/5 p-3 sm:grid-cols-2"><div><label className="mb-1 block text-xs font-semibold text-amber-100">Release date</label><input type="date" required value={releaseDate} onChange={e=>setReleaseDate(e.target.value)} className="w-full rounded border border-slate-700 bg-slate-900 p-2 text-sm"/></div><div><label className="mb-1 block text-xs font-semibold text-amber-100">Mode of release</label><input required value={releaseMode} onChange={e=>setReleaseMode(e.target.value)} placeholder="Court order, bail, sentence served…" className="w-full rounded border border-slate-700 bg-slate-900 p-2 text-sm"/></div><p className="text-xs text-amber-100 sm:col-span-2">Saving Released records this action as administrator approval and includes the details on the discharge certificate and monthly register.</p></div>}
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-300 mb-1">Last Name (Apelyido) *</label>
@@ -1505,6 +1514,8 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
 
             </div>
           )}
+
+          <SignatureCapture value={signatureDataUrl} onChange={setSignatureDataUrl} label="PDL registration signature" />
 
           {/* Modal Footer Controls */}
           <div className="pt-4 border-t border-slate-800 flex items-center justify-between">

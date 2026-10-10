@@ -250,6 +250,12 @@ export interface PDL {
 
   // Property Receipt / Deposit
   propertyReceipt?: PDLPropertyReceipt;
+  signatureDataUrl?: string;
+  signatureCapturedAt?: string;
+  releaseDate?: string;
+  releaseMode?: string;
+  releaseApprovedAt?: string;
+  releaseApprovedBy?: string;
 }
 
 export interface VisitationAppointment {

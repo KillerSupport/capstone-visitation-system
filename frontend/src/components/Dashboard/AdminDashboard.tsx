@@ -12,6 +12,7 @@ import {
 } from '../../types';
 import { BJMP_JAIL_FACILITIES } from '../../data/bjmpData';
 import { PrintablePassModal } from '../Common/PrintablePassModal';
+import { AnnouncementTicker } from '../Common/AnnouncementTicker';
 import { PDLRegistrationModal } from '../Admin/PDLRegistrationModal';
 import { OfficialBjmpDocumentsModal } from '../Admin/OfficialBjmpDocumentsModal';
 import { AdminKycPanel } from '../Admin/AdminKycPanel';
@@ -19,6 +20,7 @@ import { AdminAuditPanel } from '../Admin/AdminAuditPanel';
 import { AdminArchivePanel } from '../Admin/AdminArchivePanel';
 import { AdminReportsPanel } from '../Admin/AdminReportsPanel';
 import { api } from '../../services/api';
+import { hardware } from '../../services/hardware';
 
 interface AdminDashboardProps {
   currentUser: UserProfile;
@@ -32,6 +34,8 @@ interface AdminDashboardProps {
   onSwitchToVisitorView: () => void;
   onSavePdl: (pdl: PDL) => Promise<void>;
   onUsersRefresh?: () => Promise<void> | void;
+  isSidebarOpen: boolean;
+  homeRequest: number;
 }
 
 interface SecurityIncident {
@@ -57,9 +61,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onSwitchToVisitorView,
   onSavePdl,
   onUsersRefresh,
+  isSidebarOpen,
+  homeRequest,
 }) => {
   // Navigation Tabs
   const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'VISITORS' | 'KYC' | 'APPOINTMENTS' | 'PDL_ROSTER' | 'SECURITY_LOGS' | 'AUDIT' | 'ARCHIVE' | 'REPORTS' | 'FACILITY_SETTINGS'>('OVERVIEW');
+
+  useEffect(() => { setActiveTab('OVERVIEW'); }, [homeRequest]);
 
   // Visitor Management State
   const [visitorFilter, setVisitorFilter] = useState<'ALL' | 'ACTIVATED' | 'ACTIVE' | 'PENDING_VERIFICATION' | 'PENDING_BIOMETRICS' | 'PENDING_EMAIL' | 'SUSPENDED' | 'REJECTED'>('ALL');
@@ -69,6 +77,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [profileLoading,setProfileLoading]=useState(false);
   const [pendingKycCount,setPendingKycCount]=useState(0);
   const [biometricScanningUser, setBiometricScanningUser] = useState<UserProfile | null>(null);
+  const [hardwareOnline,setHardwareOnline]=useState(false);
+  const [enrollmentRequest,setEnrollmentRequest]=useState('');
+  const [enrollmentBusy,setEnrollmentBusy]=useState(false);
+  const [enrollmentMessage,setEnrollmentMessage]=useState('');
 
 
   // Appointment Management State
@@ -107,6 +119,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [maleCapacity, setMaleCapacity] = useState(40);
   const [femaleCapacity, setFemaleCapacity] = useState(30);
   const [systemNotice, setSystemNotice] = useState('HEIGHTENED SECURITY PROTOCOL: All food packages (Paabot) must strictly use transparent clear containers. Metal cans prohibited.');
+
+  const noticeMessages = useMemo(() => systemNotice.split(/\r?\n/).map((message) => message.trim()).filter(Boolean), [systemNotice]);
 
   // Today's Date calculation
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
@@ -159,6 +173,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // Biometric Desk Scanner Execution
   const handleStartBiometricScan = (visitor: UserProfile) => { setBiometricScanningUser(visitor); };
+  useEffect(()=>{hardware.connect();const offStatus=hardware.onStatus(setHardwareOnline);const offEvent=hardware.onEvent((event)=>{if(event.type==='FINGERPRINT_ENROLL_RESULT'&&event.requestId===enrollmentRequest){if(event.payload?.success&&event.payload?.proof&&biometricScanningUser){setEnrollmentBusy(true);void api.adminEnrollBiometrics(biometricScanningUser.id,String(event.payload.proof)).then(r=>{setEnrollmentMessage(r.message);void onUsersRefresh?.();setBiometricScanningUser(null)}).catch((e:any)=>setEnrollmentMessage(e.message)).finally(()=>setEnrollmentBusy(false))}else{setEnrollmentMessage(event.payload?.message||'Fingerprint enrollment failed.')}}});return()=>{offStatus();offEvent()}},[enrollmentRequest,biometricScanningUser]);
+  const startFingerprintEnrollment=()=>{if(!biometricScanningUser)return;const requestId=crypto.randomUUID();setEnrollmentRequest(requestId);setEnrollmentMessage('Place the visitor’s finger on the AS608 scanner…');setEnrollmentBusy(true);try{hardware.command('FINGERPRINT_ENROLL',{subjectType:'VISITOR',subjectId:String(biometricScanningUser.id)},requestId)}catch(e:any){setEnrollmentMessage(e.message);setEnrollmentBusy(false)}};
 
   // Save PDL (from comprehensive registration form)
   const handleSavePdl = async (savedPdl: PDL) => {
@@ -220,20 +236,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     <div className="min-h-[calc(100vh-140px)] bg-transparent text-slate-100 pb-16">
       
       {/* Broadcast Alert Banner */}
-      {systemNotice && (
-        <div className="bg-blue-500/10 border-b border-blue-500/30 px-6 py-2 text-xs text-blue-300 flex items-center justify-between">
-          <div className="max-w-7xl mx-auto w-full flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-blue-400 shrink-0" />
-            <span className="font-semibold">{systemNotice}</span>
-          </div>
-        </div>
-      )}
+      <AnnouncementTicker messages={noticeMessages} />
 
       {/* Main Container */}
-      <div className="mx-auto w-full max-w-[1600px] px-4 pt-6 sm:px-6 lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-6">
+      <div className={`admin-dashboard-layout mx-auto w-full max-w-[1600px] px-4 pt-6 sm:px-6 ${isSidebarOpen ? 'is-sidebar-open' : ''}`}>
         
         {/* Navigation Tabs Bar */}
-        <nav aria-label="Admin navigation" className="flex items-center space-x-1.5 border-b border-slate-800 pb-3 overflow-x-auto mb-6 lg:sticky lg:top-24 lg:col-start-1 lg:row-start-1 lg:mb-0 lg:h-fit lg:flex-col lg:items-stretch lg:space-x-0 lg:space-y-1.5 lg:overflow-visible lg:border-b-0 lg:border-r lg:pb-0 lg:pr-4">
+        <div className="admin-dashboard-sidebar" aria-hidden={!isSidebarOpen} inert={!isSidebarOpen}>
+        <nav id="admin-navigation" aria-label="Admin navigation" className="admin-dashboard-nav">
           <button
             type="button"
             onClick={() => setActiveTab('OVERVIEW')}
@@ -332,7 +342,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <span>Facility Slot Limits</span>
           </button>
         </nav>
+        </div>
 
+        <div className="admin-dashboard-content">
         {/* ========================================================
             TAB 1: COMMAND OVERVIEW
         ======================================================== */}
@@ -340,7 +352,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <div className="space-y-6">
             
             {/* Infographic: account health, visit flow, and population snapshot */}
-            <section className="grid grid-cols-1 lg:grid-cols-3 gap-4" aria-label="Facility infographic overview">
+            <section className="admin-overview-grid" aria-label="Facility infographic overview">
               <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
                 <div className="flex items-center justify-between mb-4">
                   <div><p className="text-[10px] uppercase tracking-[0.18em] text-slate-400 font-bold">Visitor accounts</p><h3 className="text-lg font-extrabold text-white mt-1">Verification health</h3></div>
@@ -1492,8 +1504,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   value={systemNotice}
                   onChange={(e) => setSystemNotice(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-xs text-slate-100 focus:outline-none focus:border-blue-400"
-                  placeholder="Enter system announcement for visitors..."
+                  placeholder="Enter announcements, one message per line..."
                 />
+                <p className="mt-2 text-xs text-slate-400">Put each message on a new line. Messages scroll from right to left in the announcement bar.</p>
               </div>
 
               <div className="flex items-center space-x-2">
@@ -1517,6 +1530,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         )}
 
+        </div>
       </div>
 
       {/* ========================================================
@@ -1558,7 +1572,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
             </div>
 
-            <div className="rounded-xl border border-amber-300/20 bg-amber-300/10 p-4 text-left text-xs leading-relaxed text-amber-100"><strong className="mb-1 block">Fingerprint device not connected</strong>No biometric data was captured. This account cannot be activated from this screen; connect an authorized biometric provider and complete an in-person scan first.</div>
+            <div className={`rounded-xl border p-4 text-left text-xs leading-relaxed ${hardwareOnline?'border-emerald-300/20 bg-emerald-300/10 text-emerald-100':'border-amber-300/20 bg-amber-300/10 text-amber-100'}`}><strong className="mb-1 block">{hardwareOnline?'AS608 fingerprint scanner connected':'Fingerprint device offline'}</strong>{hardwareOnline?'Use the scanner to enroll this visitor in person. The account activates only after the device confirms a successful enrollment.':'Connect the authenticated ESP32E gateway and AS608 scanner to continue.'}</div>{enrollmentMessage&&<p className="mt-3 text-xs text-slate-200">{enrollmentMessage}</p>}<button type="button" disabled={!hardwareOnline||enrollmentBusy} onClick={startFingerprintEnrollment} className="mt-3 w-full rounded-lg bg-blue-500 px-4 py-3 text-sm font-bold text-slate-950 disabled:opacity-40">{enrollmentBusy?'Waiting for fingerprint…':'Start in-person fingerprint enrollment'}</button>
 
             <div className="mt-6 flex justify-end">
               <button

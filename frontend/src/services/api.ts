@@ -40,12 +40,17 @@ export const api = {
   async resendOtp() { return request<{success:boolean;developmentOtp?:string}>('/auth/resend-otp',{method:'POST'}); },
   async getKycStatus() { return request<{status:any}>('/kyc/status'); },
   async submitKyc(data:{idType:string;idNumber:string;fullName:string;dateOfBirth?:string;address?:string;frontImage:string;backImage?:string}) { return request<{success:boolean;status:string;automatedCheck:any}>('/kyc/submissions',{method:'POST',body:JSON.stringify(data)}); },
+  async getWorkerPdls() { return request<PDL[]>('/worker/pdls'); },
+  async saveWorkerPdl(pdl:Partial<PDL>) { return request<{success:boolean;pdl:PDL}>('/worker/pdls',{method:'POST',body:JSON.stringify(pdl)}); },
   async getWorkerVisits() { return request<any[]>('/worker/visitors/today'); },
   async getVisitorPdls(): Promise<PDL[]> { return request<PDL[]>('/visitor/pdls'); },
   async getWorkerHistory() { return request<any[]>('/worker/history'); },
   async workerSearchVisitors(query:string) { return request<any[]>(`/worker/visitors/search?q=${encodeURIComponent(query)}`); },
   async workerScan(code:string) { return request<{result:any;canProceed:boolean}>('/worker/scan',{method:'POST',body:JSON.stringify({code})}); },
   async workerVerifyVisit(id:string,result:'SUCCESS'|'FAILED') { return request<{success:boolean;result:string;message:string}>(`/worker/visits/${encodeURIComponent(id)}/verify`,{method:'POST',body:JSON.stringify({result})}); },
+  async workerExitVisit(id:string) { return request<{success:boolean;message:string}>('/worker/visits/'+encodeURIComponent(id)+'/exit',{method:'POST'}); },
+  async workerAdmitVisit(id:string,requestId:string) { return request<{success:boolean;message:string}>(`/worker/visits/${encodeURIComponent(id)}/admit`,{method:'POST',body:JSON.stringify({requestId})}); },
+  async adminEnrollBiometrics(id:string,proof:string) { return request<{success:boolean;message:string}>(`/users/${encodeURIComponent(id)}/biometrics`,{method:'POST',body:JSON.stringify({proof})}); },
   async getAdminUserProfile(id:string) { return request<any>(`/admin/users/${encodeURIComponent(id)}`); },
   async getAdminKyc(status?:string) { return request<any[]>(`/admin/kyc/${status?`?status=${encodeURIComponent(status)}`:''}`); },
   async reviewKyc(id:string,status:'VERIFIED'|'REJECTED'|'NEEDS_RESUBMISSION',reason='') { return request<any>(`/admin/kyc/${encodeURIComponent(id)}/review`,{method:'PATCH',body:JSON.stringify({status,reason})}); },
@@ -198,4 +203,6 @@ export const api = {
     }>('/stats');
   },
 };
+
+
 

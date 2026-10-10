@@ -31,6 +31,8 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [devVerificationOtp,setDevVerificationOtp]=useState<string|null>(null);
   const [adminViewMode, setAdminViewMode] = useState<'admin' | 'visitor'>('admin');
+  const [isAdminSidebarOpen, setIsAdminSidebarOpen] = useState(false);
+  const [dashboardHomeRequest, setDashboardHomeRequest] = useState(0);
 
   useEffect(() => { api.me().then(({user}) => { setUsers(prev => [user,...prev.filter(x=>x.id!==user.id)]); setCurrentUserId(user.id); }).catch(() => setCurrentUserId(null)); }, []);
 
@@ -77,6 +79,12 @@ export default function App() {
   // Identify user with WebSocket when currentUser changes
   const currentUser = users.find((u) => u.id === currentUserId) || null;
   const currentUserIsStaff = isStaffRole(currentUser?.role);
+  const isDashboardVisible = Boolean(currentUser && (
+    currentUserIsStaff || (
+      (currentUser.emailVerified || currentUser.phoneVerified) &&
+      !['PENDING_EMAIL', 'PENDING_VERIFICATION', 'PENDING_BIOMETRICS'].includes(currentUser.accountStatus)
+    )
+  ));
 
   useEffect(() => {
     if (!currentUser) return;
@@ -126,8 +134,32 @@ export default function App() {
     void api.logout().catch(() => {});
     setCurrentUserId(null);
     setAdminViewMode('admin');
+    setIsAdminSidebarOpen(false);
     showToast('Logged out successfully.');
   };
+
+  const handleGoHome = () => {
+    if (!isDashboardVisible) return;
+    setAdminViewMode('admin');
+    setIsAdminSidebarOpen(false);
+    setDashboardHomeRequest((request) => request + 1);
+    setIsGuardScannerOpen(false);
+    setIsSignUpOpen(false);
+    setIsForgotOpen(false);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  };
+
+  useEffect(() => {
+    if (!isAdminSidebarOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsAdminSidebarOpen(false);
+        document.querySelector<HTMLButtonElement>('[aria-controls="admin-navigation"]')?.focus();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isAdminSidebarOpen]);
 
   // Admin Actions
   const handleUpdateUserStatus = async (userId: string, status: AccountStatus, officerNote?: string) => {
@@ -205,6 +237,9 @@ export default function App() {
       <Header
         currentUser={currentUser}
         onLogout={handleLogout}
+        onGoHome={isDashboardVisible ? handleGoHome : undefined}
+        isSidebarOpen={isAdminSidebarOpen}
+        onToggleSidebar={(currentUser?.role === 'ADMIN' || currentUser?.role === 'SUPER_ADMIN') && adminViewMode === 'admin' ? () => setIsAdminSidebarOpen((open) => !open) : undefined}
         isAdminView={adminViewMode === 'admin'}
         onToggleAdminView={(currentUser?.role === 'ADMIN' || currentUser?.role === 'SUPER_ADMIN') ? () => setAdminViewMode((m) => (m === 'admin' ? 'visitor' : 'admin')) : undefined}
         onOpenGuardScanner={(currentUser?.role === 'ADMIN' || currentUser?.role === 'SUPER_ADMIN') ? () => {
@@ -226,6 +261,8 @@ export default function App() {
         ) : currentUser?.role === 'ADMIN' || currentUser?.role === 'SUPER_ADMIN' ? (
           adminViewMode === 'admin' ? (
             <AdminDashboard
+              isSidebarOpen={isAdminSidebarOpen}
+              homeRequest={dashboardHomeRequest}
               currentUser={currentUser}
               users={users}
               appointments={appointments}
@@ -257,6 +294,7 @@ export default function App() {
                 </button>
               </div>
               <VisitorDashboard
+                homeRequest={dashboardHomeRequest}
                 user={currentUser}
                 pdls={pdls}
                 appointments={appointments.filter((a) => a.userId === currentUser.id)}
@@ -287,6 +325,7 @@ export default function App() {
           />
         ) : (
           <VisitorDashboard
+            homeRequest={dashboardHomeRequest}
             user={currentUser}
             pdls={pdls}
             appointments={appointments.filter((a) => a.userId === currentUser.id)}

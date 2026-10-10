@@ -11,6 +11,7 @@
   --text-primary: #ffffff;
   --text-secondary: #b8b8ce;
   --border-subtle: #29294f;
+  --notice-text: #ff6b6b;
 }
 
 @theme {
@@ -67,4 +68,122 @@
   body { background-color: #ffffff !important; color: #000000 !important; }
   .no-print, header, footer, button, nav { display: none !important; }
   #printable-pass-area { padding: 0 !important; margin: 0 !important; border: none !important; box-shadow: none !important; }
+}
+
+.announcement-ticker {
+  border-bottom: 1px solid rgb(255 107 107 / 25%);
+  background: rgb(255 107 107 / 7%);
+  color: var(--notice-text);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.announcement-ticker__inner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  margin-inline: auto;
+  padding: 0.35rem 1.5rem;
+}
+
+.announcement-ticker__viewport { flex: 1; min-width: 0; overflow: hidden; }
+.announcement-ticker__track {
+  display: flex;
+  width: max-content;
+  animation: announcement-scroll 25s linear infinite;
+}
+
+.announcement-ticker__group {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 3rem;
+  padding-right: 3rem;
+}
+
+.announcement-ticker__message { white-space: nowrap; }
+.announcement-ticker__control {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1px solid rgb(255 107 107 / 25%);
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+
+.announcement-ticker__control:hover { background: rgb(255 107 107 / 12%); }
+.announcement-ticker:hover .announcement-ticker__track { animation-play-state: paused !important; }
+
+@keyframes announcement-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+.admin-dashboard-layout { display: grid; grid-template-columns: minmax(0, 1fr); }
+.admin-dashboard-content { min-width: 0; }
+.admin-overview-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 1rem; }
+.admin-dashboard-sidebar {
+  display: grid;
+  grid-template-rows: 0fr;
+  min-width: 0;
+  visibility: hidden;
+  opacity: 0;
+  transition: grid-template-rows 220ms ease, margin-bottom 220ms ease, opacity 180ms ease, visibility 220ms;
+}
+
+.admin-dashboard-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 0.75rem;
+  background: rgb(6 6 50 / 65%);
+}
+
+.admin-dashboard-nav > button { width: 100%; justify-content: flex-start; white-space: normal; text-align: left; }
+.admin-dashboard-nav > button > svg { flex-shrink: 0; }
+.admin-dashboard-layout.is-sidebar-open .admin-dashboard-sidebar {
+  grid-template-rows: 1fr;
+  margin-bottom: 1.5rem;
+  visibility: visible;
+  opacity: 1;
+}
+
+@media (min-width: 1024px) {
+  .admin-dashboard-layout {
+    grid-template-columns: 0 minmax(0, 1fr);
+    column-gap: 0;
+    align-items: start;
+    transition: grid-template-columns 240ms ease, column-gap 240ms ease;
+  }
+  .admin-dashboard-layout.is-sidebar-open { grid-template-columns: 256px minmax(0, 1fr); column-gap: 1.5rem; }
+  .admin-dashboard-sidebar {
+    position: sticky;
+    top: 8rem;
+    grid-template-rows: 1fr;
+    max-height: calc(100dvh - 9rem);
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+  .admin-dashboard-layout.is-sidebar-open .admin-dashboard-sidebar { margin-bottom: 0; }
+  .admin-dashboard-nav {
+    width: 256px;
+    padding-right: 1rem;
+    border-right: 1px solid var(--border-subtle);
+    border-radius: 0;
+    background: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-dashboard-layout, .admin-dashboard-sidebar { transition: none; }
+  .announcement-ticker__track { animation: none; width: 100%; }
+  .announcement-ticker__group { width: 100%; min-width: 0 !important; padding-right: 0; flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+  .announcement-ticker__group + .announcement-ticker__group, .announcement-ticker__control { display: none; }
+  .announcement-ticker__message { white-space: normal; overflow-wrap: anywhere; }
 }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   Calendar, Clock, Shield, User, Plus, FileText,
   MapPin, CheckCircle2, AlertTriangle, QrCode,
@@ -22,6 +22,7 @@ interface VisitorDashboardProps {
   onCancelAppointment: (apptId: string) => void;
   onOpenGuardScanner: (visitorId: string) => void;
   pdls: import('../../types').PDL[];
+  homeRequest: number;
 }
 
 export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
@@ -31,9 +32,11 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
   onCancelAppointment,
   onOpenGuardScanner,
   pdls,
+  homeRequest,
 }) => {
   const [activeTab, setActiveTab] = useState<'ID_CARD' | 'BOOK' | 'APPOINTMENTS' | 'RULES' | 'PROFILE'>('ID_CARD');
   const [selectedPass, setSelectedPass] = useState<VisitationAppointment | null>(null);
+  useEffect(() => { setActiveTab('ID_CARD'); setSelectedPass(null); }, [homeRequest]);
 
   // Booking Form State
   const [facilityId, setFacilityId] = useState(user.preferredJailFacilityId || BJMP_JAIL_FACILITIES[0].id);

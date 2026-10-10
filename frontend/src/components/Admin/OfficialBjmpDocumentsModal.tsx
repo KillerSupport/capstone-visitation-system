@@ -32,7 +32,7 @@ export const OfficialBjmpDocumentsModal: React.FC<OfficialBjmpDocumentsModalProp
     initialPdl?.id || (pdlList[0]?.id ?? '')
   );
   const [activeDocType, setActiveDocType] = useState<DocType>('BOOKING_REPORT');
-  const [selectedMonth, setSelectedMonth] = useState('January 2025');
+  const [selectedMonth, setSelectedMonth] = useState(new Date().toLocaleString('en-US',{month:'long',year:'numeric'}));
 
   const currentPdl = pdlList.find((p) => p.id === currentPdlId) || pdlList[0];
 
@@ -250,7 +250,7 @@ export const OfficialBjmpDocumentsModal: React.FC<OfficialBjmpDocumentsModalProp
                     </div>
                     <div>
                       <span className="font-bold block text-slate-600">DATE OF BIRTH:</span>
-                      <span className="font-mono">{currentPdl.dateOfBirth || '1992-04-15'}</span>
+                      <span className="font-mono">{currentPdl.dateOfBirth || '—'}</span>
                     </div>
 
                     <div>
@@ -475,7 +475,7 @@ export const OfficialBjmpDocumentsModal: React.FC<OfficialBjmpDocumentsModalProp
                   </div>
                   <div>
                     <strong>DATE:</strong>{' '}
-                    <span className="font-mono">{currentPdl.propertyReceipt?.date || currentPdl.dateCommitted || '2024-03-12'}</span>
+                    <span className="font-mono">{currentPdl.propertyReceipt?.date || currentPdl.dateCommitted || '—'}</span>
                   </div>
                 </div>
 
@@ -813,12 +813,12 @@ export const OfficialBjmpDocumentsModal: React.FC<OfficialBjmpDocumentsModalProp
                 {activeDocType === 'CERTIFICATE_OF_DISCHARGE' && <>
                   <h2 className="text-center font-bold text-xl mb-6">CERTIFICATE OF DISCHARGE</h2>
                   <p>This certifies that <b>{currentPdl.fullName}</b>, File No. <b>{currentPdl.fileNumber || '—'}</b>, has a digital release record prepared for authorized approval.</p>
-                  <div className="grid grid-cols-2 gap-6 mt-8 text-sm"><p><b>Date committed:</b> {currentPdl.dateCommitted || '—'}</p><p><b>Current case status:</b> {currentPdl.caseStatus || '—'}</p><p><b>Offense:</b> {currentPdl.primaryOffense || '—'}</p><p><b>Release mode:</b> To be approved</p></div>
+                  <div className="grid grid-cols-2 gap-6 mt-8 text-sm"><p><b>Date committed:</b> {currentPdl.dateCommitted || '—'}</p><p><b>Current case status:</b> {currentPdl.caseStatus || '—'}</p><p><b>Offense:</b> {currentPdl.primaryOffense || '—'}</p><p><b>Date of release:</b> {currentPdl.releaseDate || 'Pending admin approval'}</p><p><b>Mode of release:</b> {currentPdl.releaseMode || 'Pending admin approval'}</p><p><b>Approved by:</b> {currentPdl.releaseApprovedBy || '—'}</p></div>
                   <div className="grid grid-cols-2 gap-6 mt-14"><div className="h-32 border">LEFT THUMBMARK</div><div className="h-32 border">RIGHT THUMBMARK</div></div>
                 </>}
                 {activeDocType === 'RELEASE_REGISTER' && <>
                   <h2 className="text-center font-bold text-xl mb-6">MONTHLY RELEASE REGISTER</h2>
-                  <table className="w-full border-collapse text-xs"><thead><tr>{['Date released', 'Name of PDL', 'Date of birth', 'Sex', 'Case / offense', 'Mode of release', 'Status'].map((heading) => <th className="border p-2" key={heading}>{heading}</th>)}</tr></thead><tbody><tr>{['—', currentPdl.fullName, currentPdl.dateOfBirth || '—', currentPdl.sex || '—', currentPdl.primaryOffense || '—', 'To be approved', currentPdl.status].map((value, index) => <td className="border p-2" key={index}>{value}</td>)}</tr></tbody></table>
+                  <table className="w-full border-collapse text-xs"><thead><tr>{['Date released', 'Name of PDL', 'Date of birth', 'Sex', 'Case / offense', 'Mode of release', 'Status'].map((heading) => <th className="border p-2" key={heading}>{heading}</th>)}</tr></thead><tbody>{pdlList.filter(pdl=>pdl.status==='Released'&&pdl.releaseDate&&new Date(pdl.releaseDate).toLocaleString('en-US',{month:'long',year:'numeric'})===selectedMonth).map(pdl=><tr key={pdl.id}>{[pdl.releaseDate,pdl.fullName,pdl.dateOfBirth||'—',pdl.sex||'—',pdl.primaryOffense||'—',pdl.releaseMode||'—',pdl.status].map((value,index)=><td className="border p-2" key={index}>{value}</td>)}</tr>)}</tbody></table>
                 </>}
                 <p className="mt-10 text-xs text-slate-500">This page is a digital workflow record. Capture biometric data only using approved BJMP hardware.</p>
               </div>
@@ -859,12 +859,12 @@ export const OfficialBjmpDocumentsModal: React.FC<OfficialBjmpDocumentsModalProp
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200">
-                      {pdlList.map((pdl, idx) => (
+                      {pdlList.filter(pdl=>pdl.dateCommitted&&new Date(pdl.dateCommitted).toLocaleString('en-US',{month:'long',year:'numeric'})===selectedMonth).map((pdl, idx) => (
                         <tr key={pdl.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                          <td className="p-1.5 font-mono border-r border-slate-200">{pdl.dateCommitted || '2024-03-12'}</td>
+                          <td className="p-1.5 font-mono border-r border-slate-200">{pdl.dateCommitted || '—'}</td>
                           <td className="p-1.5 font-bold border-r border-slate-200">{pdl.fullName}</td>
-                          <td className="p-1.5 font-mono border-r border-slate-200">{pdl.dateOfBirth || '1992-04-15'}</td>
-                          <td className="p-1.5 border-r border-slate-200">{pdl.ageAtAdmission || '32'}</td>
+                          <td className="p-1.5 font-mono border-r border-slate-200">{pdl.dateOfBirth || '—'}</td>
+                          <td className="p-1.5 border-r border-slate-200">{pdl.ageAtAdmission ?? '—'}</td>
                           <td className="p-1.5 border-r border-slate-200">{pdl.sex || 'Male'}</td>
                           <td className="p-1.5 border-r border-slate-200">{pdl.civilStatus || 'Single'}</td>
                           <td className="p-1.5 border-r border-slate-200">{pdl.citizenship || 'Filipino'}</td>
@@ -877,8 +877,8 @@ export const OfficialBjmpDocumentsModal: React.FC<OfficialBjmpDocumentsModalProp
                             {pdl.primaryOffense}
                           </td>
                           <td className="p-1.5 text-center border-r border-slate-200">1</td>
-                          <td className="p-1.5 font-mono font-bold border-r border-slate-200">{pdl.criminalCaseNumbers?.[0] || 'CC-24-10294'}</td>
-                          <td className="p-1.5 border-r border-slate-200">{pdl.courtBranch || 'RTC Branch 20'}</td>
+                          <td className="p-1.5 font-mono font-bold border-r border-slate-200">{pdl.criminalCaseNumbers?.[0] || '—'}</td>
+                          <td className="p-1.5 border-r border-slate-200">{pdl.courtBranch || '—'}</td>
                           <td className="p-1.5 border-r border-slate-200">{pdl.presidingJudge || 'Hon. Amy A. Alabastro'}</td>
                           <td className="p-1.5 font-semibold text-slate-800">{pdl.caseStatus || 'Under Trial'}</td>
                         </tr>

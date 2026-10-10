@@ -759,7 +759,7 @@ export async function logGateScan(data: {
   // Keep a printable PDL visitor log in sync with the gate workflow.
   if (data.appointmentId && data.action === 'ADMITTED') {
     const [rows] = await pool.query<mysql.RowDataPacket[]>(`
-      SELECT a.*, u.gender, u.address_street, u.mobile_number AS contact_number
+      SELECT a.*, u.gender, u.address_street, u.date_of_birth, u.mobile_number AS contact_number
       FROM appointments a LEFT JOIN users u ON u.id = a.user_id WHERE a.id=?`, [data.appointmentId]);
     const appointment = rows[0];
     if (appointment) {
@@ -769,6 +769,12 @@ export async function logGateScan(data: {
         [`visitor-log-${id}`, 'PDL_VISITOR', data.appointmentId, id, data.userId, appointment.pdl_id,
           appointment.visit_date, now, data.visitorName, appointment.gender || null, appointment.address_street || null,
           appointment.contact_number || null, appointment.relationship_to_pdl, appointment.visit_type, appointment.cell_dormitory, now]);
+      await pool.query(`INSERT INTO visitor_log_entries
+        (id, log_type, appointment_id, gate_log_id, visitor_id, pdl_id, visit_date, time_in, visitor_name, gender, address, age, contact_number, purpose_of_visit, created_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [`jail-visitor-log-${id}`, 'JAIL_VISITOR', data.appointmentId, id, data.userId, appointment.pdl_id,
+          appointment.visit_date, now, data.visitorName, appointment.gender || null, appointment.address_street || null,
+          appointment.date_of_birth ? Math.floor((Date.now()-new Date(appointment.date_of_birth).getTime())/31557600000) : null, appointment.contact_number || null, appointment.visit_type, now]);
     }
   } else if (data.appointmentId && data.action === 'EXITED') {
     await pool.query(`UPDATE visitor_log_entries SET time_out=? WHERE appointment_id=? AND time_out IS NULL`, [now, data.appointmentId]);
