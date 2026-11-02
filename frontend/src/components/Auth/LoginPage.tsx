@@ -1,17 +1,17 @@
 import React, { useState } from 'react';
 import { Contact, Lock, Eye, EyeOff, LogIn, UserPlus, AlertCircle } from 'lucide-react';
-import { UserProfile } from '../../types';
+import { api, type LoginResult, type LoginCodeResponse } from '../../services/api';
 
 interface LoginPageProps {
-  onLogin: (identifier: string, password: string) => Promise<boolean>;
+  onLogin: (identifier: string, password: string) => Promise<LoginResult>;
+  onVerifyLoginOtp: (code:string) => Promise<void>;
   onOpenSignUp: () => void;
   onOpenForgotPassword: () => void;
-  demoUsers: UserProfile[];
-  onSelectDemoUser: (user: UserProfile) => void;
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({
   onLogin,
+  onVerifyLoginOtp,
   onOpenSignUp,
   onOpenForgotPassword,
 }) => {
@@ -21,22 +21,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMessage(null);
-    if (!identifier.trim() || !password) {
-      setErrorMessage('Enter your registered email address or mobile number, and your password.');
-      return;
-    }
-    setIsLoading(true);
-    setTimeout(async () => {
-      const success = await onLogin(identifier.trim(), password);
-      setIsLoading(false);
-      if (!success) {
-        setErrorMessage('We could not sign you in with those details. Check your email or mobile number and password.');
-      }
-    }, 350);
-  };
+  const handleSubmit = async(e:React.FormEvent)=>{e.preventDefault();setErrorMessage(null);setIsLoading(true);try{await onLogin(identifier.trim(),password)}catch(e){setErrorMessage(e instanceof Error?e.message:'Could not sign in.')}finally{setIsLoading(false)}};
+  const resume=async()=>{setIsLoading(true);try{await api.resumeVerification(identifier,password);const r=await api.me();if(r.user)window.location.reload()}catch(e){setErrorMessage('Enter your account and password, then resume verification. Codes are subject to a one minute cooldown.')}finally{setIsLoading(false)}};
 
   return (
     <main className="min-h-[calc(100vh-140px)] flex items-center justify-center px-4 py-10 sm:py-14 bg-transparent">
@@ -63,6 +49,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
+
           <div>
             <label htmlFor="login-identifier" className="block text-sm font-semibold text-slate-100 mb-1.5">Email address or mobile number</label>
             <div className="relative">
@@ -108,6 +95,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             {isLoading ? <><span className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />Checking your account…</> : <><LogIn className="w-4 h-4" />Sign in</>}
           </button>
         </form>
+        <button type="button" disabled={isLoading||!identifier||!password} onClick={resume} className="mt-3 text-xs text-blue-300 underline disabled:opacity-40">Resume unfinished signup verification</button>
 
         <div className="mt-6 pt-5 border-t border-white/15 text-center">
           <p className="text-sm text-slate-300 mb-3">New to BJMP Imus City Jail visitation?</p>

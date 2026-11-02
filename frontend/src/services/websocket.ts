@@ -21,6 +21,7 @@ class RealtimeWebSocketService {
   private reconnectInterval = 3000;
   private pingIntervalId: any = null;
   private identifiedUser: { userId?: string; role?: string } | null = null;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     // Uses the same configured backend port as the REST client.
@@ -40,6 +41,7 @@ class RealtimeWebSocketService {
 
     try {
       this.ws = new WebSocket(this.url);
+      const socket=this.ws;
 
       this.ws.onopen = () => {
         this.reconnectAttempts = 0;
@@ -65,6 +67,7 @@ class RealtimeWebSocketService {
       };
 
       this.ws.onclose = (event) => {
+        if(this.ws!==socket)return;
         this.cleanupHeartbeat();
         console.warn(`[WebSocket] 🔴 Connection closed (code: ${event.code})`);
         if (event.code !== 1008) this.attemptReconnect();
@@ -92,7 +95,8 @@ class RealtimeWebSocketService {
     this.reconnectAttempts++;
     const delay = Math.min(this.reconnectInterval * Math.pow(1.2, this.reconnectAttempts), 15000);
 
-    setTimeout(() => {
+    this.reconnectTimer=setTimeout(() => {
+      this.reconnectTimer=null;
       this.connect();
     }, delay);
   }
@@ -119,6 +123,7 @@ class RealtimeWebSocketService {
   }
 
   public identify(userId?: string, role?: string) {
+    if(this.identifiedUser?.userId&&this.identifiedUser.userId!==userId)this.disconnect();
     this.identifiedUser = { userId, role };
     if (!this.ws || this.ws.readyState === WebSocket.CLOSED) { this.connect(); return; }
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
@@ -128,6 +133,12 @@ class RealtimeWebSocketService {
         role: role || 'VISITOR',
       }));
     }
+  }
+
+  public disconnect(){
+    if(this.reconnectTimer){clearTimeout(this.reconnectTimer);this.reconnectTimer=null;}
+    this.cleanupHeartbeat();const socket=this.ws;this.ws=null;this.identifiedUser=null;
+    socket?.close(1000,'Signed out');this.setStatus('DISCONNECTED');
   }
 
   public onStatusChange(callback: (status: WebSocketStatus) => void): () => void {

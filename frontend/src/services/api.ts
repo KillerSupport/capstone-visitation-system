@@ -1,6 +1,10 @@
 // REST API client for the BJMP Imus City Jail Visitation System.
 import { UserProfile, VisitationAppointment, PDL, AccountStatus } from '../types';
 
+export interface LoginCodeResponse {success:boolean;otpRequired:true;channel:'email'|'sms';destination:string;developmentOtp?:string;}
+export type LoginResult = LoginCodeResponse | {success:boolean;user:UserProfile;otpRequired?:false;};
+export interface NotificationStatus {channel:'email'|'sms';status:string;}
+
 const browserHost = typeof window !== 'undefined' && window.location.hostname
   ? window.location.hostname
   : 'localhost';
@@ -16,7 +20,7 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
       'Content-Type': 'application/json',
     },
     ...options,
-  });
+  }).catch(()=>{throw new Error('Cannot reach the application server. Make sure the project and MySQL are running, then try again.');});
 
   if (!response.ok) {
     let errorMsg = `HTTP Error ${response.status}`;
@@ -31,25 +35,59 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  async updateIncident(id:string,data:any){return request<any>(`/incidents/${encodeURIComponent(id)}`,{method:'PATCH',body:JSON.stringify(data)})},
+  async getIncidentHistory(id:string){return request<any[]>(`/incidents/${encodeURIComponent(id)}/history`)},
+  async getSharedVisitHistory(q=''){return request<any[]>(`/worker/visit-history?q=${encodeURIComponent(q)}`)},
+
+  async changeSelectedDate(id:string,visitDate:string){return request<any>(`/visitation/visits/${encodeURIComponent(id)}/date`,{method:'PATCH',body:JSON.stringify({visitDate})})},
+
+  async getStaff(){return request<UserProfile[]>('/staff')},
+  async createOfficer(data:any){return request<any>('/staff',{method:'POST',body:JSON.stringify(data)})},
+  async updateOfficer(id:string,data:any){return request<any>(`/staff/${encodeURIComponent(id)}`,{method:'PATCH',body:JSON.stringify(data)})},
+  async getEnrollmentVisitors(){return request<any[]>('/enrollment/visitors')},
+
+  async getVisitationAdmin(){return request<any>('/visitation/admin')},
+  async getLinkedPdls(){return request<any[]>('/visitation/linked-pdls')},
+  async saveVisitorLimit(visitorLimit:number){return request<any>('/visitation/policy',{method:'PUT',body:JSON.stringify({visitorLimit})})},
+  async assignPdlDay(id:string,weekday:number,reason:string){return request<any>(`/visitation/pdls/${encodeURIComponent(id)}/day`,{method:'PUT',body:JSON.stringify({weekday,reason})})},
+  async approvePdlVisitor(id:string,userId:string,relationship:string){return request<any>(`/visitation/pdls/${encodeURIComponent(id)}/visitors`,{method:'POST',body:JSON.stringify({userId,relationship})})},
+  async archivePdlVisitor(id:string,userId:string,reason:string){return request<any>(`/visitation/pdls/${encodeURIComponent(id)}/visitors/${encodeURIComponent(userId)}/archive`,{method:'POST',body:JSON.stringify({reason})})},
+
+  async getFacilities(){return request<any[]>('/facilities')},
+  async saveFacilityCapacities(capacities:{id:string;capacity:number}[]){return request<any>('/admin/facility-capacities',{method:'PUT',body:JSON.stringify({capacities})})},
+  async getSecurityNotice(){return request<{content:string}>('/security-notice')},
+  async saveSecurityNotice(content:string){return request<any>('/admin/security-notice',{method:'PUT',body:JSON.stringify({content})})},
+  async geography(kind:string,parent='',barangay=''){return request<any[]>(`/geography/${kind}?parent=${encodeURIComponent(parent)}&barangay=${encodeURIComponent(barangay)}`)},
+  async forgotPassword(identifier:string){return request<any>('/auth/forgot-password',{method:'POST',body:JSON.stringify({identifier})})},
+  async verifyReset(identifier:string,code:string){return request<any>('/auth/verify-reset',{method:'POST',body:JSON.stringify({identifier,code})})},
+  async resetPassword(data:any){return request<any>('/auth/reset-password',{method:'POST',body:JSON.stringify(data)})},
+  async changePassword(data:any){return request<any>('/auth/change-password',{method:'POST',body:JSON.stringify(data)})},
+  async requestProfileChange(data:any){return request<any>('/auth/profile-change',{method:'POST',body:JSON.stringify(data)})},
+  async verifyProfileChange(code:string){return request<any>('/auth/profile-change/verify',{method:'POST',body:JSON.stringify({code})})},
+  async resumeVerification(identifier:string,password:string){return request<any>('/auth/resume-verification',{method:'POST',body:JSON.stringify({identifier,password})})},
+  async companionPolicy(){return request<any>('/companion-policy')},
+  async reviewCompanion(id:string,index:number,status:string,note:string){return request<any>(`/appointments/${encodeURIComponent(id)}/companions`,{method:'PATCH',body:JSON.stringify({index,status,note})})},
+  async verifyLoginOtp(code:string) {return request<{success:boolean;user:UserProfile}>('/auth/verify-login-otp',{method:'POST',body:JSON.stringify({code})});},
+  async resendLoginOtp() {return request<LoginCodeResponse>('/auth/resend-login-otp',{method:'POST'});},
   // Check health
   async checkHealth() {
     return request<{ status: string; database: string }>('/health');
   },
 
-  async verifyOtp(code: string) { return request<{success:boolean;user:UserProfile}>('/auth/verify-otp',{method:'POST',body:JSON.stringify({code})}); },
+  async verifyOtp(code: string) { return request<{success:boolean;user:UserProfile;developmentOtp?:string;deliveryError?:string;verificationComplete:boolean}>('/auth/verify-otp',{method:'POST',body:JSON.stringify({code})}); },
   async resendOtp() { return request<{success:boolean;developmentOtp?:string}>('/auth/resend-otp',{method:'POST'}); },
   async getKycStatus() { return request<{status:any}>('/kyc/status'); },
   async submitKyc(data:{idType:string;idNumber:string;fullName:string;dateOfBirth?:string;address?:string;frontImage:string;backImage?:string}) { return request<{success:boolean;status:string;automatedCheck:any}>('/kyc/submissions',{method:'POST',body:JSON.stringify(data)}); },
   async getWorkerPdls() { return request<PDL[]>('/worker/pdls'); },
   async saveWorkerPdl(pdl:Partial<PDL>) { return request<{success:boolean;pdl:PDL}>('/worker/pdls',{method:'POST',body:JSON.stringify(pdl)}); },
-  async getWorkerVisits() { return request<any[]>('/worker/visitors/today'); },
+  async getWorkerVisits(scope='worker') { return request<any[]>(`/${scope}/visitors/today`); },
   async getVisitorPdls(): Promise<PDL[]> { return request<PDL[]>('/visitor/pdls'); },
-  async getWorkerHistory() { return request<any[]>('/worker/history'); },
-  async workerSearchVisitors(query:string) { return request<any[]>(`/worker/visitors/search?q=${encodeURIComponent(query)}`); },
-  async workerScan(code:string) { return request<{result:any;canProceed:boolean}>('/worker/scan',{method:'POST',body:JSON.stringify({code})}); },
+  async getWorkerHistory(scope='worker') { return request<any[]>(`/${scope}/history`); },
+  async workerSearchVisitors(query:string,scope='worker') { return request<any[]>(`/${scope}/visitors/search?q=${encodeURIComponent(query)}`); },
+  async workerScan(code:string,proof='',scope='worker') { return request<{result:any;canProceed:boolean}>(`/${scope}/scan`,{method:'POST',body:JSON.stringify({code,proof})}); },
   async workerVerifyVisit(id:string,result:'SUCCESS'|'FAILED') { return request<{success:boolean;result:string;message:string}>(`/worker/visits/${encodeURIComponent(id)}/verify`,{method:'POST',body:JSON.stringify({result})}); },
-  async workerExitVisit(id:string) { return request<{success:boolean;message:string}>('/worker/visits/'+encodeURIComponent(id)+'/exit',{method:'POST'}); },
-  async workerAdmitVisit(id:string,requestId:string) { return request<{success:boolean;message:string}>(`/worker/visits/${encodeURIComponent(id)}/admit`,{method:'POST',body:JSON.stringify({requestId})}); },
+  async workerExitVisit(id:string,scope='worker') { return request<{success:boolean;message:string}>(`/${scope}/visits/`+encodeURIComponent(id)+'/exit',{method:'POST'}); },
+  async workerAdmitVisit(id:string,requestId:string,scope='worker') { return request<{success:boolean;message:string}>(`/${scope}/visits/${encodeURIComponent(id)}/admit`,{method:'POST',body:JSON.stringify({requestId})}); },
   async adminEnrollBiometrics(id:string,proof:string) { return request<{success:boolean;message:string}>(`/users/${encodeURIComponent(id)}/biometrics`,{method:'POST',body:JSON.stringify({proof})}); },
   async getAdminUserProfile(id:string) { return request<any>(`/admin/users/${encodeURIComponent(id)}`); },
   async getAdminKyc(status?:string) { return request<any[]>(`/admin/kyc/${status?`?status=${encodeURIComponent(status)}`:''}`); },
@@ -71,15 +109,15 @@ export const api = {
     return request<UserProfile[]>('/users');
   },
 
-  async login(identifier: string, password: string): Promise<{ success: boolean; user: UserProfile }> {
-    return request<{ success: boolean; user: UserProfile }>('/auth/login', {
+  async login(identifier: string, password: string): Promise<LoginResult> {
+    return request<LoginResult>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ identifier, password }),
     });
   },
 
-  async register(userData: Partial<UserProfile>): Promise<{ success: boolean; user: UserProfile; developmentOtp?:string }> {
-    return request<{ success: boolean; user: UserProfile; developmentOtp?:string }>('/auth/register', {
+  async register(userData: Partial<UserProfile>): Promise<{ success: boolean; user: UserProfile; developmentOtp?:string; deliveryError?:string }> {
+    return request<{ success: boolean; user: UserProfile; developmentOtp?:string; deliveryError?:string }>('/auth/register', {
       method: 'POST',
       body: JSON.stringify(userData),
     });
@@ -104,8 +142,8 @@ export const api = {
     });
   },
 
-  async updateAppointmentStatus(id: string, status: VisitationAppointment['status']): Promise<{ success: boolean; appointment: VisitationAppointment }> {
-    return request<{ success: boolean; appointment: VisitationAppointment }>(`/appointments/${id}/status`, {
+  async updateAppointmentStatus(id: string, status: VisitationAppointment['status']): Promise<{ success: boolean; appointment: VisitationAppointment; notifications?:NotificationStatus[] }> {
+    return request<{ success: boolean; appointment: VisitationAppointment; notifications?:NotificationStatus[] }>(`/appointments/${id}/status`, {
       method: 'PATCH',
       body: JSON.stringify({ status }),
     });

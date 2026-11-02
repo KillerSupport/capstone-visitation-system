@@ -11,7 +11,7 @@ import { SignatureCapture } from '../Common/SignatureCapture';
 
 interface PDLRegistrationModalProps {
   onClose: () => void;
-  onSave: (pdl: PDL) => void;
+  onSave: (pdl: PDL) => void | Promise<void>;
   existingPdl?: PDL | null;
 }
 
@@ -23,6 +23,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
   existingPdl,
 }) => {
   const [activeTab, setActiveTab] = useState<TabKey>('DEMOGRAPHICS');
+  const [saving,setSaving]=useState(false),[saveError,setSaveError]=useState('');
   const [signatureDataUrl, setSignatureDataUrl] = useState(existingPdl?.signatureDataUrl || '');
 
   // Identification & Demographics
@@ -32,123 +33,100 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
   const [suffix, setSuffix] = useState(existingPdl?.suffix || '');
   const [aliases, setAliases] = useState(existingPdl?.aliases || '');
   const [pdlNumber, setPdlNumber] = useState(
-    existingPdl?.pdlNumber || `PDL-2025-${Math.floor(10000 + Math.random() * 90000)}`
-  );
+    existingPdl?.pdlNumber || '');
   const [fileNumber, setFileNumber] = useState(
-    existingPdl?.fileNumber || `FN-2025-${Math.floor(100 + Math.random() * 900)}`
-  );
+    existingPdl?.fileNumber || '');
   const [bjmpIdNumber, setBjmpIdNumber] = useState(
-    existingPdl?.bjmpIdNumber || `BJMP-R4A-ICJ-${Math.floor(10000 + Math.random() * 90000)}`
-  );
+    existingPdl?.bjmpIdNumber || '');
   const [sex, setSex] = useState<'Male' | 'Female'>(existingPdl?.sex || 'Male');
-  const [dateOfBirth, setDateOfBirth] = useState(existingPdl?.dateOfBirth || '1996-05-12');
-  const [ageAtAdmission, setAgeAtAdmission] = useState<number>(existingPdl?.ageAtAdmission || 29);
-  const [placeOfBirth, setPlaceOfBirth] = useState(existingPdl?.placeOfBirth || 'Imus City, Cavite');
+  const [dateOfBirth, setDateOfBirth] = useState(existingPdl?.dateOfBirth || '');
+  const [ageAtAdmission, setAgeAtAdmission] = useState<number>(existingPdl?.ageAtAdmission || 0);
+  const [placeOfBirth, setPlaceOfBirth] = useState(existingPdl?.placeOfBirth || '');
   const [civilStatus, setCivilStatus] = useState<MaritalStatus>(existingPdl?.civilStatus || 'Single');
   const [citizenship, setCitizenship] = useState(existingPdl?.citizenship || 'Filipino');
-  const [religion, setReligion] = useState(existingPdl?.religion || 'Roman Catholic');
-  const [tribalAffiliation, setTribalAffiliation] = useState(existingPdl?.tribalAffiliation || 'Tagalog');
+  const [religion, setReligion] = useState(existingPdl?.religion || '');
+  const [tribalAffiliation, setTribalAffiliation] = useState(existingPdl?.tribalAffiliation || '');
   const [presentAddress, setPresentAddress] = useState(
-    existingPdl?.presentAddress || 'Brgy. Malagasang 1-G, Imus City, Cavite'
-  );
+    existingPdl?.presentAddress || '');
   const [provincialAddress, setProvincialAddress] = useState(
-    existingPdl?.provincialAddress || 'Brgy. San Agustin, Dasmariñas City, Cavite'
-  );
+    existingPdl?.provincialAddress || '');
   const [highestEducationalAttainment, setHighestEducationalAttainment] = useState(
-    existingPdl?.highestEducationalAttainment || 'College Undergraduate'
-  );
-  const [course, setCourse] = useState(existingPdl?.course || 'BS Hotel & Restaurant Management');
-  const [occupation, setOccupation] = useState(existingPdl?.occupation || 'Delivery Driver');
-  const [skills, setSkills] = useState(existingPdl?.skills || 'Driving, Appliance Repair');
+    existingPdl?.highestEducationalAttainment || '');
+  const [course, setCourse] = useState(existingPdl?.course || '');
+  const [occupation, setOccupation] = useState(existingPdl?.occupation || '');
+  const [skills, setSkills] = useState(existingPdl?.skills || '');
   const [gangGroupAffiliation, setGangGroupAffiliation] = useState(
-    existingPdl?.gangGroupAffiliation || 'Non-Affiliated (Neutral)'
-  );
+    existingPdl?.gangGroupAffiliation || '');
 
   // Physical & Bertillion
-  const [height, setHeight] = useState(existingPdl?.height || '5\'7" (170 cm)');
-  const [weight, setWeight] = useState(existingPdl?.weight || '65 kg (143 lbs)');
-  const [built, setBuilt] = useState(existingPdl?.built || 'Medium Built');
-  const [complexion, setComplexion] = useState(existingPdl?.complexion || 'Brown / Kayumanggi');
-  const [eyes, setEyes] = useState(existingPdl?.eyes || 'Brown');
-  const [hair, setHair] = useState(existingPdl?.hair || 'Black / Short wavy');
-  const [bloodType, setBloodType] = useState(existingPdl?.bloodType || 'O+');
-  const [mannerism, setMannerism] = useState(existingPdl?.mannerism || 'None');
-  const [dialectsSpoken, setDialectsSpoken] = useState(existingPdl?.dialectsSpoken || 'Tagalog, English');
+  const [height, setHeight] = useState(existingPdl?.height || '');
+  const [weight, setWeight] = useState(existingPdl?.weight || '');
+  const [built, setBuilt] = useState(existingPdl?.built || '');
+  const [complexion, setComplexion] = useState(existingPdl?.complexion || '');
+  const [eyes, setEyes] = useState(existingPdl?.eyes || '');
+  const [hair, setHair] = useState(existingPdl?.hair || '');
+  const [bloodType, setBloodType] = useState(existingPdl?.bloodType || '');
+  const [mannerism, setMannerism] = useState(existingPdl?.mannerism || '');
+  const [dialectsSpoken, setDialectsSpoken] = useState(existingPdl?.dialectsSpoken || '');
   const [bertillionMarks, setBertillionMarks] = useState(
-    existingPdl?.bertillionMarks || 'Tribal feather tattoo on left shoulder; 2-inch scar on right forearm'
-  );
+    existingPdl?.bertillionMarks || '');
   const [bodyMarks, setBodyMarks] = useState<PDLBodyMark[]>(existingPdl?.bodyMarks || []);
 
   // Family & Emergency
   const [spouseName, setSpouseName] = useState(existingPdl?.spouseName || '');
-  const [fatherName, setFatherName] = useState(existingPdl?.fatherName || 'Danilo S. Bautista');
-  const [fatherAddress, setFatherAddress] = useState(existingPdl?.fatherAddress || 'Imus City, Cavite');
-  const [motherName, setMotherName] = useState(existingPdl?.motherName || 'Corazon M. Bautista');
-  const [motherAddress, setMotherAddress] = useState(existingPdl?.motherAddress || 'Imus City, Cavite');
+  const [fatherName, setFatherName] = useState(existingPdl?.fatherName || '');
+  const [fatherAddress, setFatherAddress] = useState(existingPdl?.fatherAddress || '');
+  const [motherName, setMotherName] = useState(existingPdl?.motherName || '');
+  const [motherAddress, setMotherAddress] = useState(existingPdl?.motherAddress || '');
   const [numberOfChildren, setNumberOfChildren] = useState<number>(existingPdl?.numberOfChildren || 0);
   const [childrenNamesStr, setChildrenNamesStr] = useState(existingPdl?.childrenNames?.join(', ') || '');
   const [emergencyContactPerson, setEmergencyContactPerson] = useState(
-    existingPdl?.emergencyContactPerson || 'Corazon M. Bautista'
-  );
+    existingPdl?.emergencyContactPerson || '');
   const [emergencyContactRelation, setEmergencyContactRelation] = useState(
-    existingPdl?.emergencyContactRelation || 'Mother'
-  );
+    existingPdl?.emergencyContactRelation || '');
   const [emergencyContactAddress, setEmergencyContactAddress] = useState(
-    existingPdl?.emergencyContactAddress || 'Brgy. Malagasang 1-G, Imus City, Cavite'
-  );
+    existingPdl?.emergencyContactAddress || '');
   const [emergencyContactPhone, setEmergencyContactPhone] = useState(
-    existingPdl?.emergencyContactPhone || '+63 917 555 1290'
-  );
+    existingPdl?.emergencyContactPhone || '');
 
   // Arrest & Intake
   const [dateCommitted, setDateCommitted] = useState(
     existingPdl?.dateCommitted || new Date().toISOString().split('T')[0]
   );
   const [timeAndDateOfArrest, setTimeAndDateOfArrest] = useState(
-    existingPdl?.timeAndDateOfArrest || '2025-01-14 09:30 PM'
-  );
+    existingPdl?.timeAndDateOfArrest || '');
   const [placeOfArrest, setPlaceOfArrest] = useState(
-    existingPdl?.placeOfArrest || 'Aguinaldo Highway, Imus City, Cavite'
-  );
+    existingPdl?.placeOfArrest || '');
   const [arrestingOfficer, setArrestingOfficer] = useState(
-    existingPdl?.arrestingOfficer || 'PCpl. Ronald Gomez (Imus CPS)'
-  );
+    existingPdl?.arrestingOfficer || '');
   const [timeDateOfDetentionLea, setTimeDateOfDetentionLea] = useState(
-    existingPdl?.timeDateOfDetentionLea || '2025-01-14 11:45 PM (Imus Police Station Custodial Facility)'
-  );
+    existingPdl?.timeDateOfDetentionLea || '');
   const [receivingOfficer, setReceivingOfficer] = useState(
-    existingPdl?.receivingOfficer || 'JO1 Aldrin M. Mangampo'
-  );
-  const [searchedBy, setSearchedBy] = useState(existingPdl?.searchedBy || 'JO2 Roberto S. Bautista');
+    existingPdl?.receivingOfficer || '');
+  const [searchedBy, setSearchedBy] = useState(existingPdl?.searchedBy || '');
   const [jailFacilityId, setJailFacilityId] = useState(
     existingPdl?.jailFacilityId || 'imus-city-jail-male'
   );
   const [cellDormitory, setCellDormitory] = useState(
-    existingPdl?.cellDormitory || 'Brigada 2 - Selda C'
-  );
+    existingPdl?.cellDormitory || '');
   const [status, setStatus] = useState<PDL['status']>(existingPdl?.status || 'In Custody');
   const [releaseDate, setReleaseDate] = useState(existingPdl?.releaseDate || '');
   const [releaseMode, setReleaseMode] = useState(existingPdl?.releaseMode || '');
 
   // Legal & Court
   const [primaryOffense, setPrimaryOffense] = useState(
-    existingPdl?.primaryOffense || 'Violation of Sec. 11, Art. II of R.A. 9165'
-  );
+    existingPdl?.primaryOffense || '');
   const [caseNumber1, setCaseNumber1] = useState(
-    existingPdl?.cases?.[0]?.caseNumber || `CC-25-${Math.floor(10000 + Math.random() * 90000)}`
-  );
+    existingPdl?.cases?.[0]?.caseNumber || '');
   const [counts1, setCounts1] = useState<number>(existingPdl?.cases?.[0]?.counts || 1);
   const [dateCrimeCommitted, setDateCrimeCommitted] = useState(
-    existingPdl?.dateCrimeCommitted || '2025-01-12'
-  );
+    existingPdl?.dateCrimeCommitted || '');
   const [courtBranch, setCourtBranch] = useState(
-    existingPdl?.courtBranch || 'RTC Branch 20, Imus City, Cavite'
-  );
+    existingPdl?.courtBranch || '');
   const [presidingJudge, setPresidingJudge] = useState(
-    existingPdl?.presidingJudge || 'Hon. Amy Ana L. De Villa-Rosales'
-  );
-  const [caseStatus, setCaseStatus] = useState(existingPdl?.caseStatus || 'Under Trial (Arraignment)');
-  const [stageArraignment, setStageArraignment] = useState(existingPdl?.hearingStage?.arraignment ?? true);
+    existingPdl?.presidingJudge || '');
+  const [caseStatus, setCaseStatus] = useState(existingPdl?.caseStatus || '');
+  const [stageArraignment, setStageArraignment] = useState(existingPdl?.hearingStage?.arraignment ?? false);
   const [stagePreTrial, setStagePreTrial] = useState(existingPdl?.hearingStage?.preTrial ?? false);
   const [stageTrial, setStageTrial] = useState(existingPdl?.hearingStage?.trial ?? false);
   const [stageProsecution, setStageProsecution] = useState(existingPdl?.hearingStage?.prosecutionEvidence ?? false);
@@ -157,26 +135,21 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
 
   // Property Receipt items
   const [propertyItems, setPropertyItems] = useState<{ unit: string; description: string }[]>(
-    existingPdl?.propertyReceipt?.items || [
-      { unit: '1 unit', description: 'Wristwatch Casio digital black strap' },
-      { unit: '1 pc', description: 'Leather wallet containing PhilSys ID & PhilHealth card' },
-      { unit: 'PHP', description: 'Cash amounting to One Thousand Four Hundred Pesos (Php 1,400.00)' },
-    ]
+    existingPdl?.propertyReceipt?.items || []
   );
   const [propertyReceiptNumber, setPropertyReceiptNumber] = useState(
-    existingPdl?.propertyReceipt?.receiptNumber || `PR-2025-${Math.floor(1000 + Math.random() * 9000)}`
-  );
+    existingPdl?.propertyReceipt?.receiptNumber || '');
 
   // Documents Checklist & GCTA
-  const [chkMittimus, setChkMittimus] = useState(existingPdl?.documentsChecklist?.mitimus ?? true);
-  const [chkCourtOrder, setChkCourtOrder] = useState(existingPdl?.documentsChecklist?.judgementCourtOrder ?? true);
-  const [chkNonPending, setChkNonPending] = useState(existingPdl?.documentsChecklist?.nonPendingCertificate ?? true);
-  const [chkCommitmentInfo, setChkCommitmentInfo] = useState(existingPdl?.documentsChecklist?.commitmentInformation ?? true);
-  const [chkGctaCalc, setChkGctaCalc] = useState(existingPdl?.documentsChecklist?.computationOfGcta ?? true);
-  const [chkCertDetention, setChkCertDetention] = useState(existingPdl?.documentsChecklist?.certificateOfDetention ?? true);
-  const [chkHealthCert, setChkHealthCert] = useState(existingPdl?.documentsChecklist?.healthCertificates ?? true);
-  const [chkDde, setChkDde] = useState(existingPdl?.documentsChecklist?.ddeResult ?? true);
-  const [ra10592Signed, setRa10592Signed] = useState(existingPdl?.ra10592ManifestationSigned ?? true);
+  const [chkMittimus, setChkMittimus] = useState(existingPdl?.documentsChecklist?.mitimus ?? false);
+  const [chkCourtOrder, setChkCourtOrder] = useState(existingPdl?.documentsChecklist?.judgementCourtOrder ?? false);
+  const [chkNonPending, setChkNonPending] = useState(existingPdl?.documentsChecklist?.nonPendingCertificate ?? false);
+  const [chkCommitmentInfo, setChkCommitmentInfo] = useState(existingPdl?.documentsChecklist?.commitmentInformation ?? false);
+  const [chkGctaCalc, setChkGctaCalc] = useState(existingPdl?.documentsChecklist?.computationOfGcta ?? false);
+  const [chkCertDetention, setChkCertDetention] = useState(existingPdl?.documentsChecklist?.certificateOfDetention ?? false);
+  const [chkHealthCert, setChkHealthCert] = useState(existingPdl?.documentsChecklist?.healthCertificates ?? false);
+  const [chkDde, setChkDde] = useState(existingPdl?.documentsChecklist?.ddeResult ?? false);
+  const [ra10592Signed, setRa10592Signed] = useState(existingPdl?.ra10592ManifestationSigned ?? false);
 
   // Quick fill sample data helper
   const handleQuickFillDemo = () => {
@@ -184,10 +157,11 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
     setFirstName('Crisanto');
     setMiddleName('Flores');
     setSuffix('');
-    setAliases('Cris / "Totoy Bilis"');
+    setAliases('FICTIONAL DEMONSTRATION DATA — sample only');
+    setPdlNumber(`DEMO-FICTIONAL-${crypto.randomUUID()}`);
     setSex('Male');
     setDateOfBirth('1994-09-28');
-    setAgeAtAdmission: (30);
+    setAgeAtAdmission(30);
     setPlaceOfBirth('Imus City, Cavite');
     setCivilStatus('Married');
     setCitizenship('Filipino');
@@ -259,7 +233,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
     setPropertyItems(next);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const constructedFullName = [firstName, middleName, lastName, suffix]
@@ -287,7 +261,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
       aliases,
       sex,
       dateOfBirth,
-      ageAtAdmission: Number(ageAtAdmission) || 30,
+      ageAtAdmission: Number(ageAtAdmission) || undefined,
       placeOfBirth,
       civilStatus,
       citizenship,
@@ -337,7 +311,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
         'Spouse', 'Parent', 'Child', 'Sibling', 'Legal Counsel'
       ],
       primaryOffense,
-      criminalCaseNumbers: [caseNumber1],
+      criminalCaseNumbers: [caseNumber1,...(existingPdl?.criminalCaseNumbers||[]).slice(1)].filter(Boolean),
       cases: [
         {
           caseNumber: caseNumber1,
@@ -348,7 +322,8 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
           presidingJudge,
           caseStatus,
         },
-      ],
+        ...(existingPdl?.cases||[]).slice(1),
+      ].filter(record=>Boolean(record.caseNumber)),
       courtBranch,
       presidingJudge,
       caseStatus,
@@ -380,8 +355,9 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
       },
     };
 
-    onSave(newPDL);
-    onClose();
+    if(saving)return;
+    setSaving(true);setSaveError('');
+    try{await onSave(newPDL);onClose();}catch(error){setSaveError(error instanceof Error?error.message:'The PDL record could not be saved. Your entries have been retained.');}finally{setSaving(false);}
   };
 
   const tabs: { key: TabKey; label: string; icon: any }[] = [
@@ -619,7 +595,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     min={18}
                     max={99}
                     required
-                    value={ageAtAdmission}
+                    value={ageAtAdmission||''}
                     onChange={(e) => setAgeAtAdmission(Number(e.target.value))}
                     className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   />
@@ -1518,6 +1494,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
           <SignatureCapture value={signatureDataUrl} onChange={setSignatureDataUrl} label="PDL registration signature" />
 
           {/* Modal Footer Controls */}
+          {saveError&&<p role="alert" className="text-sm text-rose-300">{saveError}</p>}
           <div className="pt-4 border-t border-slate-800 flex items-center justify-between">
             <span className="text-[11px] text-slate-500">
               * Official BJMP Standard Operating Procedure (SOP) on Inmate Booking & Records Management
@@ -1533,10 +1510,11 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
               </button>
               <button
                 type="submit"
+                disabled={saving}
                 className="bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold px-5 py-2 rounded-lg flex items-center gap-1.5 cursor-pointer shadow-lg shadow-blue-500/20"
               >
                 <Check className="w-4 h-4" />
-                <span>{existingPdl ? 'Save Updated Booking' : 'Complete & Register PDL'}</span>
+                <span>{saving?'Saving…':existingPdl ? 'Save Updated Booking' : 'Complete & Register PDL'}</span>
               </button>
             </div>
           </div>

@@ -1,13 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Contact, ArrowRight, CheckCircle2, AlertCircle, RefreshCw, Inbox } from 'lucide-react';
 import { UserProfile } from '../../types';
 import { api } from '../../services/api';
 
 interface EmailConfirmationViewProps {
   user: UserProfile;
-  onEmailConfirmed: (user: UserProfile) => void;
+  onEmailConfirmed: (user: UserProfile,developmentOtp?:string,deliveryError?:string) => void;
   onLogout: () => void;
   initialDevelopmentOtp?: string | null;
+  initialDeliveryError?: string | null;
 }
 
 export const EmailConfirmationView: React.FC<EmailConfirmationViewProps> = ({
@@ -15,20 +16,24 @@ export const EmailConfirmationView: React.FC<EmailConfirmationViewProps> = ({
   onEmailConfirmed,
   onLogout,
   initialDevelopmentOtp,
+  initialDeliveryError,
 }) => {
-  const verificationMethod = user.email ? 'email address' : 'mobile number';
-  const deliveryDestination = user.email || user.mobileNumber;
+  const verifyPhone = Boolean(user.mobileNumber && !user.phoneVerified);
+  const verificationMethod = verifyPhone ? 'mobile number' : 'email address';
+  const deliveryDestination = verifyPhone ? user.mobileNumber : user.email;
   const [otpInput, setOtpInput] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [developmentOtp, setDevelopmentOtp] = useState<string | null>(initialDevelopmentOtp || null);
 
+  useEffect(()=>{setDevelopmentOtp(initialDevelopmentOtp||null);setOtpInput('');setErrorMessage(initialDeliveryError||null);},[initialDevelopmentOtp,deliveryDestination,initialDeliveryError]);
+
   const handleVerify = async () => {
     setErrorMessage(null);
-    if (otpInput.trim().length !== 6) { setErrorMessage('Enter the 6-digit code sent to your registered contact.'); return; }
+    if (otpInput.trim().length !== 6) { setErrorMessage(`Enter the 6-digit code sent to your ${verificationMethod}.`); return; }
     setIsVerifying(true);
-    try { const result=await api.verifyOtp(otpInput.trim()); onEmailConfirmed(result.user); }
+    try { const result=await api.verifyOtp(otpInput.trim()); onEmailConfirmed(result.user,result.developmentOtp,result.deliveryError); }
     catch (error) { setErrorMessage(error instanceof Error ? error.message : 'Verification failed.'); }
     finally { setIsVerifying(false); }
   };
@@ -48,7 +53,7 @@ export const EmailConfirmationView: React.FC<EmailConfirmationViewProps> = ({
                 Step 1 • Contact verification
               </span>
               <h2 className="text-2xl font-black text-white tracking-tight mt-0.5">
-                Confirm your email or mobile number
+                Confirm your {verificationMethod}
               </h2>
               <p className="text-xs text-slate-400 mt-1">
                 Enter the 6-digit code sent to your registered contact.
@@ -70,9 +75,9 @@ export const EmailConfirmationView: React.FC<EmailConfirmationViewProps> = ({
           </div>
         )}
 
-        <div className="grid grid-cols-12 gap-8">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:gap-8">
           {/* Left: Interactive Verification Input */}
-          <div className="col-span-5 bg-slate-950/60 border border-slate-800 rounded-xl p-6 flex flex-col justify-between">
+          <div className="lg:col-span-5 bg-slate-950/60 border border-slate-800 rounded-xl p-6 flex flex-col justify-between">
             <div>
               <h3 className="text-sm font-bold text-slate-200 mb-2">Enter Confirmation Code</h3>
               <p className="text-xs text-slate-400 leading-relaxed mb-4">
@@ -82,6 +87,8 @@ export const EmailConfirmationView: React.FC<EmailConfirmationViewProps> = ({
               <div className="space-y-3">
                 <input
                   type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
                   maxLength={6}
                   value={otpInput}
                   onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, ''))}
@@ -105,7 +112,7 @@ export const EmailConfirmationView: React.FC<EmailConfirmationViewProps> = ({
                 </button>
               </div>
 
-              {developmentOtp&&<div className="mt-3 rounded-lg border border-amber-300/20 bg-amber-300/10 p-3 text-center text-xs text-amber-100">Development SMS mock code: <strong className="font-mono">{developmentOtp}</strong></div>}
+              {developmentOtp&&<div className="mt-3 rounded-lg border border-amber-300/20 bg-amber-300/10 p-3 text-center text-xs text-amber-100">SMS test mode (no text sent). Code: <strong className="font-mono">{developmentOtp}</strong></div>}
               <div className="mt-4 pt-4 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
                 <span>Didn't receive the code?</span>
                 <button
@@ -133,14 +140,14 @@ export const EmailConfirmationView: React.FC<EmailConfirmationViewProps> = ({
           </div>
 
           {/* Right: Verification instructions */}
-          <div className="col-span-7 bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
+          <div className="lg:col-span-7 bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
             <div className="bg-slate-900/90 px-4 py-2.5 border-b border-slate-800 flex items-center justify-between text-xs text-slate-400">
               <div className="flex items-center space-x-2">
                 <Inbox className="w-3.5 h-3.5 text-blue-400" />
                 <span className="font-semibold text-slate-300">Verification delivery</span>
               </div>
               <span className="text-[10px] text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">
-                {user.email ? 'Email verification' : 'SMS verification'}
+                {verifyPhone ? 'SMS verification' : 'Email verification'}
               </span>
             </div>
 
@@ -148,7 +155,7 @@ export const EmailConfirmationView: React.FC<EmailConfirmationViewProps> = ({
             <div className="p-6 text-slate-300 text-xs">
               <div className="border-b border-slate-800 pb-4 mb-4">
                 <div className="flex justify-between text-slate-400 text-[11px] mb-1">
-                  <span>Delivery method: <strong className="text-slate-300">{user.email ? 'Email' : 'SMS'}</strong></span>
+                  <span>Delivery method: <strong className="text-slate-300">{verifyPhone ? 'SMS' : 'Email'}</strong></span>
                   <span>Just now</span>
                 </div>
                 <div className="text-slate-400 text-[11px]">
@@ -188,7 +195,7 @@ export const EmailConfirmationView: React.FC<EmailConfirmationViewProps> = ({
                   </div>
                   <span className="text-[10px] text-slate-500">Valid for 10 minutes</span>
                 </div><div className="border-t border-slate-800 pt-3 text-[10px] text-slate-400 leading-relaxed">
-                  <strong className="text-blue-400">Next Mandatory Step:</strong> After verifying your {verificationMethod}, continue to the protected Identity Verification page to submit your ID for administrator review. Confirm current facility details before traveling.
+                  <strong className="text-blue-400">Next Mandatory Step:</strong> After verifying your registered contacts, continue to the protected Identity Verification page to submit your ID for administrator review. Confirm current facility details before traveling.
                 </div>
               </div>
             </div>

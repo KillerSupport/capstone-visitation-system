@@ -1,8 +1,13 @@
+import {assertPdlEligibility,VISITING_HOURS} from '../visitation.js';
+import {migratePaperRequirements} from './paper-migration.js';
 import { normalizePhilippineMobileNumber } from '../identity.js';
+import { migrateFeatures, migrateLegacyContactAccess } from './migrations.js';
+import {manilaDate,ageOn} from '../validation.js';
 import mysql from 'mysql2/promise';
-import { randomBytes, scrypt as scryptCallback } from 'node:crypto';
+import { randomBytes, randomUUID, scrypt as scryptCallback } from 'node:crypto';
 import { promisify } from 'node:util';
 import 'dotenv/config';
+import { appointmentConfirmation, type ContactChannel } from '../messaging.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MySQL connection pool (uses your XAMPP settings from .env)
@@ -254,6 +259,7 @@ export async function initDatabase() {
       await conn.query('ALTER TABLE users DROP COLUMN contact_number');
     }
 
+    await migrateFeatures(conn);
     const [phoneRows] = await conn.query<mysql.RowDataPacket[]>('SELECT id,mobile_number FROM users WHERE mobile_number IS NOT NULL');
     const normalizedPhones=new Map<string,number>();
     const normalizedRows: {id:number;phone:string}[]=[];
@@ -285,7 +291,17 @@ export async function initDatabase() {
     if(hasPdlFullName)await conn.query('ALTER TABLE pdls DROP COLUMN full_name');
 
     await conn.query(`CREATE TABLE IF NOT EXISTS auth_sessions (token_hash CHAR(64) PRIMARY KEY, user_id INT NOT NULL, expires_at DATETIME NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, INDEX idx_session_user(user_id), FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
-    await conn.query(`CREATE TABLE IF NOT EXISTS auth_otps (id BIGINT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, purpose VARCHAR(30) NOT NULL, code_hash CHAR(64) NOT NULL, expires_at DATETIME NOT NULL, attempts INT NOT NULL DEFAULT 0, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, INDEX idx_otp_lookup(user_id,purpose,created_at), FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    await conn.query(`CREATE TABLE IF NOT EXISTS auth_otps (id BIGINT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, purpose VARCHAR(30) NOT NULL, code_hash CHAR(64) NOT NULL, expires_at DATETIME NOT NULL, attempts INT NOT NULL DEFAULT 0, used_at DATETIME NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, INDEX idx_otp_lookup(user_id,purpose,created_at), FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    const [otpColumns] = await conn.query<mysql.RowDataPacket[]>('SHOW COLUMNS FROM auth_otps');
+    if (!otpColumns.some(column=>column.Field==='used_at')) await conn.query('ALTER TABLE auth_otps ADD COLUMN used_at DATETIME NULL');
+    await conn.query(`CREATE TABLE IF NOT EXISTS appointment_notifications (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY, appointment_id VARCHAR(100) NOT NULL, user_id INT NOT NULL,
+      channel VARCHAR(10) NOT NULL, destination VARCHAR(255) NOT NULL, message TEXT NOT NULL,
+      status VARCHAR(30) NOT NULL DEFAULT 'PENDING', attempts INT NOT NULL DEFAULT 0,
+      provider_id VARCHAR(255) NULL, last_error VARCHAR(255) NULL,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_appointment_channel(appointment_id,channel)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
     await conn.query(`CREATE TABLE IF NOT EXISTS kyc_submissions (
       id BIGINT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, id_type VARCHAR(100) NOT NULL,
       id_number_encrypted TEXT NOT NULL, id_number_hash CHAR(64) NOT NULL, id_number_last4 CHAR(4) NOT NULL, full_name VARCHAR(255) NOT NULL,
@@ -330,6 +346,7 @@ export async function initDatabase() {
     if (!kycCols.some((col:any)=>col.Field==='id_number_last4')) await conn.query("ALTER TABLE kyc_submissions ADD COLUMN id_number_last4 CHAR(4) NOT NULL DEFAULT '****' AFTER id_number_hash");
 
     // Seed default data only if the users table is empty
+    await migrateLegacyContactAccess(conn);
     const [rows] = await conn.query<mysql.RowDataPacket[]>('SELECT COUNT(*) as cnt FROM users');
     if (rows[0].cnt === 0) {
       console.log('🌱 Seeding BJMP database with initial records...');
@@ -337,6 +354,7 @@ export async function initDatabase() {
       console.log('✅ Database seeded successfully.');
     }
 
+    await migratePaperRequirements(conn);
     await conn.query(`UPDATE jail_facilities SET region='Region IV-A (CALABARZON)', address='Imus City, Cavite', contact_number='Check BJMP ODBS for current contact details', visiting_days='Confirm current days in BJMP ODBS', visiting_hours='Check official system for available dates and time slots', biometric_desk_hours='Confirm biometric desk hours with the facility before traveling' WHERE id IN ('imus-city-jail-male','imus-city-jail-female')`);
   } finally {
     conn.release();
@@ -375,24 +393,28 @@ function mapUserRow(r: any) {
     mobileNumber: r.mobile_number || "",
 
     role: r.role,
+    officerDuties: (()=>{try{return JSON.parse(r.officer_duties||'[]')}catch{return []}})(),
+    permanentQrToken: r.permanent_qr_token || undefined,
     adminTitle: r.admin_title,
     badgeNumber: r.badge_number,
     firstName: r.first_name,
     middleName: r.middle_name,
     lastName: r.last_name,
-    suffix: r.suffix,
-    dateOfBirth: r.date_of_birth,
+    suffix: ['None','N/A'].includes(r.suffix) ? '' : r.suffix,
+    dateOfBirth: dateOnly(r.date_of_birth) || '',
     gender: r.gender,
     address: {
       houseUnitStreet: r.address_street,
       municipality: r.address_municipality,
       maritalStatus: r.marital_status,
       zipCode: r.zip_code,
+      ...parseRecordData(r.address_data),
     },
     maritalStatus: r.marital_status,
     validIdType: r.valid_id_type,
     emailVerified: !!r.email_verified_at,
     phoneVerified: !!r.phone_verified_at,
+    contactAccessPolicy: r.contact_access_policy || 'ALL_REGISTERED',
     lastLoginAt: r.last_login_at,
     accountStatus: r.account_status,
     biometricReferenceNumber: r.biometric_reference_number,
@@ -439,19 +461,33 @@ export async function createSession(tokenHash: string, userId: string, expires: 
 export async function getSessionUser(tokenHash: string) { const [rows] = await pool.query<mysql.RowDataPacket[]>('SELECT u.* FROM auth_sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>NOW() AND u.is_archived=0', [tokenHash]); return rows[0] ? mapUserRow(rows[0]) : null; }
 export async function deleteSession(tokenHash: string) { await pool.query('DELETE FROM auth_sessions WHERE token_hash=?',[tokenHash]); }
 export async function saveOtp(userId: string, purpose: string, hash: string, expires: Date) {
- const [recent] = await pool.query<mysql.RowDataPacket[]>('SELECT COUNT(*) AS n, MAX(created_at) AS last_sent FROM auth_otps WHERE user_id=? AND purpose=? AND created_at>DATE_SUB(NOW(), INTERVAL 15 MINUTE)', [userId,purpose]);
- if (Number(recent[0]?.n || 0) >= 3 || (recent[0]?.last_sent && Date.now()-new Date(recent[0].last_sent).getTime()<60000)) throw new Error('Verification request rate limit reached.');
- await pool.query('INSERT INTO auth_otps(user_id,purpose,code_hash,expires_at) VALUES(?,?,?,?)',[userId,purpose,hash,expires]);
+ const conn=await pool.getConnection();
+ try {
+  await conn.beginTransaction();
+  await conn.query('SELECT id FROM users WHERE id=? FOR UPDATE',[userId]);
+  const [recent] = await conn.query<mysql.RowDataPacket[]>('SELECT COUNT(*) AS n, MAX(created_at) AS last_sent FROM auth_otps WHERE user_id=? AND purpose=? AND created_at>DATE_SUB(NOW(), INTERVAL 15 MINUTE)', [userId,purpose]);
+  if (Number(recent[0]?.n || 0) >= 3 || (recent[0]?.last_sent && Date.now()-new Date(recent[0].last_sent).getTime()<60000)) throw new Error('Verification request rate limit reached.');
+  await conn.query('INSERT INTO auth_otps(user_id,purpose,code_hash,expires_at) VALUES(?,?,?,?)',[userId,purpose,hash,expires]);
+  await conn.commit();
+ } catch(error) { await conn.rollback();throw error; } finally { conn.release(); }
 }
 export async function checkOtp(userId: string, purpose: string, hash: string) {
- const [rows] = await pool.query<mysql.RowDataPacket[]>('SELECT * FROM auth_otps WHERE user_id=? AND purpose=? ORDER BY id DESC LIMIT 1',[userId,purpose]);
- const row=rows[0]; if(!row) return 'INVALID'; if(new Date(row.expires_at).getTime()<Date.now()) return 'EXPIRED'; if(row.attempts>=5) return 'LOCKED';
- if(row.code_hash!==hash){ await pool.query('UPDATE auth_otps SET attempts=attempts+1 WHERE id=?',[row.id]); return 'INVALID'; }
- await pool.query('DELETE FROM auth_otps WHERE id=?',[row.id]); return 'OK';
+ const conn=await pool.getConnection();
+ try {
+  await conn.beginTransaction();
+  const [rows] = await conn.query<mysql.RowDataPacket[]>('SELECT * FROM auth_otps WHERE user_id=? AND purpose=? ORDER BY id DESC LIMIT 1 FOR UPDATE',[userId,purpose]);
+  const row=rows[0]; let result='INVALID';
+  if(row && !row.used_at) {
+   if(new Date(row.expires_at).getTime()<=Date.now()) result='EXPIRED';
+   else if(row.attempts>=5) result='LOCKED';
+   else if(row.code_hash!==hash) await conn.query('UPDATE auth_otps SET attempts=attempts+1 WHERE id=?',[row.id]);
+   else {await conn.query('UPDATE auth_otps SET used_at=NOW() WHERE id=?',[row.id]);result='OK';}
+  }
+  await conn.commit();return result;
+ } catch(error) { await conn.rollback();throw error; } finally { conn.release(); }
 }
-export async function markEmailVerified(userId: string) {
- const u=await getUserById(userId);
- if(u?.email) await pool.query('UPDATE users SET email_verified_at=COALESCE(email_verified_at,NOW()) WHERE id=?',[userId]);
+export async function markContactVerified(userId: string, channel: ContactChannel) {
+ if(channel==='email') await pool.query('UPDATE users SET email_verified_at=COALESCE(email_verified_at,NOW()) WHERE id=?',[userId]);
  else await pool.query('UPDATE users SET phone_verified_at=COALESCE(phone_verified_at,NOW()) WHERE id=?',[userId]);
  return getUserById(userId);
 }
@@ -470,8 +506,8 @@ export async function createUser(u: any) {
       (email, mobile_number, password, role, admin_title, badge_number, first_name, middle_name, last_name, suffix,
        date_of_birth, gender, address_street, address_municipality, marital_status, zip_code,
        valid_id_type, valid_id_photo_url, face_photo_url, account_status, biometric_reference_number,
-       preferred_jail_facility_id, email_verified_at, biometric_scanned_at, biometrics_officer_name, registered_at)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+       preferred_jail_facility_id, email_verified_at, biometric_scanned_at, biometrics_officer_name, registered_at, address_data)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
       (u.email ? String(u.email).trim().toLowerCase() : null), u.mobileNumber || null, u.passwordHash,
       u.role || 'VISITOR', u.adminTitle || null, u.badgeNumber || null,
@@ -484,9 +520,10 @@ export async function createUser(u: any) {
       u.biometricReferenceNumber || `BJMP-BIO-IMUS-${Math.floor(1000 + Math.random() * 9000)}`,
       u.preferredJailFacilityId || 'imus-city-jail-male',
       u.emailVerifiedAt || null, u.biometricScannedAt || null, u.biometricsOfficerName || null,
-      u.registeredAt || now,
+      u.registeredAt || now, JSON.stringify(u.address||{}),
     ]
   );
+  if((u.role||'VISITOR')==='VISITOR')await pool.query('UPDATE users SET permanent_qr_token=? WHERE id=?',[randomBytes(32).toString('hex'),result.insertId]);
   return getUserById(String(result.insertId));
 }
 
@@ -580,7 +617,10 @@ function parseRecordData(value: any): Record<string, any> {
 
 function dateOnly(value: any): string | undefined {
   if (!value) return undefined;
-  return value instanceof Date ? value.toISOString().slice(0, 10) : String(value).slice(0, 10);
+  // MySQL DATE values are calendar dates parsed at local midnight, not UTC instants.
+  return value instanceof Date
+    ? `${value.getFullYear()}-${String(value.getMonth()+1).padStart(2,'0')}-${String(value.getDate()).padStart(2,'0')}`
+    : String(value).slice(0, 10);
 }
 
 export async function getAllPdls() {
@@ -593,8 +633,13 @@ export async function getAllPdls() {
 }
 
 export async function createPdl(pdl: any) {
-  const id = pdl.id || `pdl-${Date.now()}`;
-  await pool.query(`
+  const id = pdl.id || `pdl-${randomUUID()}`;
+  const conn=await pool.getConnection();
+  try{
+  await conn.beginTransaction();
+  const [owners]=await conn.query<mysql.RowDataPacket[]>('SELECT id FROM pdls WHERE pdl_number=? FOR UPDATE',[pdl.pdlNumber||pdl.pdl_number]);
+  if(owners[0]&&String(owners[0].id)!==String(id))throw Error('This PDL number is already assigned to another record.');
+  await conn.query(`
     INSERT INTO pdls
       (id, pdl_number, file_number, bjmp_id_number, last_name, first_name, middle_name, suffix,
        aliases, date_of_birth, age_at_admission, place_of_birth, sex, civil_status, citizenship, religion,
@@ -605,6 +650,7 @@ export async function createPdl(pdl: any) {
        status, primary_offense, court_branch, presiding_judge, case_status)
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     ON DUPLICATE KEY UPDATE
+      id=IF(id=VALUES(id),id,NULL),
       pdl_number=VALUES(pdl_number), file_number=VALUES(file_number), bjmp_id_number=VALUES(bjmp_id_number),
       last_name=VALUES(last_name), first_name=VALUES(first_name), middle_name=VALUES(middle_name), suffix=VALUES(suffix),
       aliases=VALUES(aliases), date_of_birth=VALUES(date_of_birth),
@@ -622,35 +668,37 @@ export async function createPdl(pdl: any) {
       presiding_judge=VALUES(presiding_judge), case_status=VALUES(case_status)`,
     [
       id, pdl.pdlNumber || pdl.pdl_number,
-      pdl.fileNumber || `FN-${Date.now().toString().slice(-4)}`,
-      pdl.bjmpIdNumber || `BJMP-R4A-ICJ-${Math.floor(10000 + Math.random() * 90000)}`,
+      pdl.fileNumber || null,
+      pdl.bjmpIdNumber || null,
       pdl.lastName || pdl.last_name, pdl.firstName || pdl.first_name,
       pdl.middleName || '', pdl.suffix || '',
-      pdl.aliases || 'None', pdl.dateOfBirth || null, pdl.ageAtAdmission || 30,
-      pdl.placeOfBirth || 'Imus City, Cavite', pdl.sex || 'Male',
-      pdl.civilStatus || 'Single', pdl.citizenship || 'Filipino',
-      pdl.religion || 'Roman Catholic', pdl.tribalAffiliation || 'Tagalog',
-      pdl.presentAddress || 'Imus City, Cavite', pdl.provincialAddress || '',
-      pdl.highestEducationalAttainment || 'High School', pdl.course || '',
-      pdl.occupation || '', pdl.skills || '', pdl.gangGroupAffiliation || 'None',
+      pdl.aliases || '', pdl.dateOfBirth || null, pdl.ageAtAdmission || null,
+      pdl.placeOfBirth || '', pdl.sex || 'Male',
+      pdl.civilStatus || '', pdl.citizenship || '',
+      pdl.religion || '', pdl.tribalAffiliation || '',
+      pdl.presentAddress || '', pdl.provincialAddress || '',
+      pdl.highestEducationalAttainment || '', pdl.course || '',
+      pdl.occupation || '', pdl.skills || '', pdl.gangGroupAffiliation || '',
       pdl.height || '', pdl.weight || '', pdl.built || '', pdl.complexion || '',
       pdl.eyes || '', pdl.hair || '', pdl.bloodType || '',
-      pdl.mannerism || 'None', pdl.dialectsSpoken || 'Tagalog',
-      pdl.bertillionMarks || 'None', pdl.emergencyContactPerson || '',
+      pdl.mannerism || '', pdl.dialectsSpoken || '',
+      pdl.bertillionMarks || '', pdl.emergencyContactPerson || '',
       pdl.emergencyContactRelation || '', pdl.emergencyContactAddress || '',
       pdl.emergencyContactPhone || '', pdl.dateCommitted || null,
       pdl.jailFacilityId || 'imus-city-jail-male',
-      pdl.cellDormitory || 'Brigada 1 - Main Dorm', pdl.status || 'In Custody',
+      pdl.cellDormitory || '', pdl.status || 'In Custody',
       pdl.primaryOffense || '', pdl.courtBranch || '', pdl.presidingJudge || '',
-      pdl.caseStatus || 'Under Trial',
+      pdl.caseStatus || '',
     ]
   );
   const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
-  await pool.query(`
+  await conn.query(`
     INSERT INTO pdl_form_records (id, pdl_id, record_type, status, form_data, prepared_by, created_at, updated_at)
     VALUES (?, ?, 'PDL_PROFILE', 'ACTIVE', ?, ?, ?, ?)
     ON DUPLICATE KEY UPDATE form_data=VALUES(form_data), prepared_by=VALUES(prepared_by), updated_at=VALUES(updated_at)`,
     [`record-profile-${id}`, id, JSON.stringify(pdlProfileExtras(pdl)), pdl.preparedBy || null, now, now]);
+  await conn.commit();
+  }catch(error){await conn.rollback();throw error}finally{conn.release()}
   const allPdls = await getAllPdls();
   return allPdls.find((item) => item.id === id) || null;
 }
@@ -702,6 +750,10 @@ export async function getAllAppointments() {
     status: r.status,
     createdAt: r.created_at,
     qrToken: r.qr_token,
+    companions: (()=>{try{return JSON.parse(r.companions||'[]')}catch{return []}})(),
+    checkedInAt: r.checked_in_at,
+    selectionMode: r.selection_mode,
+    scheduleVersion: r.schedule_version,
   }));
 }
 
@@ -709,25 +761,64 @@ export async function createAppointment(a: any) {
   const id = a.id || `appt-${Date.now()}`;
   const ref = a.appointmentReference || `BJMP-IMUS-${Date.now()}`;
   const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
-  await pool.query(`
+  const conn=await pool.getConnection();
+  try{
+  await conn.beginTransaction();
+  await ensureSlotCapacity(conn,a.jailFacilityId,a.visitDate,a.timeSlot,1+(a.companions||[]).length);
+  let scheduleVersion=0;
+  if(a.selectionMode==='PDL_DAY'){
+    const schedule=await assertPdlEligibility(conn,a.pdlId,String(a.userId),a.visitDate,undefined,a.companions||[]);scheduleVersion=schedule.version;a.relationshipToPdl=schedule.relationship;
+    const [duplicate]=await conn.query<mysql.RowDataPacket[]>("SELECT id FROM appointments WHERE user_id=? AND pdl_id=? AND visit_date=? AND is_archived=0 AND status IN ('Approved','Pending Review')",[a.userId,a.pdlId,a.visitDate]);
+    if(duplicate.length)throw Error('You already selected this visit date for this PDL.');
+  }
+  await conn.query(`
     INSERT INTO appointments
       (id, appointment_reference, user_id, visitor_name, visitor_contact, pdl_id, pdl_name, pdl_number,
        jail_facility_id, jail_facility_name, cell_dormitory, visit_type, relationship_to_pdl,
-       visit_date, time_slot, paabot_items_description, status, created_at, qr_token)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+       visit_date, time_slot, paabot_items_description, status, created_at, qr_token, companions, selection_mode, schedule_version)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
       id, ref, a.userId, a.visitorName, a.visitorContact, a.pdlId, a.pdlName, a.pdlNumber,
       a.jailFacilityId, a.jailFacilityName, a.cellDormitory, a.visitType, a.relationshipToPdl,
       a.visitDate, a.timeSlot, a.paabotItemsDescription || null,
       a.status || 'Approved', a.createdAt || now,
       a.qrToken || `BJMP-QR-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+      JSON.stringify(a.companions||[]),a.selectionMode||'LEGACY',scheduleVersion,
     ]
   );
+  await conn.commit();
+  }catch(error){await conn.rollback();throw error}finally{conn.release()}
   return (await getAllAppointments()).find((appointment) => appointment.id === id) || null;
 }
 
+export async function ensureSlotCapacity(conn:mysql.PoolConnection,facilityId:string,date:string,slot:string,places:number){
+ const [facilities]=await conn.query<mysql.RowDataPacket[]>('SELECT capacity_per_slot FROM jail_facilities WHERE id=? FOR UPDATE',[facilityId]);
+ if(!facilities[0])throw Error('The selected facility is not configured.');
+ const [rows]=await conn.query<mysql.RowDataPacket[]>("SELECT COALESCE(SUM(1+COALESCE(JSON_LENGTH(companions),0)),0) AS occupied FROM appointments WHERE jail_facility_id=? AND visit_date=? AND time_slot=? AND is_archived=0 AND status IN ('Pending Review','Approved')",[facilityId,date,slot]);
+ if(Number(rows[0].occupied)+places>Number(facilities[0].capacity_per_slot))throw Error('This visitation time slot is full. Choose another date or time.');
+}
+
 export async function updateAppointmentStatus(id: string, status: string) {
-  await pool.query('UPDATE appointments SET status=? WHERE id=? AND is_archived=0', [status, id]);
+  const conn=await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [rows]=await conn.query<mysql.RowDataPacket[]>('SELECT * FROM appointments WHERE id=? AND is_archived=0 FOR UPDATE',[id]);
+    if (!rows[0]) {await conn.rollback();return null;}
+    if(rows[0].checked_in_at&&status==='Cancelled')throw Error('An entered visit cannot be cancelled. Record departure through the entrance desk.');
+    if(rows[0].selection_mode==='PDL_DAY'&&status==='Pending Review')throw Error('Selected dates do not use appointment approval.');
+    if(rows[0].selection_mode==='PDL_DAY'&&status==='Approved'){if(rows[0].status!=='Approved')throw Error('Select a new eligible date instead of reopening a closed visit.');await assertPdlEligibility(conn,rows[0].pdl_id,String(rows[0].user_id),dateOnly(rows[0].visit_date)!,rows[0].schedule_version,JSON.parse(rows[0].companions||'[]'));}
+    if(['Pending Review','Approved'].includes(status)&&!['Pending Review','Approved'].includes(rows[0].status))await ensureSlotCapacity(conn,rows[0].jail_facility_id,dateOnly(rows[0].visit_date)!,rows[0].time_slot,1+JSON.parse(rows[0].companions||'[]').length);
+    await conn.query('UPDATE appointments SET status=? WHERE id=? AND is_archived=0', [status, id]);
+    if(status==='Approved' && rows[0].status!=='Approved' && rows[0].selection_mode!=='PDL_DAY') {
+      const [users]=await conn.query<mysql.RowDataPacket[]>('SELECT email,mobile_number,email_verified_at,phone_verified_at FROM users WHERE id=? AND is_archived=0',[rows[0].user_id]);
+      const user=users[0];
+      const message=appointmentConfirmation({visitorName:rows[0].visitor_name,visitDate:dateOnly(rows[0].visit_date),timeSlot:rows[0].time_slot,appointmentReference:rows[0].appointment_reference});
+      for(const [channel,destination] of [['email',user?.email_verified_at?user.email:null],['sms',user?.phone_verified_at?user.mobile_number:null]]) {
+        if(destination) await conn.query('INSERT IGNORE INTO appointment_notifications(appointment_id,user_id,channel,destination,message) VALUES(?,?,?,?,?)',[id,rows[0].user_id,channel,destination,message]);
+      }
+    }
+    await conn.commit();
+  } catch(error) {await conn.rollback();throw error;} finally {conn.release();}
   return (await getAllAppointments()).find((appointment) => appointment.id === id) || null;
 }
 
@@ -747,10 +838,11 @@ export async function logGateScan(data: {
   guardOfficer: string;
   action: string;
   notes?: string;
-}) {
+}, connection?: mysql.PoolConnection) {
+  const executor=connection||pool;
   const id = `gate-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-  const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
-  await pool.query(`
+  const now = new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Manila',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).format(new Date());
+  await executor.query(`
     INSERT INTO gate_logs (id, appointment_id, user_id, visitor_name, pdl_name, facility_id, guard_officer, action, timestamp, notes)
     VALUES (?,?,?,?,?,?,?,?,?,?)`,
     [id, data.appointmentId || null, data.userId, data.visitorName, data.pdlName,
@@ -758,28 +850,34 @@ export async function logGateScan(data: {
   );
   // Keep a printable PDL visitor log in sync with the gate workflow.
   if (data.appointmentId && data.action === 'ADMITTED') {
-    const [rows] = await pool.query<mysql.RowDataPacket[]>(`
+    const [rows] = await executor.query<mysql.RowDataPacket[]>(`
       SELECT a.*, u.gender, u.address_street, u.date_of_birth, u.mobile_number AS contact_number
       FROM appointments a LEFT JOIN users u ON u.id = a.user_id WHERE a.id=?`, [data.appointmentId]);
     const appointment = rows[0];
     if (appointment) {
-      await pool.query(`INSERT INTO visitor_log_entries
+      await executor.query(`INSERT INTO visitor_log_entries
         (id, log_type, appointment_id, gate_log_id, visitor_id, pdl_id, visit_date, time_in, visitor_name, gender, address, contact_number, relationship_to_pdl, purpose_of_visit, cell_number, created_at)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [`visitor-log-${id}`, 'PDL_VISITOR', data.appointmentId, id, data.userId, appointment.pdl_id,
           appointment.visit_date, now, data.visitorName, appointment.gender || null, appointment.address_street || null,
           appointment.contact_number || null, appointment.relationship_to_pdl, appointment.visit_type, appointment.cell_dormitory, now]);
-      await pool.query(`INSERT INTO visitor_log_entries
+      await executor.query(`INSERT INTO visitor_log_entries
         (id, log_type, appointment_id, gate_log_id, visitor_id, pdl_id, visit_date, time_in, visitor_name, gender, address, age, contact_number, purpose_of_visit, created_at)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [`jail-visitor-log-${id}`, 'JAIL_VISITOR', data.appointmentId, id, data.userId, appointment.pdl_id,
           appointment.visit_date, now, data.visitorName, appointment.gender || null, appointment.address_street || null,
-          appointment.date_of_birth ? Math.floor((Date.now()-new Date(appointment.date_of_birth).getTime())/31557600000) : null, appointment.contact_number || null, appointment.visit_type, now]);
+          appointment.date_of_birth ? ageOn(dateOnly(appointment.date_of_birth)||'') : null, appointment.contact_number || null, appointment.visit_type, now]);
+      const companions=JSON.parse(appointment.companions||'[]');
+      for(let index=0;index<companions.length;index++){
+        const companion=companions[index];if(!companion.userId)throw Error('Companion must have an approved visitor account.');
+        const [people]=await executor.query<mysql.RowDataPacket[]>('SELECT * FROM users WHERE id=?',[companion.userId]);const person=people[0];if(!person)throw Error('Companion account is unavailable.');
+        for(const type of ['PDL_VISITOR','JAIL_VISITOR'])await executor.query(`INSERT INTO visitor_log_entries(id,log_type,appointment_id,gate_log_id,visitor_id,pdl_id,visit_date,time_in,visitor_name,gender,address,age,contact_number,relationship_to_pdl,purpose_of_visit,cell_number,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,[`companion-${index}-${type}-${id}`,type,data.appointmentId,id,String(person.id),appointment.pdl_id,appointment.visit_date,now,companion.fullName,person.gender||null,person.address_street||null,ageOn(dateOnly(person.date_of_birth)||''),person.mobile_number||null,companion.relationshipToPdl,appointment.visit_type,appointment.cell_dormitory,now]);
+      }
     }
   } else if (data.appointmentId && data.action === 'EXITED') {
-    await pool.query(`UPDATE visitor_log_entries SET time_out=? WHERE appointment_id=? AND time_out IS NULL`, [now, data.appointmentId]);
+    await executor.query(`UPDATE visitor_log_entries SET time_out=? WHERE appointment_id=? AND time_out IS NULL`, [now, data.appointmentId]);
   }
-  const [rows] = await pool.query<mysql.RowDataPacket[]>('SELECT * FROM gate_logs WHERE id=?', [id]);
+  const [rows] = await executor.query<mysql.RowDataPacket[]>('SELECT * FROM gate_logs WHERE id=?', [id]);
   return rows[0];
 }
 
@@ -797,7 +895,7 @@ export async function getIncidents() {
 }
 
 export async function createIncident(data: any) {
-  const id = `inc-${Date.now()}`;
+  const id = `inc-${randomUUID()}`;
   await pool.query(`
     INSERT INTO security_incidents (id, timestamp, visitor_name, facility, incident_type, description, action_taken, reporting_officer)
     VALUES (?,?,?,?,?,?,?,?)`,
@@ -818,7 +916,7 @@ export async function getAnnouncements() {
 }
 
 export async function createAnnouncement(data: any) {
-  const id = `ann-${Date.now()}`;
+  const id = `ann-${randomUUID()}`;
   const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
   await pool.query(`
     INSERT INTO announcements (id, title, content, level, posted_by, created_at, is_active)
@@ -847,7 +945,7 @@ export async function resetDemoData() {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    for (const table of ['record_archive_events','visitor_log_entries','pdl_form_records','gate_logs','appointments','security_incidents','announcements','kyc_documents','kyc_submissions','auth_otps','auth_sessions','audit_logs','pdls','users','jail_facilities']) await conn.query(`DELETE FROM ${table}`);
+    for (const table of ['appointment_notifications','record_archive_events','visitor_log_entries','pdl_form_records','gate_logs','appointments','security_incidents','announcements','kyc_documents','kyc_submissions','auth_otps','auth_sessions','audit_logs','pdls','users','jail_facilities']) await conn.query(`DELETE FROM ${table}`);
     await seedDatabase(conn);
     await conn.commit();
   } catch (error) { await conn.rollback(); throw error; } finally { conn.release(); }
@@ -855,15 +953,17 @@ export async function resetDemoData() {
 }
 
 export async function getStats() {
-  const today = new Date().toISOString().split('T')[0];
+  const today = manilaDate();
   const [[pdls]]      = await pool.query<mysql.RowDataPacket[]>('SELECT COUNT(*) as cnt FROM pdls WHERE is_archived=0 AND status="In Custody"') as any;
   const [[scheduled]] = await pool.query<mysql.RowDataPacket[]>('SELECT COUNT(*) as cnt FROM appointments WHERE is_archived=0 AND visit_date=? AND status="Approved"', [today]) as any;
   const [[admitted]]  = await pool.query<mysql.RowDataPacket[]>('SELECT COUNT(*) as cnt FROM gate_logs WHERE DATE(timestamp)=? AND action="ADMITTED"', [today]) as any;
   const [[pending]]   = await pool.query<mysql.RowDataPacket[]>('SELECT COUNT(*) as cnt FROM users WHERE is_archived=0 AND account_status="PENDING_BIOMETRICS"') as any;
+  const [[onsite]] = await pool.query<mysql.RowDataPacket[]>("SELECT COUNT(*) AS cnt FROM visitor_log_entries WHERE log_type='PDL_VISITOR' AND time_in IS NOT NULL AND time_out IS NULL") as any;
   return {
     totalPdls:         pdls.cnt,
     scheduledToday:    scheduled.cnt,
     admittedToday:     admitted.cnt,
     pendingBiometrics: pending.cnt,
+    currentOnSiteVisitors: onsite.cnt,
   };
 }

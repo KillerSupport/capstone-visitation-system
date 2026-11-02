@@ -9,7 +9,7 @@ const services = [
   {
     label: 'backend',
     command: process.execPath,
-    args: [fromRoot('node_modules', 'tsx', 'dist', 'cli.mjs'), fromRoot('backend', 'index.ts')],
+    args: ['--require',fromRoot('scripts','node-runtime.cjs'),'--import','tsx',fromRoot('backend','index.ts')],
   },
   {
     label: 'frontend',

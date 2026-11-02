@@ -19,6 +19,7 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   currentUser,
   onLogout,
+  onOpenProfile,
   onOpenGuardScanner,
   isAdminView,
   onToggleAdminView,
@@ -26,7 +27,7 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleSidebar,
   isSidebarOpen = false,
 }) => {
-  const isAdmin = currentUser?.role === 'ADMIN';
+  const isAdmin = ['ADMIN','SUPER_ADMIN'].includes(currentUser?.role);
   const isStaff = isStaffRole(currentUser?.role);
   const canGoHome = Boolean(currentUser && onGoHome);
   const BrandContainer = canGoHome ? 'button' : 'div';
@@ -40,12 +41,12 @@ export const Header: React.FC<HeaderProps> = ({
   }, []);
 
   return (
-    <header className="bg-slate-900 border-b border-slate-800 text-slate-100 sticky top-0 z-40 shadow-lg">
+    <header className="government-header bg-slate-900 border-b border-slate-700 text-slate-100 sticky top-0 z-40 shadow-sm">
       {/* Official Government Flag Bar */}
       <div className="gov-flag-bar"></div>
 
       {/* Top Republic Bar */}
-      <div className="bg-slate-950 px-6 py-1.5 border-b border-slate-800/80 text-xs flex flex-wrap items-center justify-between gap-2">
+      <div className="gov-utility-bar px-4 sm:px-6 py-1.5 text-xs flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center space-x-2.5 text-slate-400 text-[11px]">
           <span className="font-semibold text-slate-200 flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-blue-500"></span>
@@ -62,7 +63,7 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Real-Time WebSocket & Hotline Status */}
         <div className="flex items-center space-x-3 text-[11px]">
           {/* WebSocket Status Indicator */}
-          <div 
+          <div
             className="flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono border transition-all"
             style={{
               backgroundColor: wsStatus === 'CONNECTED' ? 'rgba(16, 185, 129, 0.12)' : wsStatus === 'RECONNECTING' ? 'rgba(245, 158, 11, 0.12)' : 'rgba(239, 68, 68, 0.12)',
@@ -70,11 +71,11 @@ export const Header: React.FC<HeaderProps> = ({
               color: wsStatus === 'CONNECTED' ? '#34d399' : wsStatus === 'RECONNECTING' ? '#fbbf24' : '#f87171',
             }}
             title={
-              wsStatus === 'CONNECTED' 
-                ? 'Real-Time WebSocket Link Active (Port 4000)' 
-                : wsStatus === 'RECONNECTING' 
-                ? 'Re-establishing WebSocket connection...' 
-                : 'Offline mode (Using local storage cache)'
+              wsStatus === 'CONNECTED'
+                ? 'Live connection active'
+                : wsStatus === 'RECONNECTING'
+                ? 'Re-establishing WebSocket connection...'
+                : 'Live connection unavailable'
             }
           >
             {wsStatus === 'CONNECTED' ? (
@@ -139,7 +140,7 @@ export const Header: React.FC<HeaderProps> = ({
                 </span>
               </div>
               <p className="max-w-[15rem] truncate sm:max-w-none text-[10px] sm:text-[11px] text-slate-300">
-                Inmate Visitation & Biometric Electronic Gate Pass Portal
+                Visitor Identification and Scheduling System
               </p>
             </div>
           </BrandContainer>
@@ -160,6 +161,7 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
+          {currentUser&&onOpenProfile&&<button type="button" onClick={onOpenProfile} className="rounded-lg border border-slate-700 px-3 py-2 text-xs">My profile</button>}
           {currentUser ? (
             <div className="flex items-center space-x-3 bg-slate-800/90 border border-slate-700/80 rounded-lg px-3 py-1.5 shadow-sm">
               <div className="w-8 h-8 rounded-full bg-slate-700 border border-slate-600 overflow-hidden flex items-center justify-center shrink-0">
@@ -178,20 +180,20 @@ export const Header: React.FC<HeaderProps> = ({
                   <span>{currentUser.firstName} {currentUser.lastName} {currentUser.suffix}</span>
                   {isStaff && (
                     <span className="bg-blue-500/20 text-blue-300 border border-blue-500/40 text-[9px] font-bold px-1.5 py-0.2 rounded uppercase">
-                      {isAdmin ? 'ADMIN' : 'WORKER'}
+                      {isAdmin ? 'ADMIN' : 'OFFICER'}
                     </span>
                   )}
                 </div>
                 <div className="flex items-center gap-1 text-[11px]">
                   {isStaff ? (
                     <span className="text-blue-400 font-medium">
-                      {currentUser.adminTitle ? currentUser.adminTitle.split('/')[0].trim() : 'Jail Administrator'}
+                      {isAdmin?(currentUser.adminTitle||'Administrator'):'Officer'}
                     </span>
                   ) : (
                     <>
                       {currentUser.accountStatus === 'ACTIVATED' && (
                         <span className="text-blue-400 font-medium flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3" /> Biometric Verified
+                          <CheckCircle2 className="w-3 h-3" /> {currentUser.biometricScannedAt?'Fingerprint enrolled':'Account active'}
                         </span>
                       )}
                       {currentUser.accountStatus === 'PENDING_BIOMETRICS' && (

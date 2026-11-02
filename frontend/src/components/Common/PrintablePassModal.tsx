@@ -1,4 +1,6 @@
-import React from 'react';
+import React,{useEffect,useState} from 'react';
+import {generateQRCodeDataUrl} from '../../utils/qrGenerator';
+import {CompanionDetails} from './CompanionFields';
 import { X, Printer, Shield, QrCode, Calendar, Clock, User, CheckCircle2 } from 'lucide-react';
 import { VisitationAppointment, UserProfile } from '../../types';
 
@@ -6,13 +8,17 @@ interface PrintablePassModalProps {
   appointment: VisitationAppointment | null;
   user: UserProfile;
   onClose: () => void;
+  admin?: boolean;
 }
 
 export const PrintablePassModal: React.FC<PrintablePassModalProps> = ({
   appointment,
   user,
   onClose,
+  admin=false,
 }) => {
+  const [qr,setQr]=useState('');
+  useEffect(()=>{let active=true;setQr('');if(appointment?.status==='Approved'&&user.permanentQrToken)generateQRCodeDataUrl(user.permanentQrToken).then(value=>{if(active)setQr(value)});return()=>{active=false}},[user.permanentQrToken,appointment?.status]);
   if (!appointment) return null;
 
   const handlePrint = () => {
@@ -27,12 +33,13 @@ export const PrintablePassModal: React.FC<PrintablePassModalProps> = ({
         <div className="bg-slate-950 px-6 py-3 border-b border-slate-800 flex items-center justify-between no-print">
           <div className="flex items-center space-x-2 text-xs text-slate-300">
             <span className="w-2 h-2 rounded-full bg-blue-400"></span>
-            <span className="font-semibold">Official BJMP Electronic Gate Pass</span>
+            <span className="font-semibold">BJMP Selected Visit Record</span>
             <span className="text-slate-600">|</span>
             <span className="text-blue-400 font-mono">{appointment.appointmentReference}</span>
           </div>
           <div className="flex items-center space-x-3">
             <button
+              disabled={appointment.status!=='Approved'}
               onClick={handlePrint}
               className="bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold px-4 py-1.5 rounded-lg text-xs flex items-center space-x-1.5 transition-colors shadow-md cursor-pointer"
             >
@@ -41,6 +48,7 @@ export const PrintablePassModal: React.FC<PrintablePassModalProps> = ({
             </button>
             <button
               onClick={onClose}
+              aria-label="Close gate pass"
               className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer"
             >
               <X className="w-5 h-5" />
@@ -48,6 +56,7 @@ export const PrintablePassModal: React.FC<PrintablePassModalProps> = ({
           </div>
         </div>
 
+        <div className="px-6 pb-3"><CompanionDetails appointment={appointment} admin={admin}/></div>
         {/* Printable Pass Document (Standard High-Contrast Formal BJMP Style) */}
         <div className="p-8 bg-white text-slate-900 print:p-0 print:m-0" id="printable-pass-area">
           
@@ -69,7 +78,7 @@ export const PrintablePassModal: React.FC<PrintablePassModalProps> = ({
             <div>
               <span className="text-[10px] uppercase font-bold text-slate-500 block">Pass Classification</span>
               <strong className="text-sm font-black text-blue-900 uppercase">
-                ELECTRONIC VISITATION CLEARANCE PASS ({appointment.visitType})
+                SELECTED VISIT RECORD ({appointment.visitType})
               </strong>
               <div className="text-[11px] font-mono text-slate-600 mt-0.5">
                 Pass Reference: <strong>{appointment.appointmentReference}</strong>
@@ -77,7 +86,7 @@ export const PrintablePassModal: React.FC<PrintablePassModalProps> = ({
             </div>
             <div className="text-right">
               <span className="inline-block bg-blue-100 text-blue-800 text-[10px] font-black uppercase px-2.5 py-1 rounded border border-blue-300">
-                STATUS: APPROVED
+                STATUS: {appointment.status.toUpperCase()}
               </span>
               <div className="text-[10px] text-slate-500 mt-1">
                 Issued: {appointment.createdAt}
@@ -95,7 +104,7 @@ export const PrintablePassModal: React.FC<PrintablePassModalProps> = ({
               <div className="border border-slate-200 rounded-lg p-3 bg-slate-50/50">
                 <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
                   <User className="w-3 h-3 text-slate-600" />
-                  <span>Verified Visitor Particulars</span>
+                  <span>Registered Visitor Particulars</span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div>
@@ -168,17 +177,17 @@ export const PrintablePassModal: React.FC<PrintablePassModalProps> = ({
                   Gate 1 Scanner Optical Code
                 </span>
                 <div className="w-36 h-36 bg-slate-950 p-2 rounded-lg flex items-center justify-center mx-auto text-white">
-                  <QrCode className="w-32 h-32 text-white" />
+                  {qr?<img src={qr} alt="Approved visitation QR code" className="h-32 w-32"/>:<span className="text-xs">QR available after approval</span>}
                 </div>
                 <span className="text-[9px] font-mono font-bold text-slate-700 mt-2 block break-all">
-                  {appointment.qrToken}
+                  {appointment.status==='Approved'?appointment.qrToken:'Pending review — not an entry clearance'}
                 </span>
               </div>
               <div className="w-full pt-3 border-t border-slate-200 text-left">
                 <div className="text-[9px] text-slate-500">Security Validation:</div>
                 <div className="text-[10px] font-bold text-blue-800 flex items-center gap-1">
                   <CheckCircle2 className="w-3 h-3 text-blue-600" />
-                  <span>Biometric Verified</span>
+                  <span>Fingerprint first, then QR at entry</span>
                 </div>
               </div>
             </div>

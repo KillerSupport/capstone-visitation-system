@@ -1,3 +1,5 @@
+import {AdminStaffPanel} from '../Admin/AdminStaffPanel';
+import {AdminVisitationPanel} from '../Admin/AdminVisitationPanel';
 import React, { useState, useMemo, useEffect } from 'react';
 import {
   Shield, Users, Calendar, Clock, CheckCircle2, AlertTriangle, AlertCircle, Archive,
@@ -12,7 +14,6 @@ import {
 } from '../../types';
 import { BJMP_JAIL_FACILITIES } from '../../data/bjmpData';
 import { PrintablePassModal } from '../Common/PrintablePassModal';
-import { AnnouncementTicker } from '../Common/AnnouncementTicker';
 import { PDLRegistrationModal } from '../Admin/PDLRegistrationModal';
 import { OfficialBjmpDocumentsModal } from '../Admin/OfficialBjmpDocumentsModal';
 import { AdminKycPanel } from '../Admin/AdminKycPanel';
@@ -21,6 +22,8 @@ import { AdminArchivePanel } from '../Admin/AdminArchivePanel';
 import { AdminReportsPanel } from '../Admin/AdminReportsPanel';
 import { api } from '../../services/api';
 import { hardware } from '../../services/hardware';
+import {realtimeWS} from '../../services/websocket';
+import {todayInManila} from '../Common/IdentityFields';
 
 interface AdminDashboardProps {
   currentUser: UserProfile;
@@ -34,6 +37,7 @@ interface AdminDashboardProps {
   onSwitchToVisitorView: () => void;
   onSavePdl: (pdl: PDL) => Promise<void>;
   onUsersRefresh?: () => Promise<void> | void;
+  onRecordsRefresh?:()=>Promise<void>;
   isSidebarOpen: boolean;
   homeRequest: number;
 }
@@ -61,11 +65,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onSwitchToVisitorView,
   onSavePdl,
   onUsersRefresh,
+  onRecordsRefresh,
   isSidebarOpen,
   homeRequest,
 }) => {
   // Navigation Tabs
-  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'VISITORS' | 'KYC' | 'APPOINTMENTS' | 'PDL_ROSTER' | 'SECURITY_LOGS' | 'AUDIT' | 'ARCHIVE' | 'REPORTS' | 'FACILITY_SETTINGS'>('OVERVIEW');
+  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'VISITORS' | 'KYC' | 'APPOINTMENTS' | 'PDL_ROSTER' | 'SECURITY_LOGS' | 'AUDIT' | 'ARCHIVE' | 'REPORTS' | 'STAFF' | 'VISITATION' | 'FACILITY_SETTINGS'>('OVERVIEW');
 
   useEffect(() => { setActiveTab('OVERVIEW'); }, [homeRequest]);
 
@@ -109,7 +114,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // Security Incident Logs State
   const [incidentList, setIncidentList] = useState<SecurityIncident[]>([]);
+  const [liveStats,setLiveStats]=useState<any>({});
+  useEffect(()=>{void api.getStats().then(setLiveStats).catch(()=>{});return realtimeWS.on('STATS_UPDATED',setLiveStats)},[]);
   const [isAddIncidentOpen, setIsAddIncidentOpen] = useState(false);
+  const [editingIncident,setEditingIncident]=useState<SecurityIncident|null>(null),[incidentReason,setIncidentReason]=useState(''),[incidentBusy,setIncidentBusy]=useState(false),[incidentError,setIncidentError]=useState(''),[incidentHistory,setIncidentHistory]=useState<any[]|null>(null);
   const [newIncidentVisitor, setNewIncidentVisitor] = useState('');
   const [newIncidentType, setNewIncidentType] = useState<SecurityIncident['incidentType']>('Contraband Interception');
   const [newIncidentDesc, setNewIncidentDesc] = useState('');
@@ -118,12 +126,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // Facility Capacity State
   const [maleCapacity, setMaleCapacity] = useState(40);
   const [femaleCapacity, setFemaleCapacity] = useState(30);
-  const [systemNotice, setSystemNotice] = useState('HEIGHTENED SECURITY PROTOCOL: All food packages (Paabot) must strictly use transparent clear containers. Metal cans prohibited.');
-
-  const noticeMessages = useMemo(() => systemNotice.split(/\r?\n/).map((message) => message.trim()).filter(Boolean), [systemNotice]);
+  const [systemNotice, setSystemNotice] = useState('');
+  const [configuredFacilities,setConfiguredFacilities]=useState<string[]>([]);
+  const [settingsBusy,setSettingsBusy]=useState(false),[settingsMessage,setSettingsMessage]=useState(''),[settingsError,setSettingsError]=useState('');
+  useEffect(()=>{void Promise.all([api.getFacilities(),api.getSecurityNotice()]).then(([facilities,notice])=>{
+    setConfiguredFacilities(facilities.map(f=>f.id));setMaleCapacity(facilities.find(f=>f.id==='imus-city-jail-male')?.capacityPerSlot||40);setFemaleCapacity(facilities.find(f=>f.id==='imus-city-jail-female')?.capacityPerSlot||30);setSystemNotice(notice.content);
+  }).catch(e=>setSettingsError(e.message));},[]);
+  const saveCapacities=async()=>{setSettingsBusy(true);setSettingsError('');setSettingsMessage('');try{
+    await api.saveFacilityCapacities([{id:'imus-city-jail-male',capacity:maleCapacity},{id:'imus-city-jail-female',capacity:femaleCapacity}].filter(f=>configuredFacilities.includes(f.id)));setSettingsMessage('Capacity settings saved. Booking checks these limits, including companions.');
+  }catch(e){setSettingsError(e.message)}finally{setSettingsBusy(false)}};
+  const publishNotice=async(content:string)=>{setSettingsBusy(true);setSettingsError('');setSettingsMessage('');try{await api.saveSecurityNotice(content);setSystemNotice(content);setSettingsMessage(content.trim()?'Notice published to the login page and dashboards.':'Notice archived and removed from the public banner.');}catch(e){setSettingsError(e.message)}finally{setSettingsBusy(false)}};
 
   // Today's Date calculation
-  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const todayStr = todayInManila();
 
   // Filtered Visitors
   const filteredVisitors = useMemo(() => {
@@ -170,6 +185,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const todayAppointments = appointments.filter((a) => a.visitDate === todayStr);
   const pendingAppointments = appointments.filter((a) => a.status === 'Pending Review');
+  const inCustody=pdlList.filter(p=>p.status==='In Custody');
+  const malePopulation=inCustody.filter(p=>p.sex==='Male').length;
+  const femalePopulation=inCustody.filter(p=>p.sex==='Female').length;
+  const malePercent=inCustody.length?Math.round(malePopulation/inCustody.length*100):0;
+  const femalePercent=inCustody.length?Math.round(femalePopulation/inCustody.length*100):0;
+  const visitHistogram=Array.from({length:12},(_,i)=>{const date=new Date(`${todayStr}T12:00:00Z`);date.setUTCDate(date.getUTCDate()-11+i);const day=date.toISOString().slice(0,10);return {day,count:appointments.filter(a=>a.visitDate===day&&a.status!=='Cancelled').length}});
+  const histogramMax=Math.max(1,...visitHistogram.map(x=>x.count));
 
   // Biometric Desk Scanner Execution
   const handleStartBiometricScan = (visitor: UserProfile) => { setBiometricScanningUser(visitor); };
@@ -214,7 +236,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // Add Incident
   const handleAddIncident = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newIncidentVisitor || !newIncidentDesc) return;
+    if (incidentBusy||!newIncidentVisitor||!newIncidentDesc) return;
+    setIncidentBusy(true);setIncidentError('');
     const item: SecurityIncident = {
       id: `inc-${Date.now()}`,
       timestamp: new Date().toLocaleString(),
@@ -225,7 +248,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       actionTaken: newIncidentAction || 'Recorded in BJMP Gate blotter.',
       reportingOfficer: `${currentUser.firstName} ${currentUser.lastName} (${currentUser.badgeNumber || 'Command'})`,
     };
-    try {const result=await api.reportIncident(item);const r=result.incident;setIncidentList((prev) => [{id:r.id,timestamp:r.timestamp,visitorName:r.visitor_name,facility:r.facility,incidentType:r.incident_type,description:r.description,actionTaken:r.action_taken,reportingOfficer:r.reporting_officer}, ...prev]);} catch(e:any) {window.alert(e.message);return}
+    try {const result=editingIncident?await api.updateIncident(editingIncident.id,{...item,facility:editingIncident.facility,reason:incidentReason}):await api.reportIncident(item);const r=result.incident;setIncidentList((prev) => [{id:r.id,timestamp:r.timestamp,visitorName:r.visitor_name,facility:r.facility,incidentType:r.incident_type,description:r.description,actionTaken:r.action_taken,reportingOfficer:r.reporting_officer}, ...prev.filter(x=>x.id!==r.id)]);} catch(e:any) {setIncidentError(e.message);return} finally{setIncidentBusy(false);}
     setIsAddIncidentOpen(false);
     setNewIncidentVisitor('');
     setNewIncidentDesc('');
@@ -236,7 +259,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     <div className="min-h-[calc(100vh-140px)] bg-transparent text-slate-100 pb-16">
       
       {/* Broadcast Alert Banner */}
-      <AnnouncementTicker messages={noticeMessages} />
 
       {/* Main Container */}
       <div className={`admin-dashboard-layout mx-auto w-full max-w-[1600px] px-4 pt-6 sm:px-6 ${isSidebarOpen ? 'is-sidebar-open' : ''}`}>
@@ -277,6 +299,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             )}
           </button>
 
+          <button type="button" onClick={() => setActiveTab('STAFF')} className="rounded-lg border border-slate-700 px-4 py-2 text-xs font-bold whitespace-nowrap">Staff & duties</button>
+          <button type="button" onClick={() => setActiveTab('VISITATION')} className="rounded-lg border border-slate-700 px-4 py-2 text-xs font-bold whitespace-nowrap">Approved lists & days</button>
           <button type="button" onClick={() => setActiveTab('KYC')} className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center space-x-2 whitespace-nowrap ${activeTab==='KYC'?'bg-blue-500 text-slate-950':'text-slate-400 hover:text-slate-200 hover:bg-slate-900'}`}><FileCheck className="w-4 h-4"/><span>Identity Verification</span></button>
 
           <button
@@ -348,6 +372,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         {/* ========================================================
             TAB 1: COMMAND OVERVIEW
         ======================================================== */}
+        {activeTab === 'STAFF' && <AdminStaffPanel/>}
+        {activeTab === 'VISITATION' && <AdminVisitationPanel pdls={pdls} users={users} onChanged={onRecordsRefresh}/> }
         {activeTab === 'OVERVIEW' && (
           <div className="space-y-6">
             
@@ -376,13 +402,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <Calendar className="w-5 h-5 text-blue-300" />
                 </div>
                 <div className="flex items-end gap-1.5 h-12 mb-3" aria-label={`${todayAppointments.length} visits scheduled today`}>
-                  {Array.from({ length: 12 }, (_, i) => <span key={i} className={`flex-1 rounded-t-sm ${i < Math.min(todayAppointments.length, 12) ? 'bg-gradient-to-t from-blue-700 to-cyan-300' : 'bg-slate-800'}`} style={{ height: `${22 + ((i * 17 + todayAppointments.length * 11) % 75)}%` }} />)}
+                  {visitHistogram.map(x=><span key={x.day} title={`${x.day}: ${x.count} visits`} className={`flex-1 rounded-t-sm ${x.count?'bg-blue-500':'bg-slate-800'}`} style={{height:`${x.count?Math.max(6,x.count/histogramMax*100):4}%`}}/>)}
                 </div>
                 <div className="flex items-end justify-between border-t border-slate-800 pt-3">
                   <div><span className="text-2xl font-black text-white">{todayAppointments.length}</span><span className="text-xs text-slate-400 ml-2">scheduled today</span></div>
                   <button type="button" onClick={() => setActiveTab('APPOINTMENTS')} className="text-[11px] text-blue-300 hover:text-white font-bold cursor-pointer">Open schedule →</button>
                 </div>
-                <div className="flex gap-3 mt-3 text-[10px] text-slate-400"><span><i className="inline-block w-2 h-2 rounded-full bg-emerald-400 mr-1" />{todayAppointments.filter(a => a.status === 'Approved').length} approved</span><span><i className="inline-block w-2 h-2 rounded-full bg-amber-300 mr-1" />{todayAppointments.filter(a => a.status === 'Pending Review').length} in review</span></div>
+                <div className="flex gap-3 mt-3 text-[10px] text-slate-400"><span><i className="inline-block w-2 h-2 rounded-full bg-emerald-400 mr-1" />{todayAppointments.filter(a => a.status === 'Approved').length} scheduled</span><span><i className="inline-block w-2 h-2 rounded-full bg-amber-300 mr-1" />{todayAppointments.filter(a => a.status === 'Pending Review').length} legacy pending</span></div>
               </div>
 
               <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
@@ -391,18 +417,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <Building className="w-5 h-5 text-blue-300" />
                 </div>
                 <div className="flex items-center gap-4">
-                  <div className="w-20 h-20 rounded-full grid place-items-center shrink-0" style={{ background: 'conic-gradient(#60a5fa 0 74.8%, #fbbf24 74.8% 100%)' }} role="img" aria-label="Population split: 184 male, 62 female">
-                    <div className="w-[58px] h-[58px] rounded-full bg-slate-900 grid place-items-center text-center"><span className="text-sm leading-tight font-black text-white">246<small className="block text-[8px] text-slate-400 font-semibold">IN CUSTODY</small></span></div>
+                  <div className="w-20 h-20 rounded-full grid place-items-center shrink-0" style={{ background: inCustody.length?`conic-gradient(#526d91 0 ${malePercent}%, #bda26c ${malePercent}% 100%)`:'#d8dfe6' }} role="img" aria-label={`Population split: ${malePopulation} male, ${femalePopulation} female`}>
+                    <div className="w-[58px] h-[58px] rounded-full bg-slate-900 grid place-items-center text-center"><span className="text-sm leading-tight font-black text-white">{inCustody.length}<small className="block text-[8px] text-slate-400 font-semibold">IN CUSTODY</small></span></div>
                   </div>
                   <div className="space-y-3 flex-1">
-                    <div className="flex items-center justify-between text-xs"><span className="text-slate-300"><i className="inline-block w-2 h-2 rounded-full bg-blue-400 mr-2" />Male dorm</span><strong className="text-white">184 <small className="text-slate-400">75%</small></strong></div>
-                    <div className="flex items-center justify-between text-xs"><span className="text-slate-300"><i className="inline-block w-2 h-2 rounded-full bg-amber-300 mr-2" />Female dorm</span><strong className="text-white">62 <small className="text-slate-400">25%</small></strong></div>
-                    <div className="h-1.5 rounded-full bg-slate-950 overflow-hidden"><div className="h-full bg-gradient-to-r from-blue-500 to-sky-300 rounded-full" style={{ width: '74.8%' }} /></div>
+                    <div className="flex items-center justify-between text-xs"><span className="text-slate-300"><i className="inline-block w-2 h-2 rounded-full bg-blue-400 mr-2" />Male records</span><strong className="text-white">{malePopulation} <small className="text-slate-400">{malePercent}%</small></strong></div>
+                    <div className="flex items-center justify-between text-xs"><span className="text-slate-300"><i className="inline-block w-2 h-2 rounded-full bg-amber-300 mr-2" />Female records</span><strong className="text-white">{femalePopulation} <small className="text-slate-400">{femalePercent}%</small></strong></div>
+                    <div className="h-1.5 rounded-full bg-slate-950 overflow-hidden"><div className="h-full bg-blue-500 rounded-full" style={{ width: `${malePercent}%` }} /></div>
                   </div>
                 </div>
               </div>
             </section>
-            <section className="grid gap-3 sm:grid-cols-3" aria-label="Administrative queues">
+            <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Administrative queues">
+              <div className="rounded-xl border border-slate-700 bg-slate-900 p-4"><span className="text-xs text-slate-400">Verified check-ins today</span><strong className="block text-2xl">{liveStats.admittedToday??0}</strong><span className="text-xs text-slate-400">Currently on site: {liveStats.currentOnSiteVisitors??0}</span></div>
               <button type="button" onClick={() => setActiveTab('VISITORS')} className="rounded-xl border border-white/10 bg-slate-900/90 p-4 text-left hover:border-blue-300/40"><span className="text-[10px] uppercase tracking-widest text-slate-400">Registered accounts</span><strong className="mt-1 block text-2xl text-white">{totalVisitors}</strong><span className="text-xs text-blue-300">Open user management →</span></button>
               <button type="button" onClick={() => {setActiveTab('VISITORS');setVisitorFilter('PENDING_VERIFICATION')}} className="rounded-xl border border-amber-300/15 bg-slate-900/90 p-4 text-left hover:border-amber-300/40"><span className="text-[10px] uppercase tracking-widest text-slate-400">Pending registrations</span><strong className="mt-1 block text-2xl text-amber-200">{pendingRegistrationUsers}</strong><span className="text-xs text-amber-100">Review account readiness →</span></button>
               <button type="button" onClick={() => setActiveTab('KYC')} className="rounded-xl border border-blue-300/15 bg-slate-900/90 p-4 text-left hover:border-blue-300/40"><span className="text-[10px] uppercase tracking-widest text-slate-400">Identity verification queue</span><strong className="mt-1 block text-2xl text-blue-200">{pendingKycCount}</strong><span className="text-xs text-blue-100">Open ID submissions →</span></button>
@@ -460,7 +487,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 {appt.appointmentReference}
                               </span>
                               <span className="text-[10px] bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded font-semibold">
-                                {appt.status}
+                                {appt.selectionMode==='PDL_DAY'&&appt.status==='Approved'?'Scheduled':appt.status}
                               </span>
                             </div>
                             <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-2">
@@ -838,8 +865,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-blue-400"
                 >
                   <option value="ALL">All Statuses</option>
-                  <option value="Approved">Approved</option>
-                  <option value="Pending Review">Pending Review</option>
+                  <option value="Approved">Scheduled</option>
+                  <option value="Pending Review">Legacy pending record</option>
                   <option value="Completed">Completed</option>
                   <option value="Cancelled">Cancelled</option>
                 </select>
@@ -945,18 +972,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               <Printer className="w-3.5 h-3.5" />
                             </button>
 
-                            {appt.status !== 'Approved' && (
-                              <button
-                                type="button"
-                                onClick={() => onUpdateAppointmentStatus(appt.id, 'Approved')}
-                                className="px-2 py-1 rounded bg-blue-700 hover:bg-blue-600 text-white text-[11px] font-semibold cursor-pointer"
-                                title="Grant Visitation Approval"
-                              >
-                                Approve
-                              </button>
-                            )}
-
-                            {appt.status === 'Approved' && (
+                            {appt.selectionMode!=='PDL_DAY'&&appt.status === 'Approved' && (
                               <button
                                 type="button"
                                 onClick={() => onUpdateAppointmentStatus(appt.id, 'Completed')}
@@ -1358,7 +1374,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
               <button
                 type="button"
-                onClick={() => setIsAddIncidentOpen(true)}
+                onClick={() => {setEditingIncident(null);setIncidentReason('');setIncidentError('');setNewIncidentVisitor('');setNewIncidentDesc('');setNewIncidentAction('');setIsAddIncidentOpen(true)}}
                 className="bg-rose-600 hover:bg-rose-500 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center space-x-1.5 cursor-pointer shadow"
               >
                 <Plus className="w-4 h-4" />
@@ -1409,7 +1425,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <td className="py-3 px-4 font-mono text-slate-400 text-[11px]">
                           {inc.reportingOfficer}
                         </td>
-                        <td className="py-3 px-4"><button type="button" onClick={async()=>{if(!window.confirm('Archive this security incident? Its audit history will remain available.'))return;const reason=window.prompt('Archive reason:');if(!reason?.trim())return;try{await api.archiveRecord('INCIDENTS',inc.id,reason);setIncidentList(list=>list.filter(item=>item.id!==inc.id))}catch(e:any){window.alert(e.message)}}} className="rounded border border-rose-300/20 px-2 py-1 text-[11px] text-rose-200">Archive</button></td>
+                        <td className="py-3 px-4"><button className="mb-2 mr-2 rounded border border-slate-600 px-2 py-1" onClick={()=>{setEditingIncident(inc);setNewIncidentVisitor(inc.visitorName);setNewIncidentType(inc.incidentType);setNewIncidentDesc(inc.description);setNewIncidentAction(inc.actionTaken);setIncidentReason('');setIncidentError('');setIsAddIncidentOpen(true)}}>Edit / follow up</button><button className="mb-2 mr-2 rounded border border-slate-600 px-2 py-1" onClick={async()=>{try{setIncidentHistory(await api.getIncidentHistory(inc.id))}catch(e){window.alert(e.message)}}}>History</button><button type="button" onClick={async()=>{if(!window.confirm('Archive this security incident? Its audit history will remain available.'))return;const reason=window.prompt('Archive reason:');if(!reason?.trim())return;try{await api.archiveRecord('INCIDENTS',inc.id,reason);setIncidentList(list=>list.filter(item=>item.id!==inc.id))}catch(e:any){window.alert(e.message)}}} className="rounded border border-rose-300/20 px-2 py-1 text-[11px] text-rose-200">Archive</button></td>
                       </tr>
                     ))}
                   </tbody>
@@ -1425,7 +1441,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         ======================================================== */}
         {activeTab === 'KYC' && <AdminKycPanel initialStatus={new URLSearchParams(window.location.search).get('kycStatus')||''} onReviewed={onUsersRefresh} />}
         {activeTab === 'AUDIT' && <AdminAuditPanel />}
-        {activeTab === 'ARCHIVE' && <AdminArchivePanel />}
+        {activeTab === 'ARCHIVE' && <AdminArchivePanel onRestored={async()=>{await onRecordsRefresh?.();const rows=await api.getIncidents();setIncidentList(rows.map((r:any)=>({id:r.id,timestamp:r.timestamp,visitorName:r.visitor_name,facility:r.facility,incidentType:r.incident_type,description:r.description,actionTaken:r.action_taken,reportingOfficer:r.reporting_officer})))}}/>}
         {activeTab === 'REPORTS' && <AdminReportsPanel />}
 
         {activeTab === 'FACILITY_SETTINGS' && (
@@ -1452,6 +1468,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       min={10}
                       max={100}
                       value={maleCapacity}
+                      disabled={!configuredFacilities.includes('imus-city-jail-male')||settingsBusy}
                       onChange={(e) => setMaleCapacity(Number(e.target.value))}
                       className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 w-32 focus:outline-none focus:border-blue-400"
                     />
@@ -1469,6 +1486,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       min={10}
                       max={100}
                       value={femaleCapacity}
+                      disabled={!configuredFacilities.includes('imus-city-jail-female')||settingsBusy}
                       onChange={(e) => setFemaleCapacity(Number(e.target.value))}
                       className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 w-32 focus:outline-none focus:border-blue-400"
                     />
@@ -1479,11 +1497,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <div className="pt-2">
                   <button
                     type="button"
-                    onClick={() => alert('Facility slot capacity limits saved to BJMP records system.')}
+                    disabled={settingsBusy||!configuredFacilities.some(id=>['imus-city-jail-male','imus-city-jail-female'].includes(id))}
+                    onClick={()=>void saveCapacities()}
                     className="bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold px-4 py-2 rounded-lg text-xs cursor-pointer shadow"
                   >
                     Save Capacity Settings
                   </button>
+                  <p className="mt-2 text-xs text-slate-400">Only facilities configured in the database can be edited. Existing reservations are retained when a limit is reduced.</p>
+                  {settingsError&&<p role="alert" className="mt-2 text-xs text-rose-300">{settingsError}</p>}
+                  {settingsMessage&&<p role="status" className="mt-2 text-xs text-slate-300">{settingsMessage}</p>}
                 </div>
               </div>
             </div>
@@ -1512,14 +1534,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <div className="flex items-center space-x-2">
                 <button
                   type="button"
-                  onClick={() => alert('Security notice broadcast updated across all visitor devices.')}
+                  disabled={settingsBusy}
+                  onClick={()=>void publishNotice(systemNotice)}
                   className="bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold px-4 py-2 rounded-lg text-xs cursor-pointer shadow"
                 >
                   Update Live Broadcast
                 </button>
                 <button
                   type="button"
-                  onClick={() => setSystemNotice('')}
+                  disabled={settingsBusy}
+                  onClick={()=>void publishNotice('')}
                   className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2 rounded-lg text-xs cursor-pointer"
                 >
                   Clear Notice
@@ -1607,6 +1631,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       ======================================================== */}
       {selectedPassModalAppt && (
         <PrintablePassModal
+          admin
           appointment={selectedPassModalAppt}
           user={users.find((u) => u.id === selectedPassModalAppt.userId) || currentUser}
           onClose={() => setSelectedPassModalAppt(null)}
@@ -1644,6 +1669,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {/* ========================================================
           MODAL: Add Security Incident
       ======================================================== */}
+      {incidentHistory&&<div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/80 p-4"><section role="dialog" aria-modal="true" aria-label="Incident history" className="max-h-[80vh] w-full max-w-2xl overflow-auto rounded-xl border border-slate-700 bg-slate-900 p-5"><h2 className="font-bold">Incident history</h2><button className="my-3 underline" onClick={()=>setIncidentHistory(null)}>Close</button>{incidentHistory.map(h=><div key={h.id} className="border-t border-slate-700 py-3 text-sm"><p>{new Date(h.created_at).toLocaleString()} · {h.officer} · {h.action}</p><pre className="mt-2 whitespace-pre-wrap text-xs">{JSON.stringify(typeof h.details==='string'?JSON.parse(h.details):h.details,null,2)}</pre></div>)}</section></div>}
       {isAddIncidentOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full shadow-2xl overflow-hidden p-6 text-slate-100">
@@ -1651,7 +1677,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
               <h3 className="text-base font-bold text-white flex items-center gap-2">
                 <ShieldAlert className="w-4 h-4 text-rose-400" />
-                Log Gate 1 Incident / Contraband Interception
+                {editingIncident?'Edit incident / record follow-up':'Log Gate 1 Incident / Contraband Interception'}
               </h3>
               <button
                 type="button"
@@ -1662,7 +1688,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </button>
             </div>
 
-            <form onSubmit={handleAddIncident} className="space-y-3.5 text-xs">
+            <form onSubmit={handleAddIncident} className="space-y-3.5 text-xs">{incidentError&&<p role="alert" className="text-rose-300">{incidentError}</p>}{editingIncident&&<label className="block">Correction or follow-up reason<input required maxLength={1000} value={incidentReason} onChange={e=>setIncidentReason(e.target.value)} className="mt-1 w-full rounded border border-slate-700 bg-slate-950 p-2"/></label>}
               <div>
                 <label className="block font-semibold text-slate-300 mb-1">Visitor Full Name</label>
                 <input
@@ -1722,9 +1748,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </button>
                 <button
                   type="submit"
+                  disabled={incidentBusy}
                   className="bg-rose-600 hover:bg-rose-500 text-white font-bold px-4 py-2 rounded-lg cursor-pointer"
                 >
-                  Log Incident
+                  {editingIncident?'Save follow-up':'Log Incident'}
                 </button>
               </div>
             </form>

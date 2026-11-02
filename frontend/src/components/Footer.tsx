@@ -3,9 +3,9 @@ import { Phone, FileText, AlertCircle } from 'lucide-react';
 
 export const Footer: React.FC = () => {
   return (
-    <footer className="bg-slate-950 border-t border-slate-800 text-slate-400 text-xs mt-auto">
+    <footer className="government-footer bg-slate-950 border-t border-slate-700 text-slate-400 text-xs mt-auto">
       {/* Upper Footer: Guidelines and Citizen's Charter */}
-      <div className="max-w-7xl mx-auto px-6 py-8 grid grid-cols-4 gap-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-8">
         <div>
           <div className="flex items-center space-x-2 text-slate-200 font-bold mb-3">
             <img src="/assets/bjmp_icon.png" alt="BJMP" className="w-5 h-5 object-contain" />
@@ -66,7 +66,7 @@ export const Footer: React.FC = () => {
 
       {/* Bottom Bar */}
       <div className="border-t border-slate-900 bg-slate-950/80 px-6 py-3">
-        <div className="max-w-7xl mx-auto flex items-center justify-between text-[11px] text-slate-500">
+        <div className="max-w-7xl mx-auto flex flex-wrap gap-3 items-center justify-between text-[11px] text-slate-500">
           <div>
             © {new Date().getFullYear()} Bureau of Jail Management and Penology (BJMP) - All Rights Reserved. Desktop Edition.
           </div>

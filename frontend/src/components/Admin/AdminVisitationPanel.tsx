@@ -1,0 +1,34 @@
+import React,{useEffect,useState} from 'react';
+import {PDL,UserProfile} from '../../types';
+import {api} from '../../services/api';
+
+const days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+export function AdminVisitationPanel({pdls,users,onChanged}:{pdls:PDL[];users:UserProfile[];onChanged?:()=>Promise<void>}){
+  const [data,setData]=useState<any>(null),[pdlId,setPdlId]=useState(''),[weekday,setWeekday]=useState(''),[reason,setReason]=useState(''),[userId,setUserId]=useState(''),[relationship,setRelationship]=useState('Relative'),[limit,setLimit]=useState(7),[busy,setBusy]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState('');
+  const load=async()=>{const r=await api.getVisitationAdmin();setData(r);setLimit(r.visitorLimit);};
+  useEffect(()=>{void load().catch(e=>setError(e.message));},[]);
+  useEffect(()=>{setWeekday(String(data?.schedules.find((s:any)=>s.pdl_id===pdlId)?.weekday??''));setReason('');setUserId('');},[pdlId,data]);
+  const run=async(action:()=>Promise<any>,text:string)=>{setBusy(true);setError('');setMessage('');try{await action();await load();await onChanged?.();setMessage(text);}catch(e){setError(e instanceof Error?e.message:'Could not save the change.');}finally{setBusy(false);}};
+  const links=(data?.links||[]).filter((l:any)=>l.pdl_id===pdlId),active=links.filter((l:any)=>l.is_active);
+  const input='mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 p-2.5 text-sm';
+  return <section className="space-y-5 rounded-xl border border-slate-700 bg-slate-900 p-5">
+    <header><h2 className="text-xl font-bold">Approved visitor lists and weekly schedules</h2><p className="mt-2 text-sm text-slate-400">Approve named connections, assign each PDL’s weekly day, and maintain the facility list limit. Visiting hours are 8:00 a.m.–4:00 p.m. Visitors select eligible dates without an appointment approval step.</p></header>
+    {error&&<p role="alert" className="text-sm text-rose-300">{error}</p>}{message&&<p role="status" className="text-sm">{message}</p>}
+    <form className="flex flex-wrap items-end gap-3" onSubmit={e=>{e.preventDefault();void run(()=>api.saveVisitorLimit(limit),'Visitor-list limit saved.');}}><label className="text-sm">Maximum approved names per PDL<input type="number" required min={1} max={100} value={limit} onChange={e=>setLimit(Number(e.target.value))} className={input}/></label><button disabled={busy||!data} className="rounded-lg border border-slate-600 px-4 py-2.5 text-sm disabled:opacity-50">Save list limit</button></form>
+    <label className="block text-sm font-semibold">PDL record<select className={input} value={pdlId} onChange={e=>setPdlId(e.target.value)}><option value="">Choose a PDL</option>{pdls.map(p=><option key={p.id} value={p.id}>{p.fullName} · {p.pdlNumber}</option>)}</select></label>
+    {!pdls.length&&<p className="text-sm">No PDL records are available. Add an actual record through PDL management when ready.</p>}
+    {pdlId&&<>
+      <form className="grid gap-3 rounded-lg border border-slate-700 p-4 sm:grid-cols-2" onSubmit={e=>{e.preventDefault();void run(()=>api.assignPdlDay(pdlId,Number(weekday),reason),'Weekly day saved. Notices were queued for verified contacts of every linked visitor.');}}>
+        <label className="text-sm">Assigned visitation day<select required className={input} value={weekday} onChange={e=>setWeekday(e.target.value)}><option value="">Not assigned</option>{days.map((d,i)=><option key={d} value={i}>{d}</option>)}</select></label><label className="text-sm">Assignment or change reason<input required maxLength={1000} value={reason} onChange={e=>setReason(e.target.value)} className={input}/></label>
+        <p className="text-xs text-slate-400 sm:col-span-2">A changed day cancels upcoming unused selections. Linked visitors receive the new schedule even if they have no selected visit. Historical visits remain.</p><button disabled={busy} className="rounded-lg bg-blue-500 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">Save assigned day</button>
+      </form>
+      <div><h3 className="font-bold">Approved names ({active.length}/{data?.visitorLimit})</h3><div className="mt-3 space-y-2">{active.map((l:any)=><div key={l.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-700 p-3 text-sm"><div>{l.visitor_name}<span className="ml-2 text-xs text-slate-400">{l.relationship} · {l.account_status}</span></div><button disabled={busy} className="rounded border border-slate-600 px-3 py-1" onClick={()=>{const text=window.prompt('Reason for archiving this approved connection:');if(text?.trim())void run(()=>api.archivePdlVisitor(pdlId,String(l.user_id),text),'Connection archived. Upcoming unused selections were cancelled.');}}>Archive connection</button></div>)}{!active.length&&<p className="text-sm text-slate-400">No approved visitors yet.</p>}</div></div>
+      <form className="grid gap-3 sm:grid-cols-2" onSubmit={e=>{e.preventDefault();void run(()=>api.approvePdlVisitor(pdlId,userId,relationship),'Visitor linked. PDL and schedule details were queued for their verified contacts.');}}>
+        <label className="text-sm">Activated visitor<select required value={userId} onChange={e=>setUserId(e.target.value)} className={input}><option value="">Choose an enrolled visitor</option>{users.filter(u=>u.role==='VISITOR'&&['ACTIVE','ACTIVATED'].includes(u.accountStatus)&&u.biometricScannedAt&&!active.some((l:any)=>String(l.user_id)===u.id)).map(u=><option key={u.id} value={u.id}>{u.firstName} {u.lastName} · {u.email||u.mobileNumber}</option>)}</select></label>
+        <label className="text-sm">Relationship to PDL<select className={input} value={relationship} onChange={e=>setRelationship(e.target.value)}>{['Spouse','Parent','Child','Sibling','Legal Counsel','Relative','Common-Law Partner'].map(r=><option key={r}>{r}</option>)}</select></label><button disabled={busy||active.length>=limit} className="rounded-lg bg-blue-500 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">Add to approved list</button>
+      </form>
+      <details className="text-sm"><summary className="cursor-pointer">Archived connections ({links.length-active.length})</summary>{links.filter((l:any)=>!l.is_active).map((l:any)=><p className="mt-2" key={l.id}>{l.visitor_name} · {l.archive_reason}. Select this visitor above to approve the connection again.</p>)}</details>
+    </>}
+    <details className="text-sm"><summary className="cursor-pointer">Recent schedule notification statuses</summary><div className="mt-3 max-h-64 space-y-2 overflow-auto">{(data?.notifications||[]).map((n:any)=><p key={n.id}>Visitor #{n.user_id} · {n.channel} · {n.status}{n.last_error?` · ${n.last_error}`:''}</p>)}{!data?.notifications.length&&<p>No schedule notifications queued yet.</p>}</div></details>
+  </section>;
+}

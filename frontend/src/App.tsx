@@ -1,3 +1,4 @@
+import {OfficerWorkspace} from './components/Dashboard/OfficerWorkspace';
 import React, { useState, useEffect } from 'react';
 import { UserProfile, VisitationAppointment, AccountStatus, PDL, isStaffRole } from './types';
 import { Header } from './components/Header';
@@ -13,9 +14,13 @@ import { WorkerDashboard } from './components/Dashboard/WorkerDashboard';
 import { IdentityVerificationPage } from './components/Verification/IdentityVerificationPage';
 import { AdminKycPanel } from './components/Admin/AdminKycPanel';
 import { GuardScannerModal } from './components/Guard/GuardScannerModal';
+import {ProfileEditor} from './components/Common/ProfileEditor';
+import {PermanentVisitorIdCard} from './components/Common/PermanentVisitorIdCard';
+import {SecurityNotice} from './components/Common/SecurityNotice';
 import { Shield, Bell, CheckCircle2 } from 'lucide-react';
-import { api } from './services/api';
+import { api, type LoginResult } from './services/api';
 import { realtimeWS } from './services/websocket';
+import {hardware} from './services/hardware';
 
 export default function App() {
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -26,13 +31,16 @@ export default function App() {
   // Modals & Views
   const [isSignUpOpen, setIsSignUpOpen] = useState(false);
   const [isForgotOpen, setIsForgotOpen] = useState(false);
+  const [profileOpen,setProfileOpen]=useState(false);
   const [isGuardScannerOpen, setIsGuardScannerOpen] = useState(false);
   const [guardScannerVisitorId, setGuardScannerVisitorId] = useState<string | undefined>(undefined);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [devVerificationOtp,setDevVerificationOtp]=useState<string|null>(null);
+  const [verificationDeliveryError,setVerificationDeliveryError]=useState<string|null>(null);
   const [adminViewMode, setAdminViewMode] = useState<'admin' | 'visitor'>('admin');
   const [isAdminSidebarOpen, setIsAdminSidebarOpen] = useState(false);
   const [dashboardHomeRequest, setDashboardHomeRequest] = useState(0);
+  const [dataError,setDataError]=useState('');
 
   useEffect(() => { api.me().then(({user}) => { setUsers(prev => [user,...prev.filter(x=>x.id!==user.id)]); setCurrentUserId(user.id); }).catch(() => setCurrentUserId(null)); }, []);
 
@@ -76,12 +84,16 @@ export default function App() {
     };
   }, []);
 
+  useEffect(()=>realtimeWS.on('VISITATION_UPDATED',()=>{void api.me().then(async({user})=>{if(user.role==='VISITOR')setAppointments(await api.getAppointments());}).catch(()=>{});}),[]);
   // Identify user with WebSocket when currentUser changes
   const currentUser = users.find((u) => u.id === currentUserId) || null;
   const currentUserIsStaff = isStaffRole(currentUser?.role);
+  const contactsVerified = (user:UserProfile) => user.contactAccessPolicy==='LEGACY_VERIFIED'
+    ? Boolean((user.email&&user.emailVerified)||(user.mobileNumber&&user.phoneVerified))
+    : (!user.email || user.emailVerified) && (!user.mobileNumber || user.phoneVerified) && Boolean(user.email || user.mobileNumber);
   const isDashboardVisible = Boolean(currentUser && (
     currentUserIsStaff || (
-      (currentUser.emailVerified || currentUser.phoneVerified) &&
+      contactsVerified(currentUser) &&
       !['PENDING_EMAIL', 'PENDING_VERIFICATION', 'PENDING_BIOMETRICS'].includes(currentUser.accountStatus)
     )
   ));
@@ -89,19 +101,21 @@ export default function App() {
   useEffect(() => {
     if (!currentUser) return;
     const load = async () => {
+      setDataError('');
       try {
         if (currentUser.role === 'ADMIN' || currentUser.role === 'SUPER_ADMIN') {
           const [dbUsers, dbAppts, dbPdls] = await Promise.all([api.getUsers(), api.getAppointments(), api.getPdls()]);
           setUsers(dbUsers || []); setAppointments(dbAppts || []); setPdls(dbPdls || []);
-        } else if (currentUser.role === 'WORKER' || currentUser.role === 'GUARD' || currentUser.role === 'VERIFICATION_OFFICER') {
+        } else if (currentUser.role === 'OFFICER' || currentUser.role === 'WORKER' || currentUser.role === 'GUARD' || currentUser.role === 'VERIFICATION_OFFICER') {
           setUsers([currentUser]); setAppointments([]); setPdls([]);
         } else {
+          if(!contactsVerified(currentUser)||!['ACTIVE','ACTIVATED'].includes(currentUser.accountStatus)){setAppointments([]);setPdls([]);return;}
           const [ownAppointments, visitorPdls] = await Promise.all([api.getAppointments(), api.getVisitorPdls()]); setUsers([currentUser]); setAppointments(ownAppointments || []); setPdls(visitorPdls || []);
         }
-      } catch (e) { console.warn('Could not load role-appropriate account data:', e); }
+      } catch (e) { setDataError(e instanceof Error?e.message:'Account data could not be loaded.'); }
     };
     void load();
-  }, [currentUser?.id, currentUser?.role]);
+  }, [currentUser?.id, currentUser?.role,currentUser?.accountStatus,currentUser?.emailVerified,currentUser?.phoneVerified,currentUser?.contactAccessPolicy]);
 
   useEffect(() => {
     if (currentUser) {
@@ -127,12 +141,20 @@ export default function App() {
   };
 
   // Login handler
-  const handleLogin = async (identifier: string, pass: string): Promise<boolean> => {
-    try { const result = await api.login(identifier, pass); setUsers(prev => [result.user, ...prev.filter(u => u.id !== result.user.id)]); setCurrentUserId(result.user.id); setAdminViewMode('admin'); showToast(`Welcome back, ${result.user.firstName}!`); return true; } catch { return false; }
+  const finishSignIn = (user:UserProfile) => {
+    setUsers(prev=>[user,...prev.filter(u=>u.id!==user.id)]);setCurrentUserId(user.id);setAdminViewMode('admin');showToast(`Welcome back, ${user.firstName}!`);
   };
-  const handleLogout = () => {
-    void api.logout().catch(() => {});
-    setCurrentUserId(null);
+  const handleLogin = async (identifier:string,pass:string):Promise<LoginResult> => {
+    const result=await api.login(identifier,pass);
+    if('user' in result)finishSignIn(result.user);
+    return result;
+  };
+  const handleVerifyLoginOtp = async (code:string) => {const result=await api.verifyLoginOtp(code);finishSignIn(result.user);};
+  const handleLogout = async () => {
+    realtimeWS.disconnect();hardware.disconnect();
+    await api.logout().catch(() => {});
+    setCurrentUserId(null);setProfileOpen(false);
+    setUsers([]);setAppointments([]);setPdls([]);setDataError('');
     setAdminViewMode('admin');
     setIsAdminSidebarOpen(false);
     showToast('Logged out successfully.');
@@ -172,9 +194,11 @@ export default function App() {
 
   const handleUpdateAppointmentStatus = async (appointmentId: string, status: VisitationAppointment['status']) => {
     try {
-      const { appointment } = await api.updateAppointmentStatus(appointmentId, status);
+      const { appointment, notifications } = await api.updateAppointmentStatus(appointmentId, status);
       setAppointments((prev) => prev.map((item) => item.id === appointmentId ? appointment : item));
-      showToast(`Appointment status updated to: ${status.toUpperCase()}`);
+      const pending=notifications?.filter(item=>item.status!=='ACCEPTED'&&item.status!=='MOCK');
+      const mock=notifications?.some(item=>item.status==='MOCK');
+      showToast(status==='Approved' && pending?.length ? `Appointment approved. ${pending.map(item=>item.channel==='sms'?'Text':'Email').join(' and ')} confirmation could not be sent yet.` : status==='Approved' && mock ? 'Appointment approved. SMS is in test mode; no real text was sent.' : `Appointment status updated to: ${status.toUpperCase()}`);
     } catch (e) { showToast(e instanceof Error ? e.message : 'Appointment status could not be updated.'); }
   };
 
@@ -194,15 +218,17 @@ export default function App() {
       const result = await api.register(newUser);
       setUsers(prev => [result.user, ...prev.filter(u => u.id !== result.user.id)]);
       setDevVerificationOtp(result.developmentOtp||null);
+      setVerificationDeliveryError(result.deliveryError||null);
       setCurrentUserId(result.user.id);
       setIsSignUpOpen(false);
-      showToast(result.developmentOtp ? `Mock verification code: ${result.developmentOtp}` : 'Account created. Check your email or SMS for the verification code.');
+      showToast(result.deliveryError || (result.developmentOtp ? 'Account created. SMS is in test mode; use the code shown on the verification page.' : 'Account created. Check your email or SMS for the verification code.'));
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Registration failed.');
+      throw error;
     }
   };
   // Contact verification is completed by the auth endpoint; proceed to secure document review.
-  const handleEmailConfirmed = (verifiedUser: UserProfile) => { setUsers(prev => [verifiedUser, ...prev.filter(u => u.id !== verifiedUser.id)]); setDevVerificationOtp(null); showToast('Contact verified. Continue to Identity Verification.'); };
+  const handleEmailConfirmed = (verifiedUser:UserProfile,developmentOtp?:string,deliveryError?:string) => {setUsers(prev=>[verifiedUser,...prev.filter(u=>u.id!==verifiedUser.id)]);setDevVerificationOtp(developmentOtp||null);setVerificationDeliveryError(deliveryError||null);showToast(deliveryError || (contactsVerified(verifiedUser)?'Contacts verified. Continue to Identity Verification.':'Contact verified. Enter the code for your other contact.'));};
 
   // Appointments
   const handleAddAppointment = async (newAppt: Partial<VisitationAppointment>): Promise<VisitationAppointment> => {
@@ -223,7 +249,7 @@ export default function App() {
 
 
   return (
-    <div className="min-h-screen flex flex-col bg-transparent text-slate-100 font-sans antialiased">
+    <div className="government-theme min-h-screen flex flex-col text-slate-100 font-sans antialiased">
       
       {/* Refined Toast Notification */}
       {toastMessage && (
@@ -237,6 +263,7 @@ export default function App() {
       <Header
         currentUser={currentUser}
         onLogout={handleLogout}
+        onOpenProfile={currentUser?()=>setProfileOpen(true):undefined}
         onGoHome={isDashboardVisible ? handleGoHome : undefined}
         isSidebarOpen={isAdminSidebarOpen}
         onToggleSidebar={(currentUser?.role === 'ADMIN' || currentUser?.role === 'SUPER_ADMIN') && adminViewMode === 'admin' ? () => setIsAdminSidebarOpen((open) => !open) : undefined}
@@ -249,14 +276,17 @@ export default function App() {
       />
 
       {/* Main Content Area */}
+      <SecurityNotice/>
       <main className="flex-1">
+        {currentUser&&dataError&&<p role="alert" className="mx-auto max-w-7xl p-4 text-sm text-rose-300">Account data could not be loaded: {dataError} <button className="underline" onClick={()=>window.location.reload()}>Retry</button></p>}
         {!currentUser ? (
           <LoginPage
             onLogin={handleLogin}
+            onVerifyLoginOtp={handleVerifyLoginOtp}
             onOpenSignUp={() => setIsSignUpOpen(true)}
             onOpenForgotPassword={() => setIsForgotOpen(true)}
           />
-        ) : currentUser?.role === 'WORKER' || currentUser?.role === 'GUARD' ? (
+        ) : currentUser?.role==='OFFICER'&&!contactsVerified(currentUser) ? (<EmailConfirmationView user={currentUser} onEmailConfirmed={handleEmailConfirmed} onLogout={handleLogout}/>) : currentUser?.role === 'OFFICER' ? (<OfficerWorkspace user={currentUser}/>) : currentUser?.role === 'WORKER' || currentUser?.role === 'GUARD' ? (
           <WorkerDashboard user={currentUser} />
         ) : currentUser?.role === 'ADMIN' || currentUser?.role === 'SUPER_ADMIN' ? (
           adminViewMode === 'admin' ? (
@@ -277,6 +307,7 @@ export default function App() {
               onSwitchToVisitorView={() => setAdminViewMode('visitor')}
               onSavePdl={handleSavePdl}
               onUsersRefresh={async()=>{const latest=await api.getUsers();setUsers(latest)}}
+              onRecordsRefresh={async()=>{const [latestUsers,latestAppointments,latestPdls]=await Promise.all([api.getUsers(),api.getAppointments(),api.getPdls()]);setUsers(latestUsers);setAppointments(latestAppointments);setPdls(latestPdls);}}
             />
           ) : (
             <div>
@@ -309,12 +340,13 @@ export default function App() {
           )
         ) : currentUser?.role === 'VERIFICATION_OFFICER' ? (
           <main className="min-h-screen bg-transparent p-4 text-slate-100 sm:p-8"><div className="mx-auto max-w-7xl"><header className="mb-6 flex items-center justify-between"><div><p className="text-xs font-bold uppercase tracking-widest text-blue-300">Verification Officer</p><h1 className="text-2xl font-bold">Identity Review Workspace</h1></div><button onClick={handleLogout} className="rounded-lg border border-white/15 px-3 py-2 text-sm">Log out</button></header><AdminKycPanel /></div></main>
-        ) : currentUser.accountStatus === 'PENDING_EMAIL' || (!currentUser.emailVerified && !currentUser.phoneVerified) ? (
+        ) : currentUser.accountStatus === 'PENDING_EMAIL' || !contactsVerified(currentUser) ? (
           <EmailConfirmationView
             user={currentUser}
             onEmailConfirmed={handleEmailConfirmed}
             onLogout={handleLogout}
             initialDevelopmentOtp={devVerificationOtp}
+            initialDeliveryError={verificationDeliveryError}
           />
         ) : currentUser.accountStatus === 'PENDING_VERIFICATION' ? (
           <IdentityVerificationPage user={currentUser} onLogout={handleLogout} />
@@ -339,6 +371,8 @@ export default function App() {
         )}
       </main>
 
+      {profileOpen&&currentUser&&<div className="fixed inset-0 z-[80] overflow-y-auto bg-slate-950/80 p-4"><section role="dialog" aria-modal="true" aria-label="My profile" className="mx-auto my-8 w-full max-w-2xl rounded-xl border border-slate-700 bg-slate-900 p-6 text-slate-100"><header className="flex items-center justify-between"><h2 className="text-xl font-bold">My profile and password</h2><button onClick={()=>setProfileOpen(false)} className="rounded border border-slate-600 px-3 py-2">Close</button></header><p className="mt-3">{currentUser.firstName} {currentUser.lastName} · {currentUser.email||currentUser.mobileNumber}</p><ProfileEditor user={currentUser}/></section></div>}
+      {currentUser?.role==='VISITOR'&&!isDashboardVisible&&<div className="mx-auto w-full max-w-5xl px-4 pb-8"><PermanentVisitorIdCard user={currentUser} appointments={[]} onOpenGuardScanner={()=>{}}/></div>}
       {/* Sign Up Modal */}
       <SignUpModal
         isOpen={isSignUpOpen}
@@ -357,6 +391,7 @@ export default function App() {
 
       {/* Gate 1 Guard Scanner Terminal */}
       <GuardScannerModal
+        staff={currentUser}
         isOpen={isGuardScannerOpen && (currentUser?.role === 'ADMIN' || currentUser?.role === 'SUPER_ADMIN')}
         onClose={() => setIsGuardScannerOpen(false)}
         users={users}

@@ -24,12 +24,15 @@ export type ValidIdType =
 
 export type VisitType = 'Contact Visit' | 'Non-Contact (Glass Barrier)' | 'E-Dalaw (Online Video Call)';
 
-export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'VERIFICATION_OFFICER' | 'WORKER' | 'GUARD' | 'VISITOR';
+export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'VERIFICATION_OFFICER' | 'WORKER' | 'GUARD' | 'OFFICER' | 'VISITOR';
 
 /** GUARD is retained for the existing database account; WORKER is the general staff role. */
-export const isStaffRole = (role?: UserRole) => role === 'SUPER_ADMIN' || role === 'ADMIN' || role === 'VERIFICATION_OFFICER' || role === 'WORKER' || role === 'GUARD';
+export const isStaffRole = (role?: UserRole) => role === 'OFFICER' || role === 'SUPER_ADMIN' || role === 'ADMIN' || role === 'VERIFICATION_OFFICER' || role === 'WORKER' || role === 'GUARD';
 
 export interface UserAddress {
+  regionCode?: string; region?: string; provinceCode?: string; province?: string;
+  cityCode?: string; barangayCode?: string; barangay?: string;
+  houseNumber?: string; streetName?: string; subdivision?: string; completeAddress?: string;
   houseUnitStreet: string;
   municipality: string;
   maritalStatus: MaritalStatus;
@@ -45,6 +48,8 @@ export interface UserProfile {
   dateOfBirth: string;
   gender: Gender;
   email: string;
+  permanentQrToken?: string;
+  officerDuties?: string[];
   mobileNumber?: string;
   password?: string;
   role?: UserRole;
@@ -56,6 +61,7 @@ export interface UserProfile {
   facePhotoUrl?: string;
   emailVerified?: boolean;
   phoneVerified?: boolean;
+  contactAccessPolicy?: 'ALL_REGISTERED' | 'LEGACY_VERIFIED';
   lastLoginAt?: string;
   accountStatus: AccountStatus;
   emailVerifiedAt?: string;
@@ -259,6 +265,10 @@ export interface PDL {
 }
 
 export interface VisitationAppointment {
+  companions?: {fullName:string;dateOfBirth:string;relationshipToPdl:string;relationshipToVisitor?:string;verificationStatus?:string;reviewNote?:string}[];
+  checkedInAt?: string;
+  selectionMode?: 'LEGACY' | 'PDL_DAY';
+  scheduleVersion?: number;
   id: string;
   appointmentReference: string;
   userId: string;

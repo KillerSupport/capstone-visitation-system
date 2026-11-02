@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
+import {
   QrCode, Download, Printer, Shield, CheckCircle2,
   AlertTriangle, MapPin, User, Sparkles, ArrowRight
 } from 'lucide-react';
 import { UserProfile, VisitationAppointment } from '../../types';
-import { buildPermanentQRPayload, generateQRCodeDataUrl } from '../../utils/qrGenerator';
+import { generateQRCodeDataUrl } from '../../utils/qrGenerator';
+import {todayInManila} from './IdentityFields';
 
 interface PermanentVisitorIdCardProps {
   user: UserProfile;
@@ -23,8 +24,8 @@ export const PermanentVisitorIdCard: React.FC<PermanentVisitorIdCardProps> = ({
   const [isGenerating, setIsGenerating] = useState(false);
   const cardRef = useRef<HTMLDivElement | null>(null);
 
-  const todayStr = new Date().toISOString().split('T')[0];
-  const userAppointments = appointments.filter((a) => a.userId === user.id && a.status !== 'Cancelled');
+  const todayStr = todayInManila();
+  const userAppointments = appointments.filter((a) => a.userId === user.id && a.status === 'Approved');
   const todayAppointment = userAppointments.find((a) => a.visitDate === todayStr);
   const upcomingAppointment = !todayAppointment
     ? userAppointments
@@ -36,8 +37,7 @@ export const PermanentVisitorIdCard: React.FC<PermanentVisitorIdCardProps> = ({
     let isMounted = true;
     async function makeQR() {
       setIsGenerating(true);
-      const payload = buildPermanentQRPayload(user, appointments, todayStr);
-      const url = await generateQRCodeDataUrl(JSON.stringify(payload));
+      const url = user.permanentQrToken?await generateQRCodeDataUrl(user.permanentQrToken):'';
       if (isMounted) {
         setQrDataUrl(url);
         setIsGenerating(false);
@@ -121,7 +121,7 @@ export const PermanentVisitorIdCard: React.FC<PermanentVisitorIdCardProps> = ({
     ctx.fill();
     ctx.fillStyle = '#34d399';
     ctx.font = 'bold 13px sans-serif';
-    ctx.fillText('✓ BIOMETRIC FINGERPRINT VERIFIED', 260, 346);
+    ctx.fillText(user.biometricScannedAt?'FINGERPRINT ENROLLED':'FINGERPRINT ENROLLMENT NOT RECORDED', 260, 346);
 
     // Appointment Dynamic Section Box
     ctx.fillStyle = todayAppointment ? '#14532d' : '#334155';
@@ -153,7 +153,12 @@ export const PermanentVisitorIdCard: React.FC<PermanentVisitorIdCardProps> = ({
       }
     }
 
-    // Load QR Image onto canvas
+    const downloadCanvas=()=>{
+      ctx.fillStyle='#64748b';ctx.font='11px sans-serif';ctx.textAlign='left';
+      ctx.fillText('Visitor record only. Entry requires fingerprint verification followed by an permanent visitor QR.',40,600);
+      const link=document.createElement('a');link.download=`BJMP_Imus_Permanent_ID_${user.id}.png`;link.href=canvas.toDataURL('image/png');link.click();
+    };
+    // Load the permanent visitor QR, or download the card with an honest placeholder.
     const qrImg = new Image();
     qrImg.onload = () => {
       // White box for QR
@@ -167,25 +172,19 @@ export const PermanentVisitorIdCard: React.FC<PermanentVisitorIdCardProps> = ({
       ctx.fillStyle = '#0f172a';
       ctx.font = 'bold 13px monospace';
       ctx.textAlign = 'center';
-      ctx.fillText('DYNAMIC GATE 1 SECURITY QR', 800, 460);
+      ctx.fillText('PERMANENT VISITOR IDENTIFIER', 800, 460);
       ctx.font = '11px sans-serif';
       ctx.fillStyle = '#64748b';
       ctx.fillText('Scanned by BJMP guards on visit date', 800, 480);
       ctx.textAlign = 'left';
 
-      // Footer note
-      ctx.fillStyle = '#64748b';
-      ctx.font = '11px sans-serif';
-      ctx.fillText('Official property of BJMP Region IV-A. Unauthorized reproduction or transfer is punishable by law.', 40, 600);
-
-      // Trigger download
-      const link = document.createElement('a');
-      link.download = `BJMP_Imus_Permanent_ID_${user.biometricReferenceNumber}.png`;
-      link.href = canvas.toDataURL('image/png');
-      link.click();
+      downloadCanvas();
     };
     if (qrDataUrl) {
       qrImg.src = qrDataUrl;
+    } else {
+      ctx.fillStyle='#cbd5e1';ctx.font='bold 16px sans-serif';ctx.fillText('VISITOR QR NOT AVAILABLE',650,300);
+      downloadCanvas();
     }
   };
 
@@ -197,14 +196,14 @@ export const PermanentVisitorIdCard: React.FC<PermanentVisitorIdCardProps> = ({
     <div className="space-y-6">
       {/* Intro Explanation Card */}
       <div className="bg-gradient-to-r from-blue-500/15 via-blue-900/20 to-slate-900 border border-blue-500/40 rounded-2xl p-6 shadow-xl flex items-start justify-between">
-        <div className="flex items-start space-x-4">
+        <div className="flex min-w-0 items-start gap-3">
           <div className="w-12 h-12 flex items-center justify-center shrink-0">
             <QrCode className="w-7 h-7" />
           </div>
-          <div>
-            <div className="flex items-center space-x-2 mb-1">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2 mb-1">
               <span className="bg-blue-500 text-slate-950 text-[10px] font-black uppercase px-2 py-0.5 rounded">
-                PERMANENT VISITOR ID & DYNAMIC QR
+                PERMANENT VISITOR ID & QR
               </span>
               <span className="text-xs text-blue-300 font-mono">
                 {user.biometricReferenceNumber}
@@ -214,30 +213,19 @@ export const PermanentVisitorIdCard: React.FC<PermanentVisitorIdCardProps> = ({
               Your Permanent BJMP Digital Visitor Identification Card
             </h3>
             <p className="text-xs text-slate-300 max-w-3xl leading-relaxed mt-1">
-              This permanent QR code serves as your official identification badge. Keep or download this QR code on your phone or print it. <strong>Whenever you book a new appointment, the gate data inside this QR code automatically syncs to your scheduled date.</strong> When the jail guards scan this QR code at Gate 1, the terminal will verify if you have an approved appointment for that day.
+              Keep this visitor identification card for your records. <strong>Your unique QR identifier stays the same across visits.</strong> At the facility, staff must verify your enrolled fingerprint first, then check the permanent QR, approved PDL connection and selected date during visiting hours. This card alone does not authorize entry.
             </p>
           </div>
-        </div>
-        {/* Action button to test guard scanner */}
-        <div className="text-right shrink-0">
-          <button
-            type="button"
-            onClick={() => onOpenGuardScanner(user.id)}
-            className="bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold px-4 py-2.5 rounded-xl text-xs flex items-center space-x-2 shadow-lg shadow-blue-500/20 cursor-pointer transition-all"
-          >
-            <Shield className="w-4 h-4 text-blue-300" />
-            <span>Simulate Guard Scan at Gate 1</span>
-          </button>
         </div>
       </div>
 
       {/* The Official Permanent ID Card View (Desktop & Downloadable) */}
-      <div 
+      <div
         ref={cardRef}
         className="bg-slate-900 border-2 border-slate-700/80 rounded-3xl overflow-hidden shadow-2xl relative max-w-4xl mx-auto text-slate-100"
       >
         {/* Card Header */}
-        <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-blue-950 px-8 py-5 border-b-2 border-blue-500/60 flex items-center justify-between relative">
+        <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-blue-950 px-4 sm:px-8 py-5 border-b-2 border-blue-500/60 flex flex-wrap gap-4 items-center justify-between relative">
           <div className="flex items-center space-x-4">
             <div className="w-12 h-12 flex items-center justify-center">
               <img src="/assets/bjmp_icon.png" alt="BJMP" className="w-9 h-9 object-contain" />
@@ -257,7 +245,7 @@ export const PermanentVisitorIdCard: React.FC<PermanentVisitorIdCardProps> = ({
           <div className="text-right">
             <span className="bg-blue-500/20 text-blue-300 border border-blue-500/40 text-[10px] font-bold uppercase px-3 py-1 rounded-full inline-flex items-center gap-1">
               <CheckCircle2 className="w-3.5 h-3.5" />
-              Biometric Active
+              {user.biometricScannedAt?'Fingerprint enrolled':'Enrollment not recorded'}
             </span>
             <div className="text-[10px] text-slate-400 mt-1 font-mono">
               Ref: {user.biometricReferenceNumber}
@@ -266,25 +254,25 @@ export const PermanentVisitorIdCard: React.FC<PermanentVisitorIdCardProps> = ({
         </div>
 
         {/* Card Main Body */}
-        <div className="p-8 grid grid-cols-12 gap-8 items-center bg-slate-900/90">
-          
+        <div className="p-4 sm:p-8 grid grid-cols-1 md:grid-cols-12 gap-6 items-center bg-slate-900/90">
+
           {/* Left Column: Photo & Biometrics Tag */}
-          <div className="col-span-3 text-center">
+          <div className="min-w-0 md:col-span-3 text-center">
             <div className="w-36 h-44 rounded-2xl bg-slate-800 border-2 border-blue-500/40 overflow-hidden mx-auto shadow-lg relative group">
               {user.facePhotoUrl ? (
-                <img 
-                  src={user.facePhotoUrl} 
-                  alt={user.firstName} 
+                <img
+                  src={user.facePhotoUrl}
+                  alt={user.firstName}
                   className="w-full h-full object-cover"
                 />
               ) : (
                 <div className="w-full h-full flex flex-col items-center justify-center text-slate-500">
                   <User className="w-12 h-12" />
-                  <span className="text-[10px] mt-1">Verified Photo</span>
+                  <span className="text-[10px] mt-1">Photo not recorded</span>
                 </div>
               )}
               <div className="absolute bottom-0 inset-x-0 bg-slate-950/80 text-[10px] py-1 text-blue-300 font-mono font-bold">
-                BJMP RECORDED
+                {user.facePhotoUrl?'BJMP RECORDED':'PHOTO UNAVAILABLE'}
               </div>
             </div>
             <div className="mt-3 text-[11px] text-slate-400">
@@ -294,7 +282,7 @@ export const PermanentVisitorIdCard: React.FC<PermanentVisitorIdCardProps> = ({
           </div>
 
           {/* Middle Column: Visitor Particulars & Today's Status */}
-          <div className="col-span-5 space-y-4">
+          <div className="min-w-0 md:col-span-5 space-y-4">
             <div>
               <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
                 Official Registered Visitor
@@ -375,7 +363,7 @@ export const PermanentVisitorIdCard: React.FC<PermanentVisitorIdCardProps> = ({
           </div>
 
           {/* Right Column: High-Resolution Permanent QR Code */}
-          <div className="col-span-4 flex flex-col items-center justify-center border-l border-slate-800/80 pl-6 text-center">
+          <div className="min-w-0 md:col-span-4 flex flex-col items-center justify-center md:border-l border-slate-800/80 md:pl-6 text-center">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
               Permanent Security QR Code
             </span>
@@ -385,9 +373,9 @@ export const PermanentVisitorIdCard: React.FC<PermanentVisitorIdCardProps> = ({
                   <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
                 </div>
               ) : qrDataUrl ? (
-                <img 
-                  src={qrDataUrl} 
-                  alt="BJMP Visitor Dynamic QR" 
+                <img
+                  src={qrDataUrl}
+                  alt="BJMP permanent visitor QR"
                   className="w-48 h-48 object-contain rounded"
                 />
               ) : (
@@ -400,13 +388,13 @@ export const PermanentVisitorIdCard: React.FC<PermanentVisitorIdCardProps> = ({
               </div>
             </div>
             <span className="text-[10px] text-slate-400 mt-2 max-w-[200px]">
-              Encrypted digital identifier for BJMP optical laser & mobile scanners
+              Reusable identity identifier; fingerprint and current PDL schedule checks are required
             </span>
           </div>
         </div>
 
         {/* Card Footer Bar */}
-        <div className="bg-slate-950 px-8 py-3 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
+        <div className="bg-slate-950 px-4 sm:px-8 py-3 border-t border-slate-800 flex flex-wrap gap-3 items-center justify-between text-xs text-slate-400">
           <div className="flex items-center space-x-2">
             <MapPin className="w-3.5 h-3.5 text-blue-400" />
             <span>BJMP Imus City Jail • Imus City, Cavite</span>
@@ -418,8 +406,8 @@ export const PermanentVisitorIdCard: React.FC<PermanentVisitorIdCardProps> = ({
       </div>
 
       {/* Card Controls & Quick Simulator Bar */}
-      <div className="max-w-4xl mx-auto flex items-center justify-between bg-slate-900/90 border border-slate-800 p-4 rounded-2xl shadow-lg">
-        <div className="flex items-center space-x-3">
+      <div className="max-w-4xl mx-auto flex flex-wrap gap-3 items-center justify-between bg-slate-900/90 border border-slate-800 p-4 rounded-2xl shadow-lg">
+        <div className="flex flex-wrap gap-3 items-center">
           <button
             type="button"
             onClick={handleDownloadIdImage}
@@ -439,25 +427,8 @@ export const PermanentVisitorIdCard: React.FC<PermanentVisitorIdCardProps> = ({
         </div>
 
         <div className="flex items-center space-x-3">
-          {onQuickBookToday && !todayAppointment && (
-            <button
-              type="button"
-              onClick={onQuickBookToday}
-              className="bg-blue-600/80 hover:bg-blue-600 text-white text-xs font-semibold px-3 py-2 rounded-xl flex items-center space-x-1.5 transition-colors cursor-pointer"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-blue-300" />
-              <span>Quick Test: Add Today's Appointment</span>
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => onOpenGuardScanner(user.id)}
-            className="bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold px-4 py-2.5 rounded-xl text-xs flex items-center space-x-1.5 transition-colors cursor-pointer shadow-md"
-          >
-            <Shield className="w-4 h-4 text-blue-300" />
-            <span>Test Guard Scanner Terminal</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
+
+
         </div>
       </div>
     </div>

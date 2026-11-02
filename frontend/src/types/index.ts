@@ -25,6 +25,9 @@ export type ValidIdType =
 export type VisitType = 'Contact Visit' | 'Non-Contact (Glass Barrier)' | 'E-Dalaw (Online Video Call)';
 
 export interface UserAddress {
+  regionCode?: string; region?: string; provinceCode?: string; province?: string;
+  cityCode?: string; barangayCode?: string; barangay?: string;
+  houseNumber?: string; streetName?: string; subdivision?: string; completeAddress?: string;
   houseUnitStreet: string;
   municipality: string;
   maritalStatus: MaritalStatus;
@@ -79,6 +82,8 @@ export interface PDL {
 }
 
 export interface VisitationAppointment {
+  companions?: {fullName:string;dateOfBirth:string;relationshipToPdl:string;relationshipToVisitor?:string;verificationStatus?:string;reviewNote?:string}[];
+  checkedInAt?: string;
   id: string;
   appointmentReference: string;
   userId: string;

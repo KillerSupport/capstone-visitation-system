@@ -1,6 +1,6 @@
 /** Shared, strict Philippine mobile number parsing for auth and registration. */
 export function normalizePhilippineMobileNumber(input: string): string | null {
-  const value = String(input ?? '').trim().replace(/[\s()-]/g, '');
+  const value = String(input ?? '').trim();
   if (/^09\d{9}$/.test(value)) return `+63${value.slice(1)}`;
   if (/^\+639\d{9}$/.test(value)) return value;
   return null;
