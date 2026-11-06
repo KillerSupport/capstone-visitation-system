@@ -4,6 +4,8 @@ import { UserAddress } from '../../types';
 
 type Option = { code: string; name: string };
 type ZipOption = { code: string; area: string };
+const alphabetic = new Intl.Collator('en-PH', { numeric: true, sensitivity: 'base' });
+const sortOptions = (options: Option[]) => [...options].sort((a, b) => alphabetic.compare(a.name, b.name));
 export const emptyAddress: UserAddress = { houseUnitStreet: '', municipality: '', maritalStatus: 'Single', zipCode: '', regionCode: '', provinceCode: '', cityCode: '', barangayCode: '', houseNumber: '', streetName: '', subdivision: '' };
 
 function withAddressSummary(a: UserAddress): UserAddress {
@@ -30,7 +32,7 @@ export function AddressFields({ value, onChange, className = '' }: { value: User
       value.regionCode ? api.geography('cities', value.provinceCode || value.regionCode) : [],
       value.cityCode ? api.geography('barangays', value.cityCode) : [],
     ]).then(([r, p, c, b]) => {
-      if (active) { setRegions(r); setProvinces(p); setCities(c); setBarangays(b); }
+      if (active) { setRegions(sortOptions(r)); setProvinces(sortOptions(p)); setCities(sortOptions(c)); setBarangays(sortOptions(b)); }
     }).catch(e => { if (active) setError(e.message); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [value.regionCode, value.provinceCode, value.cityCode, retry]);
@@ -43,7 +45,7 @@ export function AddressFields({ value, onChange, className = '' }: { value: User
     if (!value.cityCode) return () => { active = false; };
     api.geography('zips', value.cityCode, value.barangayCode || '').then((options: ZipOption[]) => {
       if (!active) return;
-      setZips(options);
+      setZips([...options].sort((a, b) => alphabetic.compare(a.area, b.area) || alphabetic.compare(a.code, b.code)));
       const current = latest.current;
       if (options.length === 1 && !current.value.zipCode) {
         current.onChange(withAddressSummary({ ...current.value, zipCode: options[0].code }));

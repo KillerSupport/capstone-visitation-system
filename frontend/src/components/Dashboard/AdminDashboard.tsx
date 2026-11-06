@@ -1,27 +1,29 @@
 import {AdminStaffPanel} from '../Admin/AdminStaffPanel';
 import {AdminVisitationPanel} from '../Admin/AdminVisitationPanel';
+import {AdminVisitorRecordsPanel} from '../Admin/AdminVisitorRecordsPanel';
+import {AdminVisitorRestrictionsPanel} from '../Admin/AdminVisitorRestrictionsPanel';
+import {AdminVisitorReportsPanel} from '../Admin/AdminVisitorReportsPanel';
+import {AdminProfileChangeRequestsPanel} from '../Admin/AdminProfileChangeRequestsPanel';
 import React, { useState, useMemo, useEffect } from 'react';
 import {
   Shield, Users, Calendar, Clock, CheckCircle2, AlertTriangle, AlertCircle, Archive,
-  Fingerprint, Search, Filter, Eye, Printer, Plus, Trash2,
+  Search, Filter, Eye, Printer, Plus, Trash2,
   Building, RefreshCw, Check, X, ArrowUpDown, ExternalLink, QrCode,
-  FileCheck, ShieldAlert, UserPlus, Sliders, Sparkles, MapPin,
+  ShieldAlert, UserPlus, Sliders, Sparkles, MapPin,
   FileText, Edit3, Scale, Package, CheckSquare, ListFilter, Table
 } from 'lucide-react';
 import {
   UserProfile, VisitationAppointment, JailFacility, PDL,
-  AccountStatus, VisitType, isStaffRole
+  VisitType
 } from '../../types';
 import { BJMP_JAIL_FACILITIES } from '../../data/bjmpData';
 import { PrintablePassModal } from '../Common/PrintablePassModal';
 import { PDLRegistrationModal } from '../Admin/PDLRegistrationModal';
 import { OfficialBjmpDocumentsModal } from '../Admin/OfficialBjmpDocumentsModal';
-import { AdminKycPanel } from '../Admin/AdminKycPanel';
 import { AdminAuditPanel } from '../Admin/AdminAuditPanel';
 import { AdminArchivePanel } from '../Admin/AdminArchivePanel';
 import { AdminReportsPanel } from '../Admin/AdminReportsPanel';
 import { api } from '../../services/api';
-import { hardware } from '../../services/hardware';
 import {realtimeWS} from '../../services/websocket';
 import {todayInManila} from '../Common/IdentityFields';
 
@@ -30,13 +32,10 @@ interface AdminDashboardProps {
   users: UserProfile[];
   appointments: VisitationAppointment[];
   pdls: PDL[];
-  onUpdateUserStatus: (userId: string, status: AccountStatus, officerNote?: string) => void;
   onUpdateAppointmentStatus: (appointmentId: string, status: VisitationAppointment['status']) => void;
   onOpenGuardScanner: (visitorId?: string) => void;
   onDeleteAppointment: (appointmentId: string) => void;
-  onSwitchToVisitorView: () => void;
   onSavePdl: (pdl: PDL) => Promise<void>;
-  onUsersRefresh?: () => Promise<void> | void;
   onRecordsRefresh?:()=>Promise<void>;
   isSidebarOpen: boolean;
   homeRequest: number;
@@ -58,34 +57,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   users,
   appointments,
   pdls,
-  onUpdateUserStatus,
   onUpdateAppointmentStatus,
   onOpenGuardScanner,
   onDeleteAppointment,
-  onSwitchToVisitorView,
   onSavePdl,
-  onUsersRefresh,
   onRecordsRefresh,
   isSidebarOpen,
   homeRequest,
 }) => {
   // Navigation Tabs
-  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'VISITORS' | 'KYC' | 'APPOINTMENTS' | 'PDL_ROSTER' | 'SECURITY_LOGS' | 'AUDIT' | 'ARCHIVE' | 'REPORTS' | 'STAFF' | 'VISITATION' | 'FACILITY_SETTINGS'>('OVERVIEW');
+  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'VISITOR_RECORDS' | 'RESTRICTIONS' | 'PROFILE_APPROVALS' | 'APPOINTMENTS' | 'PDL_ROSTER' | 'SECURITY_LOGS' | 'AUDIT' | 'ARCHIVE' | 'REPORTS' | 'STAFF' | 'VISITATION' | 'FACILITY_SETTINGS'>('OVERVIEW');
 
   useEffect(() => { setActiveTab('OVERVIEW'); }, [homeRequest]);
-
-  // Visitor Management State
-  const [visitorFilter, setVisitorFilter] = useState<'ALL' | 'ACTIVATED' | 'ACTIVE' | 'PENDING_VERIFICATION' | 'PENDING_BIOMETRICS' | 'PENDING_EMAIL' | 'SUSPENDED' | 'REJECTED'>('ALL');
-  const [visitorSearch, setVisitorSearch] = useState('');
-  const [selectedVisitorForKyc, setSelectedVisitorForKyc] = useState<UserProfile | null>(null);
-  const [selectedUserDetails,setSelectedUserDetails]=useState<any|null>(null);
-  const [profileLoading,setProfileLoading]=useState(false);
-  const [pendingKycCount,setPendingKycCount]=useState(0);
-  const [biometricScanningUser, setBiometricScanningUser] = useState<UserProfile | null>(null);
-  const [hardwareOnline,setHardwareOnline]=useState(false);
-  const [enrollmentRequest,setEnrollmentRequest]=useState('');
-  const [enrollmentBusy,setEnrollmentBusy]=useState(false);
-  const [enrollmentMessage,setEnrollmentMessage]=useState('');
 
 
   // Appointment Management State
@@ -109,8 +92,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   useEffect(() => { setPdlList(pdls); }, [pdls]);
   useEffect(() => { api.getIncidents().then(rows=>setIncidentList(rows.map((r:any)=>({id:r.id,timestamp:r.timestamp,visitorName:r.visitor_name,facility:r.facility,incidentType:r.incident_type,description:r.description,actionTaken:r.action_taken,reportingOfficer:r.reporting_officer})))).catch(()=>setIncidentList([])); }, []);
-  useEffect(()=>{api.getAdminKyc('PENDING_REVIEW').then(rows=>setPendingKycCount(rows.length)).catch(()=>setPendingKycCount(0))},[users,activeTab]);
-  const openUserProfile=async(user:UserProfile)=>{setSelectedVisitorForKyc(user);setSelectedUserDetails(null);setProfileLoading(true);try{setSelectedUserDetails(await api.getAdminUserProfile(user.id))}catch{setSelectedUserDetails({user})}finally{setProfileLoading(false)}};
 
   // Security Incident Logs State
   const [incidentList, setIncidentList] = useState<SecurityIncident[]>([]);
@@ -139,24 +120,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // Today's Date calculation
   const todayStr = todayInManila();
-
-  // Filtered Visitors
-  const filteredVisitors = useMemo(() => {
-    return users.filter((u) => {
-      if (isStaffRole(u.role)) return false;
-      if (visitorFilter !== 'ALL' && u.accountStatus !== visitorFilter) return false;
-      if (visitorSearch) {
-        const query = visitorSearch.toLowerCase();
-        const fullName = `${u.firstName} ${u.middleName || ''} ${u.lastName}`.toLowerCase();
-        const email = u.email.toLowerCase();
-        const bio = (u.biometricReferenceNumber || '').toLowerCase();
-        const idType = (u.validIdType || '').toLowerCase();
-        const phone=(u.mobileNumber||'').toLowerCase();
-        return fullName.includes(query) || email.includes(query) || phone.includes(query) || bio.includes(query) || idType.includes(query);
-      }
-      return true;
-    });
-  }, [users, visitorFilter, visitorSearch]);
+  const [visitorSummary,setVisitorSummary]=useState<any>({});
+  useEffect(()=>{void api.getVisitorReport(todayStr,todayStr).then(setVisitorSummary).catch(()=>setVisitorSummary({}))},[todayStr,activeTab]);
 
   // Filtered Appointments
   const filteredAppointments = useMemo(() => {
@@ -177,11 +142,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   }, [appointments, apptFilterDate, apptFilterStatus, apptSearch, todayStr]);
 
   // Metric aggregates
-  const totalVisitors = users.filter((u) => u.role === 'VISITOR' || !u.role).length;
-  const activatedVisitors = users.filter((u) => ['ACTIVE','ACTIVATED'].includes(u.accountStatus) && (u.role === 'VISITOR' || !u.role)).length;
-  const pendingBiometricVisitors = users.filter((u) => u.accountStatus === 'PENDING_BIOMETRICS').length;
-  const pendingEmailVisitors = users.filter((u) => u.accountStatus === 'PENDING_EMAIL' || u.accountStatus === 'PENDING_VERIFICATION').length;
-  const pendingRegistrationUsers = users.filter((u) => ['PENDING_VERIFICATION','PENDING_EMAIL','PENDING_BIOMETRICS'].includes(u.accountStatus)).length;
+  const totalVisitors = Number(visitorSummary.registeredVisitors||0);
+  const approvedPdlVisitors = Number(visitorSummary.approvedPdlVisitors||0);
 
   const todayAppointments = appointments.filter((a) => a.visitDate === todayStr);
   const pendingAppointments = appointments.filter((a) => a.status === 'Pending Review');
@@ -192,11 +154,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const femalePercent=inCustody.length?Math.round(femalePopulation/inCustody.length*100):0;
   const visitHistogram=Array.from({length:12},(_,i)=>{const date=new Date(`${todayStr}T12:00:00Z`);date.setUTCDate(date.getUTCDate()-11+i);const day=date.toISOString().slice(0,10);return {day,count:appointments.filter(a=>a.visitDate===day&&a.status!=='Cancelled').length}});
   const histogramMax=Math.max(1,...visitHistogram.map(x=>x.count));
-
-  // Biometric Desk Scanner Execution
-  const handleStartBiometricScan = (visitor: UserProfile) => { setBiometricScanningUser(visitor); };
-  useEffect(()=>{hardware.connect();const offStatus=hardware.onStatus(setHardwareOnline);const offEvent=hardware.onEvent((event)=>{if(event.type==='FINGERPRINT_ENROLL_RESULT'&&event.requestId===enrollmentRequest){if(event.payload?.success&&event.payload?.proof&&biometricScanningUser){setEnrollmentBusy(true);void api.adminEnrollBiometrics(biometricScanningUser.id,String(event.payload.proof)).then(r=>{setEnrollmentMessage(r.message);void onUsersRefresh?.();setBiometricScanningUser(null)}).catch((e:any)=>setEnrollmentMessage(e.message)).finally(()=>setEnrollmentBusy(false))}else{setEnrollmentMessage(event.payload?.message||'Fingerprint enrollment failed.')}}});return()=>{offStatus();offEvent()}},[enrollmentRequest,biometricScanningUser]);
-  const startFingerprintEnrollment=()=>{if(!biometricScanningUser)return;const requestId=crypto.randomUUID();setEnrollmentRequest(requestId);setEnrollmentMessage('Place the visitor’s finger on the AS608 scanner…');setEnrollmentBusy(true);try{hardware.command('FINGERPRINT_ENROLL',{subjectType:'VISITOR',subjectId:String(biometricScanningUser.id)},requestId)}catch(e:any){setEnrollmentMessage(e.message);setEnrollmentBusy(false)}};
 
   // Save PDL (from comprehensive registration form)
   const handleSavePdl = async (savedPdl: PDL) => {
@@ -281,27 +238,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
           <button
             type="button"
-            onClick={() => setActiveTab('VISITORS')}
+            onClick={() => setActiveTab('VISITOR_RECORDS')}
             className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center space-x-2 transition-all cursor-pointer whitespace-nowrap lg:w-full lg:justify-start relative ${
-              activeTab === 'VISITORS'
+              activeTab === 'VISITOR_RECORDS'
                 ? 'bg-blue-500 text-slate-950 shadow-md shadow-blue-500/20'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
             }`}
           >
             <Users className="w-4 h-4" />
-            <span>Users & Visitor Accounts</span>
-            {pendingBiometricVisitors > 0 && (
-              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
-                activeTab === 'VISITORS' ? 'bg-slate-950 text-blue-400' : 'bg-blue-500 text-slate-950'
-              }`}>
-                {pendingBiometricVisitors}
-              </span>
-            )}
+            <span>Visitor Records</span>
           </button>
 
-          <button type="button" onClick={() => setActiveTab('STAFF')} className="rounded-lg border border-slate-700 px-4 py-2 text-xs font-bold whitespace-nowrap">Staff & duties</button>
+          <button type="button" onClick={() => setActiveTab('RESTRICTIONS')} className={`rounded-lg border border-slate-700 px-4 py-2 text-xs font-bold whitespace-nowrap ${activeTab==='RESTRICTIONS'?'bg-rose-700 text-white':'text-slate-300'}`}>Visitor restrictions</button>
+          <button type="button" onClick={() => setActiveTab('STAFF')} className="rounded-lg border border-slate-700 px-4 py-2 text-xs font-bold whitespace-nowrap">Worker accounts</button>
+          <button type="button" onClick={() => setActiveTab('PROFILE_APPROVALS')} className={`rounded-lg border border-slate-700 px-4 py-2 text-xs font-bold whitespace-nowrap ${activeTab==='PROFILE_APPROVALS'?'bg-blue-500 text-slate-950':'text-slate-300'}`}>Profile change requests</button>
           <button type="button" onClick={() => setActiveTab('VISITATION')} className="rounded-lg border border-slate-700 px-4 py-2 text-xs font-bold whitespace-nowrap">Approved lists & days</button>
-          <button type="button" onClick={() => setActiveTab('KYC')} className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center space-x-2 whitespace-nowrap ${activeTab==='KYC'?'bg-blue-500 text-slate-950':'text-slate-400 hover:text-slate-200 hover:bg-slate-900'}`}><FileCheck className="w-4 h-4"/><span>Identity Verification</span></button>
 
           <button
             type="button"
@@ -373,27 +324,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             TAB 1: COMMAND OVERVIEW
         ======================================================== */}
         {activeTab === 'STAFF' && <AdminStaffPanel/>}
-        {activeTab === 'VISITATION' && <AdminVisitationPanel pdls={pdls} users={users} onChanged={onRecordsRefresh}/> }
+        {activeTab === 'PROFILE_APPROVALS' && <AdminProfileChangeRequestsPanel/>}
+        {activeTab === 'VISITOR_RECORDS' && <AdminVisitorRecordsPanel pdls={pdlList}/>}
+        {activeTab === 'RESTRICTIONS' && <AdminVisitorRestrictionsPanel pdls={pdlList}/>}
+        {activeTab === 'VISITATION' && <AdminVisitationPanel pdls={pdls} onChanged={onRecordsRefresh}/> }
         {activeTab === 'OVERVIEW' && (
           <div className="space-y-6">
             
-            {/* Infographic: account health, visit flow, and population snapshot */}
+            {/* Facility status and database-backed visitor summary */}
             <section className="admin-overview-grid" aria-label="Facility infographic overview">
               <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
                 <div className="flex items-center justify-between mb-4">
-                  <div><p className="text-[10px] uppercase tracking-[0.18em] text-slate-400 font-bold">Visitor accounts</p><h3 className="text-lg font-extrabold text-white mt-1">Verification health</h3></div>
+                  <div><p className="text-[10px] uppercase tracking-[0.18em] text-slate-400 font-bold">Visitor records</p><h3 className="text-lg font-extrabold text-white mt-1">Registered and approved</h3></div>
                   <Users className="w-5 h-5 text-blue-300" />
                 </div>
-                <div className="h-3 rounded-full bg-slate-950 overflow-hidden flex" role="img" aria-label={`${activatedVisitors} verified, ${pendingBiometricVisitors} awaiting biometrics, ${pendingEmailVisitors} awaiting email`}>
-                  <span className="bg-emerald-400 h-full" style={{ width: `${totalVisitors ? activatedVisitors / totalVisitors * 100 : 0}%` }} />
-                  <span className="bg-amber-300 h-full" style={{ width: `${totalVisitors ? pendingBiometricVisitors / totalVisitors * 100 : 0}%` }} />
-                  <span className="bg-sky-400 h-full" style={{ width: `${totalVisitors ? pendingEmailVisitors / totalVisitors * 100 : 0}%` }} />
-                </div>
-                <div className="grid grid-cols-3 gap-2 mt-4">
-                  <div><span className="block text-xl font-black text-emerald-300">{activatedVisitors}</span><span className="text-[10px] text-slate-400">Verified</span></div>
-                  <div><span className="block text-xl font-black text-amber-200">{pendingBiometricVisitors}</span><span className="text-[10px] text-slate-400">Biometrics</span></div>
-                  <div><span className="block text-xl font-black text-sky-300">{pendingEmailVisitors}</span><span className="text-[10px] text-slate-400">Email check</span></div>
-                </div>
+                <div className="grid grid-cols-2 gap-3"><div><strong className="block text-3xl text-white">{totalVisitors}</strong><span className="text-xs text-slate-400">Registered people</span></div><div><strong className="block text-3xl text-emerald-300">{approvedPdlVisitors}</strong><span className="text-xs text-slate-400">Approved PDL visitors</span></div></div>
+                <button type="button" onClick={() => setActiveTab('VISITOR_RECORDS')} className="mt-4 text-xs font-bold text-blue-300">Open visitor records →</button>
               </div>
 
               <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
@@ -429,10 +375,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
             </section>
             <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Administrative queues">
-              <div className="rounded-xl border border-slate-700 bg-slate-900 p-4"><span className="text-xs text-slate-400">Verified check-ins today</span><strong className="block text-2xl">{liveStats.admittedToday??0}</strong><span className="text-xs text-slate-400">Currently on site: {liveStats.currentOnSiteVisitors??0}</span></div>
-              <button type="button" onClick={() => setActiveTab('VISITORS')} className="rounded-xl border border-white/10 bg-slate-900/90 p-4 text-left hover:border-blue-300/40"><span className="text-[10px] uppercase tracking-widest text-slate-400">Registered accounts</span><strong className="mt-1 block text-2xl text-white">{totalVisitors}</strong><span className="text-xs text-blue-300">Open user management →</span></button>
-              <button type="button" onClick={() => {setActiveTab('VISITORS');setVisitorFilter('PENDING_VERIFICATION')}} className="rounded-xl border border-amber-300/15 bg-slate-900/90 p-4 text-left hover:border-amber-300/40"><span className="text-[10px] uppercase tracking-widest text-slate-400">Pending registrations</span><strong className="mt-1 block text-2xl text-amber-200">{pendingRegistrationUsers}</strong><span className="text-xs text-amber-100">Review account readiness →</span></button>
-              <button type="button" onClick={() => setActiveTab('KYC')} className="rounded-xl border border-blue-300/15 bg-slate-900/90 p-4 text-left hover:border-blue-300/40"><span className="text-[10px] uppercase tracking-widest text-slate-400">Identity verification queue</span><strong className="mt-1 block text-2xl text-blue-200">{pendingKycCount}</strong><span className="text-xs text-blue-100">Open ID submissions →</span></button>
+              <div className="rounded-xl border border-slate-700 bg-slate-900 p-4"><span className="text-xs text-slate-400">Visitor check-ins today</span><strong className="block text-2xl">{Number(visitorSummary.pdl?.total||0)+Number(visitorSummary.guest?.total||0)}</strong><span className="text-xs text-slate-400">Currently on site: {Number(visitorSummary.pdl?.on_site||0)+Number(visitorSummary.guest?.on_site||0)}</span></div>
+              <button type="button" onClick={() => setActiveTab('VISITOR_RECORDS')} className="rounded-xl border border-white/10 bg-slate-900/90 p-4 text-left hover:border-blue-300/40"><span className="text-[10px] uppercase tracking-widest text-slate-400">Registered visitors</span><strong className="mt-1 block text-2xl text-white">{totalVisitors}</strong><span className="text-xs text-blue-300">Open visitor records →</span></button>
+              <button type="button" onClick={() => setActiveTab('RESTRICTIONS')} className="rounded-xl border border-rose-300/15 bg-slate-900/90 p-4 text-left hover:border-rose-300/40"><span className="text-[10px] uppercase tracking-widest text-slate-400">Visitor restrictions</span><strong className="mt-1 block text-2xl text-rose-200">Review</strong><span className="text-xs text-rose-100">PDL-specific and facility-wide →</span></button>
             </section>
 
             {/* Quick Actions & Facility Status Bar */}
@@ -523,71 +468,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
               </div>
 
-              {/* Right Col: Biometric Registration Desk In-Person Fast-Track */}
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                      <Fingerprint className="w-4 h-4 text-blue-400" />
-                      In-Person Biometric Desk Queue
-                    </h3>
-                    <span className="text-[10px] bg-blue-500/20 text-blue-300 border border-blue-500/40 px-2 py-0.5 rounded font-bold">
-                      {pendingBiometricVisitors} Waiting
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-400 mb-4">
-                    Visitors who confirmed email and are physically present at Gate 1 Records Desk for digital fingerprint capture.
-                  </p>
-
-                  <div className="space-y-2.5">
-                    {users
-                      .filter((u) => u.accountStatus === 'PENDING_BIOMETRICS')
-                      .slice(0, 3)
-                      .map((u) => (
-                        <div
-                          key={u.id}
-                          className="bg-slate-950 p-3 rounded-lg border border-slate-800 flex items-center justify-between"
-                        >
-                          <div className="text-xs">
-                            <div className="font-bold text-white">{u.firstName} {u.lastName}</div>
-                            <div className="text-[11px] text-blue-400 font-mono mt-0.5">
-                              {u.biometricReferenceNumber}
-                            </div>
-                            <div className="text-[10px] text-slate-400 mt-0.5">
-                              ID: {u.validIdType}
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleStartBiometricScan(u)}
-                            className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center space-x-1 shadow-md cursor-pointer transition-colors"
-                          >
-                            <Fingerprint className="w-3.5 h-3.5" />
-                            <span>Device unavailable</span>
-                          </button>
-                        </div>
-                      ))}
-                    {pendingBiometricVisitors === 0 && (
-                      <div className="text-center py-6 text-slate-500 text-xs">
-                        No visitors currently in biometric queue.
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="mt-5 pt-4 border-t border-slate-800/80 flex items-center justify-between text-xs">
-                  <span className="text-slate-400">Desk Station: Gate 1 Records</span>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('VISITORS')}
-                    className="text-blue-400 hover:text-blue-300 font-bold cursor-pointer"
-                  >
-                    Open Full Visitor Desk →
-                  </button>
-                </div>
-              </div>
-
-            </div>
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
+                <h3 className="text-sm font-bold text-white">Visitor restrictions</h3>
+                <p className="mt-2 text-xs text-slate-400">Review PDL-specific and facility-wide restrictions. Each restriction is checked again by the backend during entry.</p>
+                <div className="mt-4 grid grid-cols-2 gap-3 text-sm"><div><strong className="block text-2xl text-rose-200">{visitorSummary.restrictions?.total ?? 0}</strong><span className="text-xs text-slate-400">Active restrictions</span></div><div><strong className="block text-2xl text-blue-200">{visitorSummary.approvedPdlVisitors ?? 0}</strong><span className="text-xs text-slate-400">Approved PDL visitors</span></div></div>
+                <div className="mt-5 flex flex-wrap gap-2"><button type="button" onClick={() => setActiveTab('RESTRICTIONS')} className="rounded-lg bg-rose-700 px-3 py-2 text-xs font-bold text-white">Manage restrictions</button><button type="button" onClick={() => setActiveTab('VISITOR_RECORDS')} className="rounded-lg border border-slate-600 px-3 py-2 text-xs font-bold text-slate-200">Visitor records</button></div>
+              </div>            </div>
 
             {/* Bottom Row: Gate 1 Security Incidents Preview */}
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
@@ -622,204 +508,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </div>
                   </div>
                 ))}
-              </div>
-            </div>
-
-          </div>
-        )}
-
-        {/* ========================================================
-            TAB 2: VISITORS & BIOMETRICS DESK
-        ======================================================== */}
-        {activeTab === 'VISITORS' && (
-          <div className="space-y-4">
-            
-            {/* Header & Filter Controls */}
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
-              <div className="flex items-center space-x-2">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Filter:</span>
-                <div className="flex items-center space-x-1.5">
-                  {(['ALL', 'ACTIVE', 'ACTIVATED', 'PENDING_VERIFICATION', 'PENDING_BIOMETRICS', 'PENDING_EMAIL', 'SUSPENDED', 'REJECTED'] as const).map((filterVal) => (
-                    <button
-                      key={filterVal}
-                      type="button"
-                      onClick={() => setVisitorFilter(filterVal)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
-                        visitorFilter === filterVal
-                          ? 'bg-blue-500 text-slate-950'
-                          : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                      }`}
-                    >
-                      {filterVal === 'ALL' && `All (${users.length})`}
-                      {filterVal === 'ACTIVE' && `Active (${users.filter(u=>u.accountStatus==='ACTIVE').length})`}
-                      {filterVal === 'ACTIVATED' && `Activated (${activatedVisitors})`}
-                      {filterVal === 'PENDING_VERIFICATION' && `Pending registration (${users.filter(u=>u.accountStatus==='PENDING_VERIFICATION').length})`}
-                      {filterVal === 'SUSPENDED' && `Suspended (${users.filter(u=>u.accountStatus==='SUSPENDED').length})`}
-                      {filterVal === 'REJECTED' && `Rejected (${users.filter(u=>u.accountStatus==='REJECTED').length})`}
-                      {filterVal === 'PENDING_BIOMETRICS' && `Pending Bio (${pendingBiometricVisitors})`}
-                      {filterVal === 'PENDING_EMAIL' && `Pending Email (${pendingEmailVisitors})`}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="relative w-full md:w-72">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-                <input
-                  type="text"
-                  placeholder="Search visitor name, email, Bio ID..."
-                  value={visitorSearch}
-                  onChange={(e) => setVisitorSearch(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-400"
-                />
-              </div>
-            </div>
-
-            {/* Visitors Table */}
-            <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-950/80 text-slate-400 border-b border-slate-800 font-semibold">
-                    <tr>
-                      <th className="py-3 px-4">Visitor Profile</th>
-                      <th className="py-3 px-4">Contact & Location</th>
-                      <th className="py-3 px-4">Government ID Presented</th>
-                      <th className="py-3 px-4">Biometric Reference #</th>
-                      <th className="py-3 px-4">Account Status</th>
-                      <th className="py-3 px-4 text-right">Desk Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/80">
-                    {filteredVisitors.map((u) => {
-                      const isAdmin = u.role === 'ADMIN';
-                      return (
-                        <tr key={u.id} className="hover:bg-slate-850/50 transition-colors">
-                          
-                          {/* Visitor Photo & Name */}
-                          <td className="py-3 px-4">
-                            <div className="flex items-center space-x-3">
-                              <div className="w-9 h-9 rounded-full bg-slate-800 border border-slate-700 overflow-hidden shrink-0">
-                                {u.facePhotoUrl ? (
-                                  <img src={u.facePhotoUrl} alt={u.firstName} className="w-full h-full object-cover" />
-                                ) : (
-                                  <div className="w-full h-full flex items-center justify-center font-bold text-slate-400">
-                                    {u.firstName[0]}
-                                  </div>
-                                )}
-                              </div>
-                              <div>
-                                <div className="font-bold text-white flex items-center gap-1.5">
-                                  <span>{u.firstName} {u.middleName ? `${u.middleName} ` : ''}{u.lastName} {u.suffix}</span>
-                                  {isAdmin && (
-                                    <span className="bg-blue-500/20 text-blue-300 border border-blue-500/40 text-[9px] px-1.5 py-0.2 rounded font-black">
-                                      ADMIN
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="text-[11px] text-slate-400">{u.email}</div>
-                              </div>
-                            </div>
-                          </td>
-
-                          {/* Contact & Location */}
-                          <td className="py-3 px-4">
-                            <div className="text-slate-200 font-medium">{u.mobileNumber || 'Not provided'}</div>
-                            <div className="text-[11px] text-slate-400">{u.address.municipality}</div>
-                          </td>
-
-                          {/* Valid ID */}
-                          <td className="py-3 px-4">
-                            <div className="font-medium text-slate-300">{u.validIdType}</div>
-                            <button
-                              type="button"
-                              onClick={() => void openUserProfile(u)}
-                              className="text-[10px] text-blue-400 hover:text-blue-300 flex items-center gap-1 mt-0.5 cursor-pointer"
-                            >
-                              <Eye className="w-3 h-3" />
-                              <span>View account profile</span>
-                            </button>
-                          </td>
-
-                          {/* Biometric Reference */}
-                          <td className="py-3 px-4">
-                            <span className="font-mono text-[11px] text-blue-300 bg-blue-500/10 border border-blue-500/30 px-2 py-0.5 rounded">
-                              {u.biometricReferenceNumber}
-                            </span>
-                            {u.biometricScannedAt && (
-                              <div className="text-[10px] text-slate-400 mt-1">
-                                Scanned: {u.biometricScannedAt.split(' ')[0]}
-                              </div>
-                            )}
-                          </td>
-
-                          {/* Status */}
-                          <td className="py-3 px-4">
-                            {u.accountStatus === 'ACTIVATED' && (
-                              <span className="inline-flex items-center gap-1 text-[11px] bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2.5 py-1 rounded-full font-bold">
-                                <CheckCircle2 className="w-3 h-3" /> Activated
-                              </span>
-                            )}
-                            {u.accountStatus === 'PENDING_BIOMETRICS' && (
-                              <span className="inline-flex items-center gap-1 text-[11px] bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2.5 py-1 rounded-full font-bold animate-pulse">
-                                <Fingerprint className="w-3 h-3" /> Pending Biometrics
-                              </span>
-                            )}
-                            {u.accountStatus === 'PENDING_VERIFICATION' && <span className="inline-flex items-center gap-1 text-[11px] rounded-full border border-amber-300/30 bg-amber-300/10 px-2.5 py-1 font-bold text-amber-100"><Clock className="h-3 w-3"/>Pending contact / ID review</span>}
-                            {u.accountStatus === 'SUSPENDED' && <span className="inline-flex items-center gap-1 text-[11px] rounded-full border border-rose-300/30 bg-rose-300/10 px-2.5 py-1 font-bold text-rose-100">Suspended</span>}
-                            {u.accountStatus === 'REJECTED' && <span className="inline-flex items-center gap-1 text-[11px] rounded-full border border-rose-300/30 bg-rose-300/10 px-2.5 py-1 font-bold text-rose-100">Rejected</span>}
-                            {u.accountStatus === 'PENDING_EMAIL' && (
-                              <span className="inline-flex items-center gap-1 text-[11px] bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2.5 py-1 rounded-full font-bold">
-                                <Clock className="w-3 h-3" /> Pending Email OTP
-                              </span>
-                            )}
-                          </td>
-
-                          {/* Actions */}
-                          <td className="py-3 px-4 text-right space-x-2">
-                            {u.accountStatus === 'PENDING_BIOMETRICS' && (
-                              <button
-                                type="button"
-                                onClick={() => handleStartBiometricScan(u)}
-                                className="bg-slate-800 text-slate-300 font-bold px-3 py-1.5 rounded-lg text-xs inline-flex items-center space-x-1.5 shadow cursor-pointer transition-colors"
-                                title="Capture fingerprint at Gate 1 Desk & Activate"
-                              >
-                                <Fingerprint className="w-3.5 h-3.5" />
-                                <span>Device unavailable</span>
-                              </button>
-                            )}
-
-                            {u.accountStatus === 'ACTIVATED' && (
-                              <button
-                                type="button"
-                                onClick={() => onUpdateUserStatus(u.id, 'PENDING_BIOMETRICS', 'Biometrics reset by Admin')}
-                                className="text-slate-400 hover:text-blue-300 bg-slate-800 hover:bg-slate-750 px-2 py-1 rounded text-[11px] border border-slate-700 cursor-pointer"
-                                title="Require In-Person Biometric Re-scan"
-                              >
-                                Re-verify
-                              </button>
-                            )}
-                            <button type="button" onClick={async()=>{if(!window.confirm('Archive this visitor account? Its history will remain retained.'))return;const reason=window.prompt('Archive reason:');if(!reason?.trim())return;try{await api.archiveRecord('USERS',u.id,reason);await onUsersRefresh?.()}catch(e:any){window.alert(e.message)}}} className="rounded border border-rose-300/20 px-2 py-1 text-[11px] text-rose-200">Archive</button>
-
-                            {u.accountStatus === 'PENDING_VERIFICATION' && <span className="inline-flex items-center gap-1 text-[11px] rounded-full border border-amber-300/30 bg-amber-300/10 px-2.5 py-1 font-bold text-amber-100"><Clock className="h-3 w-3"/>Pending contact / ID review</span>}
-                            {u.accountStatus === 'SUSPENDED' && <span className="inline-flex items-center gap-1 text-[11px] rounded-full border border-rose-300/30 bg-rose-300/10 px-2.5 py-1 font-bold text-rose-100">Suspended</span>}
-                            {u.accountStatus === 'REJECTED' && <span className="inline-flex items-center gap-1 text-[11px] rounded-full border border-rose-300/30 bg-rose-300/10 px-2.5 py-1 font-bold text-rose-100">Rejected</span>}
-                            {u.accountStatus === 'PENDING_EMAIL' && (
-                              <button
-                                type="button"
-                                onClick={() => onUpdateUserStatus(u.id, 'PENDING_BIOMETRICS', 'Email override by Admin')}
-                                className="bg-blue-500 hover:bg-blue-400 text-slate-950 px-2.5 py-1 rounded text-[11px] font-semibold cursor-pointer"
-                                title="Manual Email Verification Override"
-                              >
-                                Skip to Bio
-                              </button>
-                            )}
-                          </td>
-
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
               </div>
             </div>
 
@@ -1439,10 +1127,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         {/* ========================================================
             TAB 6: FACILITY CAPACITY & SETTINGS
         ======================================================== */}
-        {activeTab === 'KYC' && <AdminKycPanel initialStatus={new URLSearchParams(window.location.search).get('kycStatus')||''} onReviewed={onUsersRefresh} />}
         {activeTab === 'AUDIT' && <AdminAuditPanel />}
         {activeTab === 'ARCHIVE' && <AdminArchivePanel onRestored={async()=>{await onRecordsRefresh?.();const rows=await api.getIncidents();setIncidentList(rows.map((r:any)=>({id:r.id,timestamp:r.timestamp,visitorName:r.visitor_name,facility:r.facility,incidentType:r.incident_type,description:r.description,actionTaken:r.action_taken,reportingOfficer:r.reporting_officer})))}}/>}
-        {activeTab === 'REPORTS' && <AdminReportsPanel />}
+        {activeTab === 'REPORTS' && <><AdminReportsPanel/><AdminVisitorReportsPanel/></>}
 
         {activeTab === 'FACILITY_SETTINGS' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1556,75 +1243,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
         </div>
       </div>
-
-      {/* ========================================================
-          MODAL: In-Person Biometric Desk Fingerprint Scanner
-      ======================================================== */}
-      {biometricScanningUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-blue-500/50 rounded-2xl max-w-md w-full shadow-2xl overflow-hidden p-6 text-center text-slate-100 relative">
-            
-            <div className="w-16 h-16 rounded-2xl bg-blue-500/20 border border-blue-500/40 flex items-center justify-center text-blue-400 mx-auto mb-4">
-              <Fingerprint className="w-10 h-10" />
-            </div>
-
-            <h3 className="text-lg font-bold text-white tracking-tight">
-              Gate 1 Biometrics Enrollment Terminal
-            </h3>
-            <p className="text-xs text-slate-400 mt-1">
-              In-person fingerprint enrollment for:
-            </p>
-            <div className="mt-2 text-sm font-extrabold text-blue-300">
-              {biometricScanningUser.firstName} {biometricScanningUser.lastName}
-            </div>
-            <div className="text-xs font-mono text-slate-400">
-              Ref: {biometricScanningUser.biometricReferenceNumber}
-            </div>
-
-            <div className="my-6 bg-slate-950 p-4 rounded-xl border border-slate-800 text-xs text-left space-y-2">
-              <div className="flex justify-between text-slate-400">
-                <span>Government ID:</span>
-                <span className="font-semibold text-slate-200">{biometricScanningUser.validIdType}</span>
-              </div>
-              <div className="flex justify-between text-slate-400">
-                <span>Scanning Desk:</span>
-                <span className="font-semibold text-slate-200">BJMP Imus Gate 1 Records</span>
-              </div>
-              <div className="flex justify-between text-slate-400">
-                <span>Enrolling Officer:</span>
-                <span className="font-semibold text-blue-300">{currentUser.firstName} {currentUser.lastName}</span>
-              </div>
-            </div>
-
-            <div className={`rounded-xl border p-4 text-left text-xs leading-relaxed ${hardwareOnline?'border-emerald-300/20 bg-emerald-300/10 text-emerald-100':'border-amber-300/20 bg-amber-300/10 text-amber-100'}`}><strong className="mb-1 block">{hardwareOnline?'AS608 fingerprint scanner connected':'Fingerprint device offline'}</strong>{hardwareOnline?'Use the scanner to enroll this visitor in person. The account activates only after the device confirms a successful enrollment.':'Connect the authenticated ESP32E gateway and AS608 scanner to continue.'}</div>{enrollmentMessage&&<p className="mt-3 text-xs text-slate-200">{enrollmentMessage}</p>}<button type="button" disabled={!hardwareOnline||enrollmentBusy} onClick={startFingerprintEnrollment} className="mt-3 w-full rounded-lg bg-blue-500 px-4 py-3 text-sm font-bold text-slate-950 disabled:opacity-40">{enrollmentBusy?'Waiting for fingerprint…':'Start in-person fingerprint enrollment'}</button>
-
-            <div className="mt-6 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setBiometricScanningUser(null)}
-                className="text-xs text-slate-400 hover:text-white px-4 py-2 cursor-pointer"
-              >
-                Close
-              </button>
-            </div>
-
-          </div>
-        </div>
-      )}
-
-      {/* Account profile modal: documents open from the protected KYC review workspace. */}
-      {selectedVisitorForKyc && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
-          <section className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-white/15 bg-slate-950 p-6 text-slate-100 shadow-2xl">
-            <header className="flex items-start justify-between border-b border-white/10 pb-4"><div><p className="text-[10px] font-bold uppercase tracking-widest text-blue-300">Administrator user profile</p><h3 className="mt-1 text-xl font-bold">{selectedVisitorForKyc.firstName} {selectedVisitorForKyc.middleName||''} {selectedVisitorForKyc.lastName}</h3></div><button type="button" onClick={()=>{setSelectedVisitorForKyc(null);setSelectedUserDetails(null)}} className="rounded-lg p-2 text-slate-400 hover:bg-white/10"><X/></button></header>
-            {profileLoading?<div className="p-10 text-center text-sm text-slate-400">Loading protected profile…</div>:<>
-            <div className="mt-5 grid gap-4 sm:grid-cols-2"><div className="rounded-xl border border-white/10 bg-slate-900/70 p-4"><h4 className="mb-3 font-bold">Account information</h4><dl className="space-y-2 text-xs"><div><dt className="text-slate-400">User ID</dt><dd>{selectedVisitorForKyc.id}</dd></div><div><dt className="text-slate-400">Email</dt><dd>{selectedVisitorForKyc.email||'Not provided'} · {selectedVisitorForKyc.emailVerified?'Verified':'Not verified'}</dd></div><div><dt className="text-slate-400">Philippine mobile</dt><dd>{selectedVisitorForKyc.mobileNumber||'Not provided'} · {selectedVisitorForKyc.phoneVerified?'Verified':'Not verified'}</dd></div><div><dt className="text-slate-400">Account status</dt><dd>{selectedVisitorForKyc.accountStatus}</dd></div><div><dt className="text-slate-400">Registration / last login</dt><dd>{selectedVisitorForKyc.registeredAt||'—'} / {selectedVisitorForKyc.lastLoginAt||'—'}</dd></div><div><dt className="text-slate-400">Address</dt><dd>{selectedVisitorForKyc.address?.houseUnitStreet||'—'}, {selectedVisitorForKyc.address?.municipality||'—'}</dd></div></dl></div>
-              <div className="rounded-xl border border-white/10 bg-slate-900/70 p-4"><h4 className="mb-3 font-bold">Identity verification</h4>{(selectedUserDetails?.kyc||[]).length?selectedUserDetails.kyc.map((k:any)=><div key={k.id} className="mb-3 rounded-lg bg-slate-950 p-3 text-xs"><p>{k.idType||k.id_type} · {k.status}</p><p className="mt-1 text-slate-400">ID number {k.idNumberMasked||'••••'}</p><p className="text-slate-400">Submitted {k.submitted_at?new Date(k.submitted_at).toLocaleString():'—'}</p>{k.rejection_reason&&<p className="mt-1 text-amber-200">{k.rejection_reason}</p>}</div>):<p className="text-xs text-slate-400">No identity submission on record.</p>}<button type="button" onClick={()=>{setSelectedVisitorForKyc(null);setActiveTab('KYC')}} className="mt-2 rounded-lg border border-blue-300/20 px-3 py-2 text-xs text-blue-200 hover:bg-blue-300/10">Open protected document review</button></div>
-            </div><div className="mt-4 rounded-xl border border-white/10 bg-slate-900/70 p-4"><h4 className="mb-3 font-bold">Visitor history</h4>{(selectedUserDetails?.visits||[]).length?<div className="space-y-2">{selectedUserDetails.visits.map((v:any)=><div key={v.appointment_reference} className="grid grid-cols-2 gap-2 border-b border-white/5 pb-2 text-xs sm:grid-cols-4"><span>{v.visit_date?new Date(v.visit_date).toLocaleDateString():'—'}</span><span>{v.pdl_name} · {v.pdl_number}</span><span>{v.time_slot}</span><span>{v.status}</span></div>)}</div>:<p className="text-xs text-slate-400">No visit history on record.</p>}</div>
-            </>}
-          </section>
-        </div>
-      )}
 
       {/* ========================================================
           MODAL: Printable Gate Pass Preview

@@ -28,6 +28,7 @@ interface VisitorDashboardProps {
   onOpenGuardScanner: (visitorId: string) => void;
   pdls: import('../../types').PDL[];
   homeRequest: number;
+  onOpenDocuments?: () => void;
 }
 
 export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
@@ -38,6 +39,7 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
   onOpenGuardScanner,
   pdls,
   homeRequest,
+  onOpenDocuments,
 }) => {
   const [activeTab, setActiveTab] = useState<'ID_CARD' | 'BOOK' | 'APPOINTMENTS' | 'RULES' | 'PROFILE'>('ID_CARD');
   const [selectedPass, setSelectedPass] = useState<VisitationAppointment | null>(null);
@@ -73,7 +75,7 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
   const [bookingBusy,setBookingBusy]=useState(false);
 
   // Facility and PDL computation
-  const activeFacility = facilities.find((f) => f.id === facilityId) || BJMP_JAIL_FACILITIES[0];
+  const activeFacility = facilities.find((f) => f.id === facilityId) || facilities[0] || BJMP_JAIL_FACILITIES[0];
   const facilityPdls = linkedPdls.filter((p) => p.jailFacilityId === facilityId && p.status === 'In Custody');
 
   const selectedConnection=linkedPdls.find(p=>p.id===selectedPdlId);
@@ -699,7 +701,7 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
             </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-8 text-xs mb-8">
+          <div className="mb-8 grid gap-4 text-sm md:grid-cols-2">
             <div className="space-y-3 bg-slate-950/60 p-4 rounded-xl border border-slate-800">
               <h4 className="font-bold text-blue-400 uppercase text-[11px]">Personal & Contact Data</h4>
               <div className="flex justify-between border-b border-slate-800 pb-1.5">
@@ -727,7 +729,9 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
             </div>
 
             <div className="space-y-3 bg-slate-950/60 p-4 rounded-xl border border-slate-800">
-              <h4 className="font-bold text-blue-400 uppercase text-[11px]">Identity verification</h4>
+              <h4 className="font-bold text-blue-400 uppercase text-sm">Identity verification</h4>
+              {onOpenDocuments && <button type="button" onClick={onOpenDocuments} className="rounded-lg border border-slate-600 px-3 py-2 font-semibold">Upload or review government ID</button>}
+              <p>Government ID documents are submitted privately for review. The visitor card displays a separate portrait when one is on file.</p>
               <div className="flex justify-between border-b border-slate-800 pb-1.5">
                 <span className="text-slate-400">Document type:</span>
                 <span className="text-blue-300 font-bold">{user.validIdType || 'Not submitted'}</span>

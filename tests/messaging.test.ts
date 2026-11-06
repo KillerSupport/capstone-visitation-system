@@ -45,6 +45,50 @@ test('SMS mock is explicit and cannot operate in production; Twilio acceptance a
   await assert.rejects(()=>deliverMessage({channel:'sms',destination:'bad phone'},'Test','Synthetic message'));
  } finally {globalThis.fetch=originalFetch;for(const key of Object.keys(process.env))if(!(key in saved))delete process.env[key];Object.assign(process.env,saved);}
 });
+test('textbee sends to one normalized recipient through the configured device and rejects failed requests', async (t) => {
+ const settings = ['SMS_PROVIDER', 'TEXTBEE_API_KEY', 'TEXTBEE_DEVICE_ID'] as const;
+ const saved = settings.map(key => process.env[key]);
+ t.after(() => {
+  settings.forEach((key, index) => {
+   const previous = saved[index];
+   if (previous === undefined) delete process.env[key];
+   else process.env[key] = previous;
+  });
+ });
+ const send = () => deliverMessage({ channel: 'sms', destination: '09171234567' }, 'Test', 'Synthetic verification code 123456');
+ process.env.SMS_PROVIDER = 'textbee';
+ process.env.TEXTBEE_API_KEY = 'testbee-key';
+ delete process.env.TEXTBEE_DEVICE_ID;
+ const responses = [
+  Response.json({ data: { success: true, smsBatchId: 'batch-test' } }),
+  Response.json({ data: { successCount: 1, failureCount: 0 } }),
+  Response.json({ data: { successCount: 0, failureCount: 1 } }),
+  Response.json({ message: 'Daily limit exceeded' }, { status: 429 }),
+ ];
+ const request = t.mock.method(globalThis, 'fetch', async (input, options) => {
+  assert.equal(String(input), 'https://api.textbee.dev/api/v1/gateway/send-sms');
+  assert.equal(options?.method, 'POST');
+  assert.equal(options?.redirect, 'error');
+  assert.equal(new Headers(options?.headers).get('x-api-key'), 'testbee-key');
+  assert.deepEqual(JSON.parse(String(options?.body)), {
+   deviceId: 'test-device',
+   recipients: ['+639171234567'],
+   message: 'Synthetic verification code 123456',
+  });
+  const response = responses.shift();
+  assert.ok(response);
+  return response;
+ });
+ await assert.rejects(send, DeliveryUnavailable);
+ assert.equal(request.mock.callCount(), 0);
+ process.env.TEXTBEE_DEVICE_ID = 'test-device';
+ assert.deepEqual(await send(), { status: 'ACCEPTED', providerId: 'batch-test' });
+ assert.deepEqual(await send(), { status: 'ACCEPTED' });
+ await assert.rejects(send, /was not accepted/);
+ await assert.rejects(send, /was not accepted/);
+ assert.equal(request.mock.callCount(), 4);
+});
+
 test('approval confirmation identifies the date, time and reference and excludes PDL details',()=>{
  const message=appointmentConfirmation({visitDate:'2030-01-01',timeSlot:'Morning Batch',appointmentReference:'TEST-001',pdlName:'Private PDL Name'});
  for(const value of ['confirmed','2030-01-01','Morning Batch','TEST-001','fingerprint'])assert.ok(message.includes(value));

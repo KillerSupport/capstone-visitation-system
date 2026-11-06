@@ -41,6 +41,10 @@ export async function migratePaperRequirements(conn:PoolConnection){
     UNIQUE KEY uq_schedule_event(event_key,user_id,channel),
     FOREIGN KEY(user_id) REFERENCES users(id), FOREIGN KEY(pdl_id) REFERENCES pdls(id)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+  const [noticeColumns] = await conn.query<any[]>('SHOW COLUMNS FROM pdl_schedule_notifications');
+  if (!noticeColumns.some(column => column.Field === 'appointment_id')) {
+    await conn.query('ALTER TABLE pdl_schedule_notifications ADD COLUMN appointment_id VARCHAR(100) NULL, ADD INDEX idx_schedule_notice_appointment(appointment_id,status)');
+  }
   await conn.query("UPDATE appointment_notifications SET status='CANCELLED',updated_at=NOW() WHERE status IN ('PENDING','NOT_CONFIGURED')");
   await conn.query("INSERT IGNORE INTO feature_migrations(version) VALUES('20261027_paper_approved_lists_and_days')");
 }

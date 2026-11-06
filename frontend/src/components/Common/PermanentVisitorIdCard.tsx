@@ -268,11 +268,11 @@ export const PermanentVisitorIdCard: React.FC<PermanentVisitorIdCardProps> = ({
               ) : (
                 <div className="w-full h-full flex flex-col items-center justify-center text-slate-500">
                   <User className="w-12 h-12" />
-                  <span className="text-[10px] mt-1">Photo not recorded</span>
+                  <span className="text-[10px] mt-1">Portrait not on file</span>
                 </div>
               )}
               <div className="absolute bottom-0 inset-x-0 bg-slate-950/80 text-[10px] py-1 text-blue-300 font-mono font-bold">
-                {user.facePhotoUrl?'BJMP RECORDED':'PHOTO UNAVAILABLE'}
+                {user.facePhotoUrl?'BJMP RECORDED':'VISITOR PORTRAIT'}
               </div>
             </div>
             <div className="mt-3 text-[11px] text-slate-400">
@@ -383,7 +383,7 @@ export const PermanentVisitorIdCard: React.FC<PermanentVisitorIdCardProps> = ({
                   <QrCode className="w-16 h-16" />
                 </div>
               )}
-              <div className="mt-1.5 text-[10px] font-mono text-slate-900 font-bold">
+              <div className="mt-1.5 text-xs font-mono text-slate-100 font-bold">
                 SCAN AT GATE 1 ENTRANCE
               </div>
             </div>

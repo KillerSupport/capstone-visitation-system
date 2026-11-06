@@ -44,11 +44,13 @@ Visitors can register with a Philippine mobile number, an email address, or both
 
 Visitor sign-in checks the password, verified contacts and account status, then creates the session immediately. Normal login does not send an OTP. Signup verification, password recovery and sensitive profile changes retain expiring, single-use codes and rate limits. An interrupted signup can resume through the login page's verification link.
 
-The Administrator maintains each PDL’s approved visitor list (initially seven names) and assigned weekly visitation day. Activated linked visitors select eligible upcoming dates within 8:00 a.m.–4:00 p.m.; there is no appointment-approval cycle. Link approval and schedule changes generate PDL/schedule notices for verified email and SMS contacts, including visitors with no selected date. Changing the assigned day cancels upcoming unused selections. Unconfigured delivery remains recorded for later retry, and provider acceptance does not establish recipient receipt.
+The Administrator maintains each PDL’s approved visitor list (initially seven names) and assigned weekly visitation day. Activated linked visitors select eligible upcoming dates within 8:00 a.m.–4:00 p.m.; there is no appointment-approval cycle. Link approval and weekly schedule changes generate notices for verified email and SMS contacts, including visitors with no selected date. Selecting or changing a visit date sends a confirmation with the date, time, facility and reference to the visitor’s verified contacts. Changing the assigned day cancels upcoming unused selections. Unconfigured delivery remains recorded for later retry, and provider acceptance does not establish recipient receipt.
 
 ### Enable real delivery
 
-Set the existing SMTP settings in the root `.env` for email. For real texts, set `SMS_PROVIDER=twilio`, `SMS_ACCOUNT_ID`, `SMS_AUTH_TOKEN`, and `SMS_FROM` using the SMS account's authorized sender. `SMS_API_URL` defaults to the Twilio Messages endpoint shown in `.env.example`. Restart the backend after changing these settings. Credentials belong only in the backend environment.
+Set the existing SMTP settings in the root `.env` for email. For real texts, use [textbee](https://textbee.dev/docs/getting-started) to register an Android phone with a SIM that can send SMS. Keep the phone online and allow the textbee app to send SMS.
+
+Set `SMS_PROVIDER=textbee`, paste the key from the textbee dashboard into `TEXTBEE_API_KEY`, and copy the sending phone's Device ID into `TEXTBEE_DEVICE_ID`. Restart the app with `npm.cmd run dev`. Keep the API key in the local backend environment. API acceptance means textbee accepted the request. Check the textbee dashboard for delivery status.
 
 `SMS_PROVIDER=mock` is for local testing only: the verification screen labels the test code, and notification records show test-only delivery. Mock SMS cannot be used in production. No real email or text is sent when its delivery service is unconfigured.
 

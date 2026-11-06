@@ -72,7 +72,7 @@ test('family companions require age 20+, configured family relationship and limi
  assert.deepEqual(validateCompanions([]),[]);assert.equal(validateCompanions([{fullName:'Test Adult',dateOfBirth:'1980-01-01',relationshipToPdl:'Sibling'}])[0].verificationStatus,'PENDING');assert.throws(()=>validateCompanions([{fullName:'Test Child',dateOfBirth:'2010-01-01',relationshipToPdl:'Sibling'}]));assert.throws(()=>validateCompanions([{fullName:'Test Adult',dateOfBirth:'1980-01-01',relationshipToPdl:'Friend'}]));assert.throws(()=>validateCompanions(Array(3).fill({fullName:'Adult',dateOfBirth:'1980-01-01',relationshipToPdl:'Parent'})));
 });
 let appointment:any;
-test('scheduling uses approved connections and assigned dates with adult companions and no appointment-confirmation cycle',async()=>{
+test('scheduling uses approved connections and assigned dates with adult companions and no manual appointment approval',async()=>{
  await db.pool.query("UPDATE users SET account_status='ACTIVATED',biometric_reference_number='test-template-42',biometric_scanned_at=NOW() WHERE id=?",[visitorUser.id]);
  const companion=await db.createUser({...details('adult-family@example.invalid'),firstName:'Adult',middleName:'',lastName:'Family',suffix:'',dateOfBirth:'1985-03-10',passwordHash:await backendHash('Synthetic!Password123'),accountStatus:'ACTIVATED',emailVerifiedAt:new Date(),biometricScannedAt:new Date()});
  assert.equal((await admin.request('/visitation/pdls/fictional-pdl-demo-001/day',{weekday:2,reason:'Synthetic test Tuesday'},'PUT')).status,200);
@@ -81,8 +81,8 @@ test('scheduling uses approved connections and assigned dates with adult compani
  const booking={pdlId:'fictional-pdl-demo-001',visitType:'Contact Visit',relationshipToPDL:'Sibling',visitDate:'2030-01-01',timeSlot:'Visiting hours (08:00 AM - 04:00 PM)'};
  for(const companions of [[{fullName:'Too Young',dateOfBirth:'2015-01-01',relationshipToPdl:'Sibling'}],[{fullName:'Non Family',dateOfBirth:'1980-01-01',relationshipToPdl:'Friend'}]])assert.equal((await visitor.request('/appointments',{...booking,companions})).status,400);
  const noCompanion=await visitor.request('/appointments',{...booking,visitDate:'2030-01-08'});assert.equal(noCompanion.status,201,JSON.stringify(noCompanion.body));assert.deepEqual(noCompanion.body.appointment.companions,[]);
- const before=messages.length,r=await visitor.request('/appointments',{...booking,companions:[{fullName:'Adult Family',dateOfBirth:'1985-03-10',relationshipToPdl:'Sibling',relationshipToVisitor:'Sibling'}]});assert.equal(r.status,201);appointment=r.body.appointment;assert.equal(messages.length,before);assert.equal(appointment.status,'Approved');assert.equal(appointment.companions[0].verificationStatus,'PENDING');
- assert.equal((await admin.request(`/appointments/${appointment.id}/status`,{status:'Approved'},'PATCH')).status,200);assert.equal(messages.length,before);
+ const r=await visitor.request('/appointments',{...booking,companions:[{fullName:'Adult Family',dateOfBirth:'1985-03-10',relationshipToPdl:'Sibling',relationshipToVisitor:'Sibling'}]});assert.equal(r.status,201);appointment=r.body.appointment;assert.equal(appointment.status,'Approved');assert.equal(appointment.companions[0].verificationStatus,'PENDING');
+ assert.equal((await admin.request(`/appointments/${appointment.id}/status`,{status:'Approved'},'PATCH')).status,200);const [confirmations]=await db.pool.query('SELECT channel FROM pdl_schedule_notifications WHERE appointment_id=?',[appointment.id]);assert.deepEqual(confirmations.map(row=>row.channel),['email']);
  const reviewed=await admin.request(`/appointments/${appointment.id}/companions`,{index:0,status:'AUTHORIZED',note:'Synthetic identity/entry review for automated test only'},'PATCH');assert.equal(reviewed.status,200);assert.equal(reviewed.body.companions[0].verificationStatus,'AUTHORIZED');assert.equal((await visitor.request(`/appointments/${appointment.id}/companions`,{index:0,status:'AUTHORIZED',note:'unapproved'},'PATCH')).status,403);
 });
 test('password recovery uses real SMTP adapter, generic responses, expiring single-use codes and invalidates active sessions',async()=>{
@@ -182,7 +182,7 @@ test('worker intake creates records and preserves existing PDL status when editi
 });
 test('visitor booking, own-record listing and cancellation work after legacy login',async()=>{
  await db.pool.query("UPDATE users SET biometric_scanned_at=NOW() WHERE id=?",[legacyProfile.id]);
- const pdl=(await db.getAllPdls()).find((p:any)=>p.status==='In Custody');
+ const pdl=(await db.getAllPdls()).find((p:any)=>p.status==='In Custody'&&p.jailFacilityId==='imus-city-jail-male');
  const date='2099-03-15',day=new Date(date+'T00:00:00Z').getUTCDay();
  await admin.request(`/visitation/pdls/${pdl.id}/day`,{weekday:day,reason:'Synthetic legacy-account test'},'PUT');
  assert.equal((await admin.request(`/visitation/pdls/${pdl.id}/visitors`,{userId:legacyProfile.id,relationship:'Spouse'})).status,201);
@@ -205,7 +205,7 @@ test('archive detail/history and restoration accept the canonical record types s
 test('capacity settings persist and concurrent distinct visitor bookings count primary visitors and companions',async()=>{
  const capacities={capacities:[{id:'imus-city-jail-male',capacity:10}]};assert.equal((await legacyWorker.request('/admin/facility-capacities',capacities,'PUT')).status,403);
  assert.equal((await admin.request('/admin/facility-capacities',{capacities:[{id:'imus-city-jail-male',capacity:0}]},'PUT')).status,400);assert.equal((await admin.request('/admin/facility-capacities',capacities,'PUT')).status,200);
- assert.equal((await legacyVisitor.request('/facilities')).body[0].capacityPerSlot,10);
+ assert.equal((await legacyVisitor.request('/facilities')).body.find((facility:any)=>facility.id==='imus-city-jail-male').capacityPerSlot,10);
  const pdl=(await legacyVisitor.request('/visitor/pdls')).body.find((p:any)=>p.jailFacilityId==='imus-city-jail-male'),visitDate='2099-03-18';
  await admin.request('/visitation/policy',{visitorLimit:20},'PUT');await admin.request(`/visitation/pdls/${pdl.id}/day`,{weekday:new Date(visitDate+'T00:00:00Z').getUTCDay(),reason:'Capacity test date'},'PUT');
  const members:any[]=[];for(let i=0;i<10;i++){const email=`capacity-${i}@example.invalid`;const u=await db.createUser({...details(email),firstName:'Capacity',middleName:'',lastName: 'Member'+i,suffix:'',dateOfBirth:'1980-01-01',passwordHash:await backendHash('Synthetic!Password123'),accountStatus:'ACTIVATED',emailVerifiedAt:new Date(),biometricScannedAt:new Date()});await admin.request(`/visitation/pdls/${pdl.id}/visitors`,{userId:u.id,relationship:'Sibling'});members.push(u);}
@@ -248,4 +248,18 @@ test('duplicate PDL numbers cannot overwrite another record or create an orphan 
  const duplicate=await legacyWorker.request('/worker/pdls',{...original,id:undefined,firstName:'Must Never Replace Owner',status:'In Custody'});assert.equal(duplicate.status,400);
  const unchanged=(await db.getAllPdls()).find((p:any)=>p.id===workerPdl.id);assert.equal(unchanged.firstName,original.firstName);assert.equal(unchanged.status,original.status);
  const [orphans]=await db.pool.query('SELECT COUNT(*) AS count FROM pdl_form_records r LEFT JOIN pdls p ON p.id=r.pdl_id WHERE p.id IS NULL');assert.equal(orphans[0].count,0);
+});
+
+test('a linked visitor can select a date at the female dormitory', async () => {
+ const pdl=(await db.getAllPdls()).find((p:any)=>p.status==='In Custody'&&p.jailFacilityId==='imus-city-jail-female');
+ assert.ok(pdl);
+ const date='2099-03-19', weekday=new Date(date+'T00:00:00Z').getUTCDay();
+ assert.equal((await admin.request(`/visitation/pdls/${pdl.id}/day`,{weekday,reason:'Synthetic female dormitory test'},'PUT')).status,200);
+ const profile=await db.createUser({...details('female-dorm-visitor@example.invalid'),passwordHash:await backendHash('Synthetic!Password123'),accountStatus:'ACTIVATED',emailVerifiedAt:new Date(),biometricScannedAt:new Date()});
+ assert.equal((await admin.request(`/visitation/pdls/${pdl.id}/visitors`,{userId:profile.id,relationship:'Sibling'})).status,201);
+ const browser=new Browser();
+ assert.equal((await browser.request('/auth/login',{identifier:profile.email,password:'Synthetic!Password123'})).status,200);
+ const booked=await browser.request('/appointments',{pdlId:pdl.id,visitType:'Contact Visit',relationshipToPDL:'Sibling',visitDate:date,timeSlot:'Visiting hours (08:00 AM - 04:00 PM)'});
+ assert.equal(booked.status,201,JSON.stringify(booked.body));
+ assert.equal(booked.body.appointment.jailFacilityId,'imus-city-jail-female');
 });

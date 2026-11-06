@@ -42,8 +42,9 @@ export const api = {
   async changeSelectedDate(id:string,visitDate:string){return request<any>(`/visitation/visits/${encodeURIComponent(id)}/date`,{method:'PATCH',body:JSON.stringify({visitDate})})},
 
   async getStaff(){return request<UserProfile[]>('/staff')},
-  async createOfficer(data:any){return request<any>('/staff',{method:'POST',body:JSON.stringify(data)})},
-  async updateOfficer(id:string,data:any){return request<any>(`/staff/${encodeURIComponent(id)}`,{method:'PATCH',body:JSON.stringify(data)})},
+  async createWorker(data:any){return request<any>('/staff',{method:'POST',body:JSON.stringify(data)})},
+  async updateWorker(id:string,data:any){return request<any>(`/staff/${encodeURIComponent(id)}`,{method:'PATCH',body:JSON.stringify(data)})},
+  async resetWorkerPassword(id:string,password:string){return request<any>(`/staff/${encodeURIComponent(id)}/reset-password`,{method:'POST',body:JSON.stringify({password})})},
   async getEnrollmentVisitors(){return request<any[]>('/enrollment/visitors')},
 
   async getVisitationAdmin(){return request<any>('/visitation/admin')},
@@ -61,9 +62,11 @@ export const api = {
   async forgotPassword(identifier:string){return request<any>('/auth/forgot-password',{method:'POST',body:JSON.stringify({identifier})})},
   async verifyReset(identifier:string,code:string){return request<any>('/auth/verify-reset',{method:'POST',body:JSON.stringify({identifier,code})})},
   async resetPassword(data:any){return request<any>('/auth/reset-password',{method:'POST',body:JSON.stringify(data)})},
-  async changePassword(data:any){return request<any>('/auth/change-password',{method:'POST',body:JSON.stringify(data)})},
-  async requestProfileChange(data:any){return request<any>('/auth/profile-change',{method:'POST',body:JSON.stringify(data)})},
-  async verifyProfileChange(code:string){return request<any>('/auth/profile-change/verify',{method:'POST',body:JSON.stringify({code})})},
+  async changePassword(data:any){return request<any>('/account-changes/password',{method:'POST',body:JSON.stringify(data)})},
+  async requestProfileChange(data:any){return request<any>('/account-changes/profile',{method:'POST',body:JSON.stringify(data)})},
+  async verifyProfileChange(code:string){return request<any>('/account-changes/verify',{method:'POST',body:JSON.stringify({code})})},
+  async getWorkerProfileChangeRequests(){return request<any[]>('/account-changes/admin/requests')},
+  async reviewWorkerProfileChange(id:string,decision:'APPROVE'|'REJECT',reason=''){return request<any>(`/account-changes/admin/requests/${encodeURIComponent(id)}/review`,{method:'POST',body:JSON.stringify({decision,reason})})},
   async resumeVerification(identifier:string,password:string){return request<any>('/auth/resume-verification',{method:'POST',body:JSON.stringify({identifier,password})})},
   async companionPolicy(){return request<any>('/companion-policy')},
   async reviewCompanion(id:string,index:number,status:string,note:string){return request<any>(`/appointments/${encodeURIComponent(id)}/companions`,{method:'PATCH',body:JSON.stringify({index,status,note})})},
@@ -239,6 +242,85 @@ export const api = {
       pendingBiometrics: number;
       currentOnSiteVisitors: number;
     }>('/stats');
+  },
+
+  async getVisitorRecords(query='') {
+    return request<any[]>(`/visitor-records/admin/visitors?q=${encodeURIComponent(query)}`);
+  },
+  async getVisitorRecord(id:string) {
+    return request<any>(`/visitor-records/admin/visitors/${encodeURIComponent(id)}`);
+  },
+  async createVisitorRecord(data:any) {
+    return request<any>('/visitor-records/admin/visitors',{method:'POST',body:JSON.stringify(data)});
+  },
+  async updateVisitorRecord(id:string,data:any) {
+    return request<any>(`/visitor-records/admin/visitors/${encodeURIComponent(id)}`,{method:'PUT',body:JSON.stringify(data)});
+  },
+  async archiveVisitorRecord(id:string,reason:string) {
+    return request<any>(`/visitor-records/admin/visitors/${encodeURIComponent(id)}/archive`,{method:'POST',body:JSON.stringify({reason})});
+  },
+  async restoreVisitorRecord(id:string) {
+    return request<any>(`/visitor-records/admin/visitors/${encodeURIComponent(id)}/restore`,{method:'POST',body:'{}'});
+  },
+  async approveVisitorForPdl(id:string,pdlId:string,relationship:string) {
+    return request<any>(`/visitor-records/admin/visitors/${encodeURIComponent(id)}/approve`,{method:'POST',body:JSON.stringify({pdlId,relationship})});
+  },
+  async revokeVisitorPdlAssignment(assignmentId:string,reason:string) {
+    return request<any>(`/visitor-records/admin/assignments/${encodeURIComponent(assignmentId)}/revoke`,{method:'POST',body:JSON.stringify({reason})});
+  },
+  async getAdminPdlSchedules() {
+    return request<any[]>('/visitor-records/admin/schedules');
+  },
+  async getAdminPdlSchedule(pdlId:string) {
+    return request<any>(`/visitor-records/admin/schedules/${encodeURIComponent(pdlId)}`);
+  },
+  async saveAdminPdlSchedule(pdlId:string,weekday:number,reason:string) {
+    return request<any>(`/visitor-records/admin/schedules/${encodeURIComponent(pdlId)}`,{method:'PUT',body:JSON.stringify({weekday,reason})});
+  },
+  async getVisitorQrIdentity(id:string,scope:'admin'|'worker'='admin') {
+    const path=scope==='admin'?`/visitor-records/admin/visitors/${encodeURIComponent(id)}/qr`:`/visitor-records/worker/visitors/${encodeURIComponent(id)}/qr`;
+    return request<any>(path);
+  },
+  async getVisitorRestrictions(query='',from='',to='') {
+    const params = new URLSearchParams({ q: query, from, to });
+    return request<any[]>(`/visitor-records/admin/restrictions?${params}`);
+  },
+  async createVisitorRestriction(data:any) {
+    return request<any>('/visitor-records/admin/restrictions',{method:'POST',body:JSON.stringify(data)});
+  },
+  async removeVisitorRestriction(id:string,reason:string) {
+    return request<any>(`/visitor-records/admin/restrictions/${encodeURIComponent(id)}/remove`,{method:'POST',body:JSON.stringify({reason})});
+  },
+  async getVisitorReport(from:string,to:string) {
+    return request<any>(`/visitor-records/admin/reports?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+  },
+  async getNewVisitLogs(filters:Record<string,string>={}) {
+    const q=new URLSearchParams(Object.entries(filters).filter(([,v])=>v));
+    return request<any[]>(`/visitor-records/admin/visit-logs${q.size?`?${q}`:''}`);
+  },
+  async searchVisitorRecords(query:string) {
+    return request<any[]>(`/visitor-records/worker/search?q=${encodeURIComponent(query)}`);
+  },
+  async verifyVisitorForPdl(visitorId:string,pdlId:string) {
+    return request<any>(`/visitor-records/worker/verify/${encodeURIComponent(visitorId)}/${encodeURIComponent(pdlId)}`);
+  },
+  async checkInPdlVisitor(data:any) {
+    return request<any>('/visitor-records/worker/pdl-checkins',{method:'POST',body:JSON.stringify(data)});
+  },
+  async checkInGuestVisitor(data:any) {
+    return request<any>('/visitor-records/worker/guest-checkins',{method:'POST',body:JSON.stringify(data)});
+  },
+  async getActiveRecordVisits() {
+    return request<any[]>('/visitor-records/worker/active');
+  },
+  async getTodayPdlVisitors() {
+    return request<any>('/visitor-records/worker/today');
+  },
+  async getRecentRecordVisits() {
+    return request<any[]>('/visitor-records/worker/recent');
+  },
+  async checkOutRecordVisit(type:'PDL'|'GUEST',id:string) {
+    return request<any>(`/visitor-records/worker/visits/${type}/${encodeURIComponent(id)}/checkout`,{method:'POST',body:'{}'});
   },
 };
 

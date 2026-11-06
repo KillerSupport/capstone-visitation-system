@@ -56,6 +56,9 @@ test('paper migration is repeatable, retains records and issues unique permanent
   for(let i=0;i<9;i++)people.push(await syntheticVisitor(i));
   const qr=people.map(p=>p.permanentQrToken);assert.equal(new Set(qr).size,9);assert.ok(qr.every(q=>/^[a-f0-9]{64}$/.test(q)));
   await db.initDatabase();assert.deepEqual((await db.getAllUsers()).filter(u=>u.role==='VISITOR').map(u=>u.permanentQrToken).sort(),qr.sort());
+  const facilities = (await admin.request('/facilities')).body;
+  assert.ok(facilities.some(f => f.id === 'imus-city-jail-male'));
+  assert.ok(facilities.some(f => f.id === 'imus-city-jail-female'));
   assert.equal((await db.getAllPdls()).length,1);assert.equal((await admin.request('/visitation/admin')).body.visitorLimit,7);
   visitorUser=people[0];assert.equal((await visitor.request('/auth/login',{identifier:visitorUser.email,password})).status,200);
 });
@@ -86,16 +89,24 @@ test('date selection enforces assigned weekdays, fixed hours, uniqueness and app
   assert.equal((await visitor.request('/appointments',booking('2030-01-02'))).status,400);
   assert.equal((await visitor.request('/appointments',booking('2030-01-01',{timeSlot:'Morning Batch (09:00 AM - 11:30 AM)'}))).status,400);
   assert.equal((await visitor.request('/appointments',booking('2030-01-01',{companions:[{fullName:'Unlisted Person',dateOfBirth:'1980-01-01',relationshipToPdl:'Sibling'}]}))).status,400);
-  const count=messages.length;const result=await visitor.request('/appointments',booking());assert.equal(result.status,201,JSON.stringify(result.body));visit=result.body.appointment;
-  assert.equal(visit.status,'Approved');assert.equal(visit.selectionMode,'PDL_DAY');assert.equal(messages.length,count);
+  const result=await visitor.request('/appointments',booking());assert.equal(result.status,201,JSON.stringify(result.body));visit=result.body.appointment;
+  assert.equal(visit.status,'Approved');assert.equal(visit.selectionMode,'PDL_DAY');
+  await paper.dispatchScheduleNotifications();
+  const [notices] = await db.pool.query('SELECT channel,status,message FROM pdl_schedule_notifications WHERE appointment_id=?',[visit.id]);
+  assert.deepEqual(notices.map(n => n.channel+':'+n.status).sort(), ['email:ACCEPTED','sms:MOCK']);
+  assert.ok(notices.every(n => n.message.includes('2030-01-01') && n.message.includes('Male Dormitory')));
   assert.equal((await visitor.request('/appointments',booking())).status,400);
   assert.equal((await admin.request(`/appointments/${visit.id}/status`,{status:'Pending Review'},'PATCH')).status,400);
 });
-test('visitors can change their own unused date, cannot change another visitor record, and receive no appointment-confirmation message',async()=>{
+test('visitors can change their own unused date, cannot change another visitor record, and receive a new confirmation',async()=>{
   const outsider=new Browser();await outsider.request('/auth/login',{identifier:people[1].email,password});
   assert.equal((await outsider.request(`/visitation/visits/${visit.id}/date`,{visitDate:'2030-01-08'},'PATCH')).status,404);
   assert.equal((await visitor.request(`/visitation/visits/${visit.id}/date`,{visitDate:'2030-01-09'},'PATCH')).status,400);
-  const count=messages.length;assert.equal((await visitor.request(`/visitation/visits/${visit.id}/date`,{visitDate:'2030-01-08'},'PATCH')).status,200);assert.equal(messages.length,count);
+  assert.equal((await visitor.request(`/visitation/visits/${visit.id}/date`,{visitDate:'2030-01-08'},'PATCH')).status,200);
+  await paper.dispatchScheduleNotifications();
+  const [notices] = await db.pool.query("SELECT channel,status,message FROM pdl_schedule_notifications WHERE appointment_id=? AND message LIKE '%2030-01-08%'",[visit.id]);
+  assert.deepEqual(notices.map(n => n.channel+':'+n.status).sort(), ['email:ACCEPTED','sms:MOCK']);
+  assert.ok(notices.every(n => n.message.includes('date was changed')));
   assert.equal((await visitor.request(`/visitation/visits/${visit.id}/date`,{visitDate:'2030-01-01'},'PATCH')).status,200);
 });
 test('permanent QR plus current linkage, schedule, fingerprint proof and visiting hours are all required; entry and exit are single-use',async()=>{

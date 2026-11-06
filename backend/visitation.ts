@@ -4,7 +4,7 @@ import type {PoolConnection} from 'mysql2/promise';
 import {pool,getAllPdls,getAllAppointments,ensureSlotCapacity} from './database/db.js';
 import {admin,visitorActive} from './auth.js';
 import {manilaDate,validateCompanions} from './validation.js';
-import {deliverMessage,DeliveryUnavailable} from './messaging.js';
+import {appointmentConfirmation,deliverMessage,DeliveryUnavailable} from './messaging.js';
 
 export const VISITING_HOURS='Visiting hours (08:00 AM - 04:00 PM)';
 export const WEEKDAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
@@ -31,6 +31,37 @@ export async function queueScheduleNotice(conn:PoolConnection,pdlId:string,event
     }
   }
 }
+type VisitConfirmation = {
+  id: string;
+  pdlId: string;
+  userId: string;
+  visitDate: string;
+  timeSlot: string;
+  appointmentReference: string;
+  jailFacilityName: string;
+};
+
+export async function queueVisitConfirmation(conn: PoolConnection, visit: VisitConfirmation, changed: boolean) {
+  const [users] = await conn.query<any[]>(
+    'SELECT email,mobile_number,email_verified_at,phone_verified_at FROM users WHERE id=? AND is_archived=0', [visit.userId],
+  );
+  const user = users[0];
+  const message = appointmentConfirmation(visit, changed);
+  const eventKey = randomUUID();
+  if (changed) {
+    await conn.query("UPDATE pdl_schedule_notifications SET status='CANCELLED',updated_at=NOW() WHERE appointment_id=? AND status IN ('PENDING','NOT_CONFIGURED')", [visit.id]);
+  }
+  for (const [channel, destination] of [
+    ['email', user?.email_verified_at && user.email],
+    ['sms', user?.phone_verified_at && user.mobile_number],
+  ]) {
+    if (destination) {
+      await conn.query('INSERT INTO pdl_schedule_notifications(event_key,user_id,pdl_id,appointment_id,channel,destination,message) VALUES(?,?,?,?,?,?,?)',
+        [eventKey, visit.userId, visit.pdlId, visit.id, channel, destination, message]);
+    }
+  }
+}
+
 let activeDispatch:Promise<void>|null=null;
 export function dispatchScheduleNotifications(){
   if(activeDispatch)return activeDispatch;
@@ -43,9 +74,12 @@ async function dispatchNotifications(){
       const [claim]=await pool.query<any>("UPDATE pdl_schedule_notifications SET status='SENDING',updated_at=NOW() WHERE id=? AND status IN ('PENDING','NOT_CONFIGURED')",[job.id]);if(!claim.affectedRows)continue;
       const [current]=await pool.query<any[]>(`SELECT u.email,u.mobile_number,u.email_verified_at,u.phone_verified_at FROM users u JOIN pdl_visitor_links l ON l.user_id=u.id JOIN pdls p ON p.id=l.pdl_id WHERE u.id=? AND l.pdl_id=? AND l.is_active=1 AND u.is_archived=0 AND p.is_archived=0`,[job.user_id,job.pdl_id]);
       const contact=current[0],valid=job.channel==='email'?contact?.email_verified_at&&contact.email===job.destination:contact?.phone_verified_at&&contact.mobile_number===job.destination;
-      if(!valid){await pool.query("UPDATE pdl_schedule_notifications SET status='CANCELLED',updated_at=NOW() WHERE id=?",[job.id]);continue;}
+      const [visits] = job.appointment_id
+        ? await pool.query<any[]>("SELECT id FROM appointments WHERE id=? AND status='Approved' AND is_archived=0 AND visit_date>=?", [job.appointment_id, manilaDate()])
+        : [[]];
+      if(!valid || (job.appointment_id && !visits.length)){await pool.query("UPDATE pdl_schedule_notifications SET status='CANCELLED',updated_at=NOW() WHERE id=?",[job.id]);continue;}
       try{
-        const result=await deliverMessage({channel:job.channel,destination:job.destination},'BJMP linked PDL and visitation schedule',job.message);
+        const result=await deliverMessage({channel:job.channel,destination:job.destination},job.appointment_id?'BJMP visitation date confirmation':'BJMP linked PDL and visitation schedule',job.message);
         await pool.query('UPDATE pdl_schedule_notifications SET status=?,provider_id=?,attempts=attempts+1,last_error=NULL,updated_at=NOW() WHERE id=?',[result.status,result.providerId||null,job.id]);
       }catch(error){await pool.query('UPDATE pdl_schedule_notifications SET status=?,last_error=?,attempts=attempts+1,updated_at=NOW() WHERE id=?',[error instanceof DeliveryUnavailable?'NOT_CONFIGURED':'FAILED','Schedule notification delivery is unavailable.',job.id]);}
     }
@@ -94,6 +128,9 @@ visitationRouter.patch('/visits/:id/date',visitorActive,async(req,res)=>{
     if(duplicate.length)throw Error('You already selected this date for this PDL.');
     await conn.query('UPDATE appointments SET visit_date=?,time_slot=?,schedule_version=? WHERE id=?',[date,VISITING_HOURS,schedule.version,row.id]);
     await conn.query('DELETE FROM gate_verification_sessions WHERE appointment_id=? AND consumed_at IS NULL',[row.id]);
+    await queueVisitConfirmation(conn, { id: row.id, pdlId: row.pdl_id, userId: String(user.id),
+      visitDate: date, timeSlot: VISITING_HOURS, appointmentReference: row.appointment_reference,
+      jailFacilityName: row.jail_facility_name }, true);
     await audit(conn,user,'VISIT_DATE_CHANGED','APPOINTMENT',row.id,{previousDate:dayOnly(row.visit_date),visitDate:date});await conn.commit();req.app.emit('visitation-changed');res.json({success:true});
   }catch(error:any){await conn.rollback();res.status(400).json({error:error.message||'Could not change the visit date.'});}finally{conn.release();}
 });

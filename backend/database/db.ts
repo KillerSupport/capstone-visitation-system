@@ -1,5 +1,6 @@
-import {assertPdlEligibility,VISITING_HOURS} from '../visitation.js';
+import {assertPdlEligibility,VISITING_HOURS,queueVisitConfirmation} from '../visitation.js';
 import {migratePaperRequirements} from './paper-migration.js';
+import {migrateVisitorRecords} from './visitor-migration.js';
 import { normalizePhilippineMobileNumber } from '../identity.js';
 import { migrateFeatures, migrateLegacyContactAccess } from './migrations.js';
 import {manilaDate,ageOn} from '../validation.js';
@@ -355,6 +356,8 @@ export async function initDatabase() {
     }
 
     await migratePaperRequirements(conn);
+    await migrateVisitorRecords(conn);
+    await ensureImusFacilities(conn);
     await conn.query(`UPDATE jail_facilities SET region='Region IV-A (CALABARZON)', address='Imus City, Cavite', contact_number='Check BJMP ODBS for current contact details', visiting_days='Confirm current days in BJMP ODBS', visiting_hours='Check official system for available dates and time slots', biometric_desk_hours='Confirm biometric desk hours with the facility before traveling' WHERE id IN ('imus-city-jail-male','imus-city-jail-female')`);
   } finally {
     conn.release();
@@ -364,12 +367,27 @@ export async function initDatabase() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Seed default BJMP data
 // ─────────────────────────────────────────────────────────────────────────────
+async function ensureImusFacilities(conn: mysql.PoolConnection) {
+  const details = [
+    'Region IV-A (CALABARZON)', 'Imus City, Cavite', 'Imus City, Cavite',
+    'Check BJMP ODBS for current contact details', 'Confirm current days in BJMP ODBS',
+    'Check official system for available dates and time slots',
+    'Confirm biometric desk hours with the facility before traveling',
+  ];
+  await conn.query(
+    'INSERT IGNORE INTO jail_facilities (id,name,region,municipality,address,contact_number,visiting_days,visiting_hours,biometric_desk_hours,capacity_per_slot) VALUES ?',
+    [[
+      ['imus-city-jail-male', 'BJMP Imus City Jail - Male Dormitory', ...details, 40],
+      ['imus-city-jail-female', 'BJMP Imus City Jail - Female Dormitory', ...details, 30],
+    ]],
+  );
+}
+
 async function seedDatabase(conn: mysql.PoolConnection) {
   const adminPassword=process.env.INITIAL_ADMIN_PASSWORD;
   if(!adminPassword||adminPassword.length<12) throw new Error('Set INITIAL_ADMIN_PASSWORD (12+ characters) before initializing an empty database.');
   if(process.env.INITIAL_WORKER_PASSWORD&&process.env.INITIAL_WORKER_PASSWORD.length<12) throw new Error('INITIAL_WORKER_PASSWORD must contain at least 12 characters.');
-  await conn.query(`INSERT INTO jail_facilities VALUES
-    ('imus-city-jail-male','BJMP Imus City Jail - Male Dormitory','Region IV-A (CALABARZON)','Imus City, Cavite','Imus City, Cavite','Check BJMP ODBS for current contact details','Confirm current days in BJMP ODBS','Check official system for available dates and time slots','Confirm biometric desk hours with the facility before traveling',40)`);
+  await ensureImusFacilities(conn);
   const adminHash=await hashSeedPassword(adminPassword);
   const rows:string[][]=[
     [process.env.INITIAL_ADMIN_EMAIL||'admin@bjmp.gov.ph',adminHash,'ADMIN','System Administrator','BJMP-ADM-001','Maria','S.','Reyes']
@@ -786,6 +804,10 @@ export async function createAppointment(a: any) {
       JSON.stringify(a.companions||[]),a.selectionMode||'LEGACY',scheduleVersion,
     ]
   );
+  if (a.selectionMode === 'PDL_DAY' && a.status === 'Approved') {
+    await queueVisitConfirmation(conn, { id, pdlId: a.pdlId, userId: a.userId, visitDate: a.visitDate,
+      timeSlot: a.timeSlot, appointmentReference: ref, jailFacilityName: a.jailFacilityName }, false);
+  }
   await conn.commit();
   }catch(error){await conn.rollback();throw error}finally{conn.release()}
   return (await getAllAppointments()).find((appointment) => appointment.id === id) || null;
@@ -945,7 +967,7 @@ export async function resetDemoData() {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    for (const table of ['appointment_notifications','record_archive_events','visitor_log_entries','pdl_form_records','gate_logs','appointments','security_incidents','announcements','kyc_documents','kyc_submissions','auth_otps','auth_sessions','audit_logs','pdls','users','jail_facilities']) await conn.query(`DELETE FROM ${table}`);
+    for (const table of ['appointment_notifications','profile_change_requests','record_archive_events','visitor_log_entries','pdl_form_records','gate_logs','appointments','security_incidents','announcements','kyc_documents','kyc_submissions','auth_otps','auth_sessions','audit_logs','pdls','users','jail_facilities']) await conn.query(`DELETE FROM ${table}`);
     await seedDatabase(conn);
     await conn.commit();
   } catch (error) { await conn.rollback(); throw error; } finally { conn.release(); }

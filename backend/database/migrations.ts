@@ -19,6 +19,29 @@ export async function migrateFeatures(conn:PoolConnection){
   expires_at DATETIME NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+ await conn.query(`CREATE TABLE IF NOT EXISTS profile_change_requests (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  request_type VARCHAR(20) NOT NULL,
+  payload LONGTEXT NULL,
+  new_password_hash VARCHAR(255) NULL,
+  proofs LONGTEXT NOT NULL,
+  expires_at DATETIME NOT NULL,
+  status VARCHAR(30) NOT NULL DEFAULT 'VERIFYING',
+  requested_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  verified_at DATETIME NULL,
+  reviewed_by INT NULL,
+  reviewed_at DATETIME NULL,
+  review_reason TEXT NULL,
+  applied_at DATETIME NULL,
+  admin_notified_at DATETIME NULL,
+  notification_error TEXT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_profile_change_user_status(user_id,status,requested_at),
+  INDEX idx_profile_change_queue(status,requested_at),
+  FOREIGN KEY(user_id) REFERENCES users(id),
+  FOREIGN KEY(reviewed_by) REFERENCES users(id) ON DELETE SET NULL
+ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
  // Prior admitted visits must remain used after upgrading the entrance workflow.
  await conn.query("UPDATE appointments a JOIN (SELECT appointment_id,MIN(timestamp) AS entered_at FROM gate_logs WHERE action='ADMITTED' AND appointment_id IS NOT NULL GROUP BY appointment_id) g ON g.appointment_id=a.id SET a.checked_in_at=COALESCE(a.checked_in_at,g.entered_at)");
  await conn.query(`CREATE TABLE IF NOT EXISTS gate_verification_sessions (

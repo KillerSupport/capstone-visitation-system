@@ -235,3 +235,16 @@
 .government-theme :is(button,input,select,textarea) { transition: background-color 150ms, border-color 150ms, color 150ms; }
 .government-theme #printable-pass-area { --color-slate-950:#020617; --color-slate-900:#0f172a; --color-slate-800:#1e293b; --color-slate-700:#334155; --color-slate-600:#475569; --color-slate-500:#64748b; --color-slate-300:#cbd5e1; --color-slate-200:#e2e8f0; --color-blue-950:#172b49; }
 @media(max-width:640px) { .government-theme table { font-size:.75rem; } .government-theme th,.government-theme td { padding:.65rem; } }
+
+/* Visitor help text and controls need to remain readable on the light surfaces. */
+.visitor-theme :is(.text-xs, [class~="text-[10px]"], [class~="text-[11px]"]) {
+  font-size: .875rem;
+  line-height: 1.4;
+}
+.visitor-theme .text-slate-400 {
+  color: #435368;
+}
+.visitor-theme input::placeholder,
+.visitor-theme textarea::placeholder {
+  color: #58697d;
+}
