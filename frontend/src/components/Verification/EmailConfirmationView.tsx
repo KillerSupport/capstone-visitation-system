@@ -85,7 +85,9 @@ export const EmailConfirmationView: React.FC<EmailConfirmationViewProps> = ({
               </p>
 
               <div className="space-y-3">
+                <label htmlFor="email-confirmation-code" className="block text-xs font-semibold text-slate-300">6-digit confirmation code</label>
                 <input
+                  id="email-confirmation-code"
                   type="text"
                   inputMode="numeric"
                   autoComplete="one-time-code"

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { pool } from './database/db.js';
 import { admin, requireDuty } from './auth.js';
+import { normalizeEmail } from './identity.js';
 import { manilaDate } from './validation.js';
 
 export const visitorRecordsRouter = Router();
@@ -30,12 +31,15 @@ function personFields(body: any) {
   const address = clean(body.address, 2000);
   const age = body.age === '' || body.age == null ? null : Number(body.age);
   const contactNumber = clean(body.contactNumber, 50);
+  const rawEmail = clean(body.contactEmail, 255);
+  const contactEmail = rawEmail ? normalizeEmail(rawEmail) : null;
   if (!fullName) throw new Error('Enter the visitor name shown on the registration form.');
   if (!gender) throw new Error('Enter the visitor gender.');
   if (!address) throw new Error('Enter the visitor address.');
   if (!Number.isInteger(age) || age < 0 || age > 125) throw new Error('Enter a valid visitor age.');
   if (!contactNumber) throw new Error('Enter the visitor contact number.');
-  return { fullName, gender, address, age, contactNumber };
+  if (rawEmail && !contactEmail) throw new Error('Enter a valid visitor email address.');
+  return { fullName, gender, address, age, contactNumber, contactEmail };
 }
 
 function signatureValue(value: unknown) {
@@ -65,11 +69,17 @@ async function ensureQrIdentity(conn: any, visitorId: string | number) {
 visitorRecordsRouter.get('/admin/visitors', adminOnly, async (req, res) => {
   const q = clean(req.query.q, 100);
   const like = `%${q}%`;
-  const [rows] = await pool.query<any[]>(`SELECT v.id,v.visitor_code,v.legacy_user_id,v.full_name,v.gender,v.address,v.age,v.contact_number,v.contact_email,v.status,v.is_archived,v.created_at,v.updated_at,
-      (q.visitor_record_id IS NOT NULL) AS has_qr_identity
-    FROM visitor_records v LEFT JOIN visitor_qr_identities q ON q.visitor_record_id=v.id
-    WHERE (?='' OR v.visitor_code LIKE ? OR v.full_name LIKE ? OR v.contact_number LIKE ?)
-    ORDER BY v.is_archived,v.full_name LIMIT 500`, [q, like, like, like]);
+  const [rows] = await pool.query<any[]>(`SELECT id,visitor_code,contact_number,contact_email
+    FROM visitor_records WHERE (?='' OR visitor_code LIKE ? OR contact_email LIKE ? OR contact_number LIKE ?)
+    ORDER BY id DESC LIMIT 500`, [q, like, like, like]);
+  res.json(rows);
+});
+
+visitorRecordsRouter.get('/admin/visitors/restriction-options', adminOnly, async (req, res) => {
+  const q = clean(req.query.q, 100), like = `%${q}%`;
+  const [rows] = await pool.query<any[]>(`SELECT id,visitor_code,full_name,contact_number,contact_email,status,is_archived
+    FROM visitor_records WHERE (?='' OR visitor_code LIKE ? OR full_name LIKE ? OR contact_email LIKE ? OR contact_number LIKE ?)
+    ORDER BY is_archived,full_name LIMIT 500`, [q, like, like, like, like]);
   res.json(rows);
 });
 
@@ -106,8 +116,8 @@ visitorRecordsRouter.post('/admin/visitors', adminOnly, async (req, res) => {
       LOWER(TRIM(full_name))=LOWER(TRIM(?)) AND age=? AND LOWER(TRIM(gender))=LOWER(TRIM(?)) AND LOWER(TRIM(COALESCE(address,'')))=LOWER(TRIM(?)) LIMIT 5 FOR UPDATE`,
       [fields.fullName, fields.age, fields.gender, fields.address]);
     if (possible.length) { await conn.rollback(); return res.status(409).json({ error: 'A matching visitor record may already exist. Search by name or Visitor ID and review it before creating another.', possibleMatches: possible }); }
-    const [insert] = await conn.query<any>(`INSERT INTO visitor_records(visitor_code,full_name,gender,address,age,contact_number,status,created_by)
-      VALUES(?,?,?,?,?,?,'ACTIVE',?)`, [makeVisitorCode(), fields.fullName, fields.gender, fields.address, fields.age, fields.contactNumber, actor.id]);
+    const [insert] = await conn.query<any>(`INSERT INTO visitor_records(visitor_code,full_name,gender,address,age,contact_number,contact_email,status,created_by)
+      VALUES(?,?,?,?,?,?,?,'ACTIVE',?)`, [makeVisitorCode(), fields.fullName, fields.gender, fields.address, fields.age, fields.contactNumber, fields.contactEmail, actor.id]);
     await audit(conn, { ...actor, ip: req.ip }, 'VISITOR_REGISTERED', 'VISITOR', insert.insertId, { visitorCode: 'assigned' });
     await conn.commit();
     const [[visitor]] = await pool.query<any[]>(`${visitorSelect} WHERE id=?`, [insert.insertId]);
@@ -131,8 +141,8 @@ visitorRecordsRouter.put('/admin/visitors/:id', adminOnly, async (req, res) => {
       LOWER(TRIM(full_name))=LOWER(TRIM(?)) AND age=? AND LOWER(TRIM(gender))=LOWER(TRIM(?)) AND LOWER(TRIM(COALESCE(address,'')))=LOWER(TRIM(?)) LIMIT 1`,
       [req.params.id, fields.fullName, fields.age, fields.gender, fields.address]);
     if (duplicate.length) { await conn.rollback(); return res.status(409).json({ error: 'These details match another visitor record. Review that record before saving.' }); }
-    await conn.query('UPDATE visitor_records SET full_name=?,gender=?,address=?,age=?,contact_number=? WHERE id=?', [fields.fullName, fields.gender, fields.address, fields.age, fields.contactNumber, req.params.id]);
-    await audit(conn, { ...actor, ip: req.ip }, 'VISITOR_UPDATED', 'VISITOR', req.params.id, { fields: ['fullName','gender','address','age','contactNumber'] });
+    await conn.query('UPDATE visitor_records SET full_name=?,gender=?,address=?,age=?,contact_number=?,contact_email=? WHERE id=?', [fields.fullName, fields.gender, fields.address, fields.age, fields.contactNumber, fields.contactEmail, req.params.id]);
+    await audit(conn, { ...actor, ip: req.ip }, 'VISITOR_UPDATED', 'VISITOR', req.params.id, { fields: ['fullName','gender','address','age','contactNumber','contactEmail'] });
     await conn.commit();
     const [[visitor]] = await pool.query<any[]>(`${visitorSelect} WHERE id=?`, [req.params.id]);
     res.json({ visitor });

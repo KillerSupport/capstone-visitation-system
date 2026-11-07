@@ -4,7 +4,7 @@ import { type LoginResult } from '../../services/api';
 
 interface LoginPageProps {
   onLogin: (identifier: string, password: string) => Promise<LoginResult>;
-  onOpenForgotPassword: () => void;
+  onOpenForgotPassword: (identifier: string) => void;
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({
@@ -66,7 +66,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label htmlFor="login-password" className="text-sm font-semibold text-slate-100">Password</label>
-              <button type="button" onClick={onOpenForgotPassword} className="text-xs text-blue-300 hover:text-white transition-colors">Forgot password?</button>
+              <button type="button" onClick={() => onOpenForgotPassword(identifier.trim())} className="text-xs text-blue-300 hover:text-white transition-colors">Forgot password?</button>
             </div>
             <div className="relative">
               <Lock className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />

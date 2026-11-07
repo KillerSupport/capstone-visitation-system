@@ -40,9 +40,11 @@ export const BodyMarkPicker: React.FC<BodyMarkPickerProps> = ({ marks, onChange 
           <h5 className="font-bold text-blue-300">Digital tattoo and body-mark chart</h5>
           <p className="text-[11px] text-slate-400">Worker-assisted: choose a mark type, then click the body chart to place a numbered circle.</p>
         </div>
-        <select value={kind} onChange={(e) => setKind(e.target.value as BodyMarkKind)} className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-slate-100">
-          <option>Tattoo</option><option>Scar</option><option>Birthmark</option><option>Other</option>
-        </select>
+        <label className="text-[10px] font-semibold text-slate-300">Mark type
+          <select value={kind} onChange={(e) => setKind(e.target.value as BodyMarkKind)} className="mt-1 block bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-slate-100">
+            <option>Tattoo</option><option>Scar</option><option>Birthmark</option><option>Other</option>
+          </select>
+        </label>
       </div>
 
       <div className="flex gap-2">
@@ -71,6 +73,7 @@ export const BodyMarkPicker: React.FC<BodyMarkPickerProps> = ({ marks, onChange 
       </div>
 
       {marks.length > 0 && <div className="space-y-2">
+        <div className="grid grid-cols-[auto_110px_1fr_auto] gap-2 px-2 text-[10px] font-semibold text-slate-400"><span>Mark #</span><span>Mark type</span><span>Description and location</span><span>Action</span></div>
         {marks.map((mark, index) => (
           <div key={mark.id} className="grid grid-cols-[auto_110px_1fr_auto] items-center gap-2 rounded-lg bg-slate-950 p-2 text-xs">
             <span className="font-bold text-blue-400">#{index + 1}</span>

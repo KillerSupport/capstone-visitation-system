@@ -201,6 +201,10 @@
 .government-theme [class*="text-sky-"],.government-theme [class*="text-cyan-"],.government-theme [class*="text-blue-"] { color: #3c587a; }
 .government-theme .admin-dashboard-nav { background: #f8f9fa; border: 1px solid #cbd3dd; padding: .65rem; }
 .government-theme .admin-dashboard-nav > button { padding: .8rem .9rem; font-size: .8rem; font-weight: 600; }
+.government-theme .admin-dashboard-nav > button { border: 1px solid #cbd3dd; border-radius: .6rem; }
+.government-theme .admin-dashboard-nav > button:hover { border-color: #9aacc0; }
+.government-theme .admin-dashboard-nav > button:focus-visible { outline: 3px solid #7293b5; outline-offset: 2px; }
+.government-theme .admin-dashboard-nav .bg-rose-600.text-white { color: #fff; }
 .government-theme .admin-dashboard-content { padding-bottom: 2rem; }
 .government-theme table { width: 100%; border-collapse: collapse; font-size: .8rem; }
 .government-theme th { background: #eef1f5; color: #47566a; text-align: left; font-weight: 650; padding: .85rem 1rem; }
@@ -247,4 +251,9 @@
 .visitor-theme input::placeholder,
 .visitor-theme textarea::placeholder {
   color: #58697d;
+}
+
+/* The worker visitor desk uses light cards over a dark page background. */
+.government-theme .visitor-operations-desk [class~="bg-white"] {
+  color: var(--text-primary);
 }

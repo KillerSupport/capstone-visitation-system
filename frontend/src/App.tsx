@@ -25,6 +25,7 @@ export default function App() {
 
   // Modals & Views
   const [isForgotOpen, setIsForgotOpen] = useState(false);
+  const [forgotIdentifier, setForgotIdentifier] = useState('');
   const [profileOpen,setProfileOpen]=useState(false);
   const openProfile = () => setProfileOpen(true);
   const [isGuardScannerOpen, setIsGuardScannerOpen] = useState(false);
@@ -130,6 +131,7 @@ export default function App() {
       return previous.map((item) => item.id === result.pdl.id ? result.pdl : item);
     });
     showToast(`PDL record for ${result.pdl.fullName} saved to MySQL.`);
+    return result.pdl;
   };
 
   // Login handler
@@ -227,7 +229,7 @@ export default function App() {
         {!currentUser ? (
           <LoginPage
             onLogin={handleLogin}
-            onOpenForgotPassword={() => setIsForgotOpen(true)}
+            onOpenForgotPassword={(identifier) => { setForgotIdentifier(identifier); setIsForgotOpen(true); }}
           />
         ) : (currentUser?.role === 'OFFICER' || currentUser?.role === 'WORKER') && !contactsVerified(currentUser) ? (<EmailConfirmationView user={currentUser} onEmailConfirmed={handleEmailConfirmed} onLogout={handleLogout}/>) : currentUser?.role === 'OFFICER' ? (<OfficerWorkspace user={currentUser}/>) : currentUser?.role === 'WORKER' || currentUser?.role === 'GUARD' ? (
           <VisitorOperationsDesk user={currentUser} />
@@ -276,9 +278,12 @@ export default function App() {
       {/* Forgot Password Modal */}
       <ForgotPasswordModal
         isOpen={isForgotOpen}
+        initialIdentifier={forgotIdentifier}
         onClose={() => setIsForgotOpen(false)}
-        onPasswordResetSuccess={(email) => {
-          showToast(`Password successfully reset for ${email}. Please log in.`);
+        onPasswordResetSuccess={(identifier, result) => {
+          showToast(result?.awaitingApproval
+            ? result.adminNotified ? 'Password recovery request sent to an administrator. Check your registered email for the decision.' : 'Password recovery request was saved, but administrator email could not be delivered. Contact an administrator to review it.'
+            : `Password successfully reset for ${identifier}. Please log in.`);
         }}
       />
 

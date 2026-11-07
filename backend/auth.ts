@@ -73,11 +73,11 @@ r.post('/verify-otp',verifyLim,auth,async(q,s)=>{
   s.json({success:true,user,verificationComplete:!next,...(developmentOtp?{developmentOtp}:{}),...(failedDelivery?{deliveryError:failedDelivery}:{})});
  } catch{s.status(500).json({error:'Verification failed.'});}
 });
-const recoveryMessage='If this contact is registered and verified, a recovery code will be sent. Check your email or SMS and try again after one minute if needed.';
+const recoveryMessage='If this account has a verified contact, a recovery code will be sent. Worker recovery codes are sent to the account email. Try again after one minute if needed.';
 function recoveryIdentifier(body:any){return classifyLoginIdentifier(String(body.identifier||body.email||body.mobileNumber||''));}
 r.post('/forgot-password',resendLim,async(q,s)=>{
  const parsed=recoveryIdentifier(q.body);
- try{const u=parsed&&await getUserByLogin(parsed.value,parsed.type);if(u&&u.role!=='VISITOR'&&parsed&&(parsed.type==='email'?u.emailVerified:u.phoneVerified)){const code=String(randomInt(100000,1000000));await saveOtp(u.id,'PASSWORD_RESET',sum(`${parsed.value}:${code}`),new Date(Date.now()+600000));await deliverMessage({channel:parsed.type==='email'?'email':'sms',destination:parsed.value},'BJMP password recovery',`Your password recovery code is ${code}. It expires in 10 minutes. Do not share it.`);}}
+ try{const u=parsed&&await getUserByLogin(parsed.value,parsed.type);if(u&&u.role==='WORKER'&&u.email&&u.emailVerified){const code=String(randomInt(100000,1000000));await saveOtp(u.id,'PASSWORD_RESET',sum(`${parsed.value}:${code}`),new Date(Date.now()+600000));await deliverMessage({channel:'email',destination:u.email},'BJMP password recovery',`Your password recovery code is ${code}. It expires in 10 minutes. Do not share it.`);}else if(u&&u.role!=='VISITOR'&&parsed&&(parsed.type==='email'?u.emailVerified:u.phoneVerified)){const code=String(randomInt(100000,1000000));await saveOtp(u.id,'PASSWORD_RESET',sum(`${parsed.value}:${code}`),new Date(Date.now()+600000));await deliverMessage({channel:parsed.type==='email'?'email':'sms',destination:parsed.value},'BJMP password recovery',`Your password recovery code is ${code}. It expires in 10 minutes. Do not share it.`);}}
  catch{/* Public response deliberately stays identical for absent accounts and delivery failures. */}
  s.json({success:true,message:recoveryMessage});
 });
@@ -96,6 +96,30 @@ r.post('/reset-password',verifyLim,async(q,s)=>{
  const hash=await hashPass(p),conn=await pool.getConnection();
  try{await conn.beginTransaction();const [rows]=await conn.query<any[]>("SELECT * FROM auth_otps WHERE user_id=? AND purpose='RESET_GRANT' ORDER BY id DESC LIMIT 1 FOR UPDATE",[u.id]);
  const grant=rows[0];if(!grant||grant.used_at||new Date(grant.expires_at).getTime()<=Date.now()||grant.code_hash!==sum(String(q.body.token||''))){await conn.rollback();return s.status(400).json({error:'Invalid or expired reset request.'})}
+ if(u.role==='WORKER'){
+  const [pending]=await conn.query<any[]>("SELECT id FROM profile_change_requests WHERE user_id=? AND status='PENDING_APPROVAL' FOR UPDATE",[u.id]);
+  if(pending.length){await conn.rollback();return s.status(409).json({error:'A verified account change is already waiting for administrator review.'})}
+  await conn.query("UPDATE profile_change_requests SET status='SUPERSEDED',new_password_hash=NULL WHERE user_id=? AND status IN ('VERIFYING','DELIVERY_FAILED')",[u.id]);
+  const [insert]=await conn.query<any>(`INSERT INTO profile_change_requests
+    (user_id,request_type,payload,new_password_hash,proofs,expires_at,status,verified_at)
+    VALUES(?,'PASSWORD',?,?,'[]',DATE_ADD(NOW(),INTERVAL 30 DAY),'PENDING_APPROVAL',NOW())`,[u.id,JSON.stringify({source:'PASSWORD_RECOVERY'}),hash]);
+  await conn.query("UPDATE auth_otps SET used_at=NOW() WHERE user_id=? AND purpose IN ('PASSWORD_RESET','RESET_GRANT')",[u.id]);
+  await conn.query('INSERT INTO audit_logs(actor_user_id,actor_role,action,target_type,target_id,result,details,ip_address) VALUES(?,? ,\'PASSWORD_RECOVERY_REQUESTED\',\'PROFILE_CHANGE_REQUEST\',?,\'SUCCESS\',?,?)',[u.id,u.role,String(insert.insertId),JSON.stringify({requestType:'PASSWORD',source:'PASSWORD_RECOVERY'}),q.ip]);
+  await conn.commit();
+  q.app.emit('profile-change-requests-updated');
+  let adminNotified=false,notificationError='';
+  try{
+   const [admins]=await pool.query<any[]>("SELECT id,email FROM users WHERE role IN ('ADMIN','SUPER_ADMIN') AND email_verified_at IS NOT NULL AND is_archived=0 AND email IS NOT NULL");
+   const workerName=[u.firstName,u.lastName].filter(Boolean).join(' '),workerId=`WRK-${String(u.id).padStart(6,'0')}`;
+   const message=`${workerName} (${workerId}) verified a password recovery request. The new password will only be applied after approval. Review request #${insert.insertId} in Administrator Dashboard > Staff > Profile Change Requests.`;
+   const deliveries=await Promise.allSettled(admins.map((adminUser:any)=>deliverMessage({channel:'email',destination:adminUser.email},'BJMP password recovery approval requested',message)));
+   adminNotified=deliveries.some(delivery=>delivery.status==='fulfilled');
+   const failure=deliveries.find(delivery=>delivery.status==='rejected') as PromiseRejectedResult|undefined;
+   notificationError=failure?String(failure.reason?.message||'Administrator email could not be sent.').slice(0,500):adminNotified?'':'No verified administrator email was available.';
+  }catch(error:any){notificationError=String(error?.message||'Administrator email could not be sent.').slice(0,500)}
+  try{await pool.query('UPDATE profile_change_requests SET admin_notified_at=?,notification_error=? WHERE id=?',[adminNotified?new Date():null,notificationError||null,insert.insertId]);}catch{/* The review queue entry is committed even if delivery metadata cannot be updated. */}
+  return s.json({success:true,awaitingApproval:true,adminNotified,message:adminNotified?'Your email is verified. The administrator was notified and must approve your password recovery request before the new password takes effect.':'Your email is verified and the recovery request is saved, but administrator email could not be delivered. Contact an administrator to review it.'});
+ }
  await conn.query('UPDATE users SET password=? WHERE id=?',[hash,u.id]);
  await conn.query("UPDATE auth_otps SET used_at=NOW() WHERE user_id=? AND purpose IN ('PASSWORD_RESET','RESET_GRANT','LOGIN')",[u.id]);
  await conn.query('DELETE FROM auth_sessions WHERE user_id=?',[u.id]);await conn.query('DELETE FROM account_change_requests WHERE user_id=?',[u.id]);

@@ -15,13 +15,13 @@ staffRouter.post('/',async(req,res)=>{
     const b=req.body;validatePerson(b,false);const assigned=duties(b.officerDuties),email=normalizeEmail(b.email||''),phone=normalizePhilippineMobileNumber(b.mobileNumber||'');
     if((b.email&&!email)||(b.mobileNumber&&!phone)||(!email&&!phone))throw Error('Enter a valid email or Philippine mobile number.');
     if(!strongPassword(String(b.password||'')))throw Error('Use 8–128 password characters with uppercase, lowercase, a number and a symbol.');
-    const badge=String(b.badgeNumber||'').trim();if(!badge||badge.length>100)throw Error('Enter the Officer’s badge or staff identifier.');
-    const user=await createUser({firstName:b.firstName.trim(),middleName:String(b.middleName||'').trim(),lastName:b.lastName.trim(),suffix:b.suffix||'',dateOfBirth:b.dateOfBirth,email,mobileNumber:phone,passwordHash:await hashPass(b.password),role:'WORKER',badgeNumber:badge,adminTitle:'Worker',accountStatus:'ACTIVE'});
+    const badge=String(b.badgeNumber||'').trim();if(badge.length>100)throw Error('The official badge number cannot exceed 100 characters.');
+    const user=await createUser({firstName:b.firstName.trim(),middleName:String(b.middleName||'').trim(),lastName:b.lastName.trim(),suffix:b.suffix||'',dateOfBirth:b.dateOfBirth,email,mobileNumber:phone,passwordHash:await hashPass(b.password),role:'WORKER',badgeNumber:badge||null,adminTitle:'Worker',accountStatus:'ACTIVE'});
     if(!user)throw Error('Could not create the Worker account.');
     await pool.query('UPDATE users SET officer_duties=? WHERE id=?',[JSON.stringify(assigned),user.id]);
     await pool.query("INSERT INTO audit_logs(actor_user_id,actor_role,action,target_type,target_id,result,details) VALUES(?,?,'WORKER_CREATED','USER',?,'SUCCESS',?)",[(req as any).user.id,(req as any).user.role,user.id,JSON.stringify({duties:assigned})]);
     let deliveryError='';try{const contact=pendingContact(user);if(contact)await issueCode(user,contact,`VERIFY_${contact.channel.toUpperCase()}`);}catch{deliveryError='Worker created. Contact verification delivery is unavailable; configure messaging, then use Send code after first sign-in.';}
-    res.status(201).json({success:true,deliveryError});
+    res.status(201).json({success:true,workerId:`WRK-${String(user.id).padStart(6,'0')}`,deliveryError});
   }catch(error:any){res.status(error.code==='ER_DUP_ENTRY'?409:400).json({error:error.code==='ER_DUP_ENTRY'?'This email or mobile number is already registered.':error.message||'Could not create the Worker account.'});}
 });
 staffRouter.patch('/:id',async(req,res)=>{
@@ -31,7 +31,7 @@ staffRouter.patch('/:id',async(req,res)=>{
     validatePerson(b,false);
     const email=normalizeEmail(b.email||''),phoneInput=String(b.mobileNumber||'').trim(),phone=phoneInput?normalizePhilippineMobileNumber(phoneInput):null;
     if((b.email&&!email)||(phoneInput&&!phone)||(!email&&!phone))throw Error('Enter a valid email or Philippine mobile number.');
-    if(!['ACTIVE','SUSPENDED'].includes(status)||!badge||badge.length>100)throw Error('Choose Active or Suspended and enter a valid staff identifier.');
+    if(!['ACTIVE','SUSPENDED'].includes(status)||badge.length>100)throw Error('Choose Active or Suspended and enter a valid official badge number.');
     await conn.beginTransaction();const [rows]=await conn.query<any[]>('SELECT role,officer_duties,account_status,badge_number,email,mobile_number FROM users WHERE id=? AND is_archived=0 FOR UPDATE',[req.params.id]);
     if(!rows[0]||!['OFFICER','WORKER','GUARD','VERIFICATION_OFFICER'].includes(rows[0].role))throw Error('Worker account not found.');
     await conn.query("UPDATE profile_change_requests SET status='CANCELLED',new_password_hash=NULL,proofs='[]',review_reason='Cancelled by administrator account edit.' WHERE user_id=? AND status IN ('VERIFYING','PENDING_APPROVAL')",[req.params.id]);
@@ -40,7 +40,7 @@ staffRouter.patch('/:id',async(req,res)=>{
       email_verified_at=IF(?,NULL,email_verified_at),phone_verified_at=IF(?,NULL,phone_verified_at),
       officer_duties=?,account_status=?,badge_number=? WHERE id=?`,[
         b.firstName.trim(),String(b.middleName||'').trim()||null,b.lastName.trim(),b.suffix||null,b.dateOfBirth,email,phone,
-        emailChanged,phoneChanged,JSON.stringify(assigned),status,badge,req.params.id]);
+        emailChanged,phoneChanged,JSON.stringify(assigned),status,badge||null,req.params.id]);
     await conn.query('DELETE FROM auth_sessions WHERE user_id=?',[req.params.id]);
     await conn.query("INSERT INTO audit_logs(actor_user_id,actor_role,action,target_type,target_id,result,details) VALUES(?,?,'WORKER_ACCOUNT_UPDATED','USER',?,'SUCCESS',?)",[actor.id,actor.role,req.params.id,JSON.stringify({before:{role:rows[0].role,accountStatus:rows[0].account_status,badgeNumber:rows[0].badge_number},duties:assigned,status,badgeNumber:badge,emailChanged,phoneChanged})]);
     await conn.commit();req.app.emit('sessions-invalidated',req.params.id);res.json({success:true,contactVerificationRequired:emailChanged||phoneChanged});

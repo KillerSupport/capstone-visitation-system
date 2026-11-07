@@ -4,7 +4,7 @@ import {AdminVisitorRecordsPanel} from '../Admin/AdminVisitorRecordsPanel';
 import {AdminVisitorRestrictionsPanel} from '../Admin/AdminVisitorRestrictionsPanel';
 import {AdminVisitorReportsPanel} from '../Admin/AdminVisitorReportsPanel';
 import {AdminProfileChangeRequestsPanel} from '../Admin/AdminProfileChangeRequestsPanel';
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   Shield, Users, Calendar, Clock, CheckCircle2, AlertTriangle, AlertCircle, Archive,
   Search, Filter, Eye, Printer, Plus, Trash2,
@@ -35,7 +35,7 @@ interface AdminDashboardProps {
   onUpdateAppointmentStatus: (appointmentId: string, status: VisitationAppointment['status']) => void;
   onOpenGuardScanner: (visitorId?: string) => void;
   onDeleteAppointment: (appointmentId: string) => void;
-  onSavePdl: (pdl: PDL) => Promise<void>;
+  onSavePdl: (pdl: PDL) => Promise<PDL>;
   onRecordsRefresh?:()=>Promise<void>;
   isSidebarOpen: boolean;
   homeRequest: number;
@@ -86,7 +86,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [selectedPdlForDocs, setSelectedPdlForDocs] = useState<PDL | null>(null);
   const [pdlViewMode, setPdlViewMode] = useState<'CARDS' | 'TABLE'>('CARDS');
   const [newPdlName, setNewPdlName] = useState('');
-  const [newPdlNumber, setNewPdlNumber] = useState('');
   const [newPdlFacility, setNewPdlFacility] = useState('imus-city-jail-male');
   const [newPdlCell, setNewPdlCell] = useState('Brigada 2 - Male Cell C');
 
@@ -97,6 +96,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [incidentList, setIncidentList] = useState<SecurityIncident[]>([]);
   const [liveStats,setLiveStats]=useState<any>({});
   useEffect(()=>{void api.getStats().then(setLiveStats).catch(()=>{});return realtimeWS.on('STATS_UPDATED',setLiveStats)},[]);
+  const [pendingProfileRequestCount, setPendingProfileRequestCount] = useState(0);
+  const refreshPendingProfileRequestCount = useCallback(async () => {
+    try {
+      const result = await api.getWorkerProfileChangeRequestCount();
+      setPendingProfileRequestCount(Number(result.count) || 0);
+    } catch { /* Keep the last known alert count if the API is temporarily unavailable. */ }
+  }, []);
+  useEffect(() => {
+    void refreshPendingProfileRequestCount();
+    return realtimeWS.on('PROFILE_CHANGE_REQUESTS_UPDATED', () => { void refreshPendingProfileRequestCount(); });
+  }, [refreshPendingProfileRequestCount]);
   const [isAddIncidentOpen, setIsAddIncidentOpen] = useState(false);
   const [editingIncident,setEditingIncident]=useState<SecurityIncident|null>(null),[incidentReason,setIncidentReason]=useState(''),[incidentBusy,setIncidentBusy]=useState(false),[incidentError,setIncidentError]=useState(''),[incidentHistory,setIncidentHistory]=useState<any[]|null>(null);
   const [newIncidentVisitor, setNewIncidentVisitor] = useState('');
@@ -157,15 +167,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // Save PDL (from comprehensive registration form)
   const handleSavePdl = async (savedPdl: PDL) => {
-    await onSavePdl(savedPdl);
+    const persistedPdl = await onSavePdl(savedPdl);
     setPdlList((prev) => {
-      const idx = prev.findIndex((p) => p.id === savedPdl.id);
+      const idx = prev.findIndex((p) => p.id === persistedPdl.id);
       if (idx >= 0) {
         const updated = [...prev];
-        updated[idx] = savedPdl;
+        updated[idx] = persistedPdl;
         return updated;
       }
-      return [savedPdl, ...prev];
+      return [persistedPdl, ...prev];
     });
     setIsAddPdlOpen(false);
     setEditingPdl(null);
@@ -174,10 +184,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // Quick Add PDL (fallback)
   const handleAddPdl = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newPdlName || !newPdlNumber) return;
+    if (!newPdlName) return;
     const newPdl: PDL = {
       id: `pdl-${Date.now()}`,
-      pdlNumber: newPdlNumber.toUpperCase(),
+      pdlNumber: '',
       fullName: newPdlName,
       jailFacilityId: newPdlFacility,
       cellDormitory: newPdlCell,
@@ -187,7 +197,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     void handleSavePdl(newPdl);
     setIsAddPdlOpen(false);
     setNewPdlName('');
-    setNewPdlNumber('');
   };
 
   // Add Incident
@@ -251,7 +260,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
           <button type="button" onClick={() => setActiveTab('RESTRICTIONS')} className={`rounded-lg border border-slate-700 px-4 py-2 text-xs font-bold whitespace-nowrap ${activeTab==='RESTRICTIONS'?'bg-rose-700 text-white':'text-slate-300'}`}>Visitor restrictions</button>
           <button type="button" onClick={() => setActiveTab('STAFF')} className="rounded-lg border border-slate-700 px-4 py-2 text-xs font-bold whitespace-nowrap">Worker accounts</button>
-          <button type="button" onClick={() => setActiveTab('PROFILE_APPROVALS')} className={`rounded-lg border border-slate-700 px-4 py-2 text-xs font-bold whitespace-nowrap ${activeTab==='PROFILE_APPROVALS'?'bg-blue-500 text-slate-950':'text-slate-300'}`}>Profile change requests</button>
+          <button type="button" onClick={() => setActiveTab('PROFILE_APPROVALS')} className={`rounded-lg border border-slate-700 px-4 py-2 text-xs font-bold whitespace-nowrap ${activeTab==='PROFILE_APPROVALS'?'bg-blue-500 text-slate-950':'text-slate-300'}`}>
+            <span>Profile change requests</span>
+            {pendingProfileRequestCount > 0 && <span aria-label={`${pendingProfileRequestCount} pending worker requests`} aria-live="polite" title={`${pendingProfileRequestCount} pending worker request${pendingProfileRequestCount === 1 ? '' : 's'}`} className="ml-2 inline-flex min-w-5 items-center justify-center rounded-full bg-rose-600 px-1.5 py-0.5 text-[10px] font-black leading-none text-white">{pendingProfileRequestCount > 99 ? '99+' : pendingProfileRequestCount}</span>}
+          </button>
           <button type="button" onClick={() => setActiveTab('VISITATION')} className="rounded-lg border border-slate-700 px-4 py-2 text-xs font-bold whitespace-nowrap">Approved lists & days</button>
 
           <button
@@ -560,7 +572,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </select>
               </div>
 
-              <div className="relative w-full md:w-72">
+              <label className="block w-full text-[10px] font-semibold text-slate-300 md:w-72">Search visits by visitor, PDL, reference, or cell
+                <div className="relative mt-1">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                 <input
                   type="text"
@@ -569,7 +582,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   onChange={(e) => setApptSearch(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-400"
                 />
-              </div>
+                </div>
+              </label>
 
             </div>
 
@@ -724,7 +738,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
               <div className="flex flex-wrap items-center gap-2.5">
                 {/* Search input */}
-                <div className="relative w-56 sm:w-64">
+                <label className="block w-56 text-[10px] font-semibold text-slate-300 sm:w-64">Search PDL records by name, number, offense, or cell
+                <div className="relative mt-1">
                   <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                   <input
                     type="text"
@@ -734,6 +749,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     className="w-full bg-slate-950 border border-slate-700 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-400"
                   />
                 </div>
+                </label>
 
                 {/* View switcher */}
                 <div className="bg-slate-950 p-1 rounded-lg border border-slate-700 flex items-center">

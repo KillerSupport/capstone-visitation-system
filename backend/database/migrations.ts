@@ -51,6 +51,11 @@ export async function migrateFeatures(conn:PoolConnection){
   INDEX idx_gate_expiry(expires_at), FOREIGN KEY(staff_id) REFERENCES users(id),
   FOREIGN KEY(visitor_id) REFERENCES users(id), FOREIGN KEY(appointment_id) REFERENCES appointments(id)
  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+ await conn.query(`CREATE TABLE IF NOT EXISTS pdl_number_sequence (
+  id TINYINT UNSIGNED PRIMARY KEY,
+  last_number BIGINT UNSIGNED NOT NULL DEFAULT 0
+ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+ await conn.query('INSERT IGNORE INTO pdl_number_sequence(id,last_number) VALUES(1,0)');
  await conn.query(`CREATE TABLE IF NOT EXISTS feature_migrations (version VARCHAR(100) PRIMARY KEY, applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)`);
  await conn.query("INSERT IGNORE INTO feature_migrations(version) VALUES('20261019_visitor_security_and_scheduling')");
 }

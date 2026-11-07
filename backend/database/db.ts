@@ -650,12 +650,24 @@ export async function getAllPdls() {
   return rows.map((row) => mapPdlRow(row, parseRecordData(row.profile_data)));
 }
 
+async function nextPdlNumber(conn: mysql.PoolConnection) {
+  await conn.query('INSERT IGNORE INTO pdl_number_sequence(id,last_number) VALUES(1,0)');
+  const [[maximum]] = await conn.query<mysql.RowDataPacket[]>(`SELECT COALESCE(MAX(CAST(SUBSTRING(pdl_number,5) AS UNSIGNED)),0) AS highest
+    FROM pdls WHERE UPPER(pdl_number) REGEXP '^PDL-[0-9]+$'`);
+  await conn.query('UPDATE pdl_number_sequence SET last_number=GREATEST(last_number,?) WHERE id=1', [Number(maximum.highest || 0)]);
+  await conn.query('UPDATE pdl_number_sequence SET last_number=last_number+1 WHERE id=1');
+  const [[sequence]] = await conn.query<mysql.RowDataPacket[]>('SELECT last_number FROM pdl_number_sequence WHERE id=1');
+  return `PDL-${String(sequence.last_number).padStart(6, '0')}`;
+}
+
 export async function createPdl(pdl: any) {
   const id = pdl.id || `pdl-${randomUUID()}`;
   const conn=await pool.getConnection();
   try{
   await conn.beginTransaction();
-  const [owners]=await conn.query<mysql.RowDataPacket[]>('SELECT id FROM pdls WHERE pdl_number=? FOR UPDATE',[pdl.pdlNumber||pdl.pdl_number]);
+  const [existingRows]=await conn.query<mysql.RowDataPacket[]>('SELECT id,pdl_number FROM pdls WHERE id=? FOR UPDATE',[id]);
+  const pdlNumber=existingRows[0]?.pdl_number || await nextPdlNumber(conn);
+  const [owners]=await conn.query<mysql.RowDataPacket[]>('SELECT id FROM pdls WHERE pdl_number=? FOR UPDATE',[pdlNumber]);
   if(owners[0]&&String(owners[0].id)!==String(id))throw Error('This PDL number is already assigned to another record.');
   await conn.query(`
     INSERT INTO pdls
@@ -685,7 +697,7 @@ export async function createPdl(pdl: any) {
       status=VALUES(status), primary_offense=VALUES(primary_offense), court_branch=VALUES(court_branch),
       presiding_judge=VALUES(presiding_judge), case_status=VALUES(case_status)`,
     [
-      id, pdl.pdlNumber || pdl.pdl_number,
+      id, pdlNumber,
       pdl.fileNumber || null,
       pdl.bjmpIdNumber || null,
       pdl.lastName || pdl.last_name, pdl.firstName || pdl.first_name,

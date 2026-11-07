@@ -142,6 +142,101 @@ function profilePayload(body: any, user: any) {
   };
 }
 
+async function prepareWorkerProfileRequest(req: Request, res: Response, payload: any) {
+  const actor = (req as any).user;
+  const connection = await pool.getConnection();
+  let requestId = 0;
+  let workerName = '';
+  let workerCode = '';
+  let changedFields: string[] = [];
+  try {
+    await connection.beginTransaction();
+    const [users] = await connection.query<any[]>(`SELECT id,role,first_name,middle_name,last_name,suffix,date_of_birth,email,
+      email_verified_at,mobile_number,address_data FROM users WHERE id=? AND is_archived=0 FOR UPDATE`, [actor.id]);
+    const current = users[0];
+    if (!current || current.role !== 'WORKER') {
+      await connection.rollback();
+      return res.status(403).json({ error: 'This direct approval flow is for worker profile changes.' });
+    }
+
+    const [active] = await connection.query<any[]>(`SELECT id,status FROM profile_change_requests
+      WHERE user_id=? AND status IN ('VERIFYING','PENDING_APPROVAL') ORDER BY id DESC FOR UPDATE`, [current.id]);
+    if (active.some((row: any) => row.status === 'PENDING_APPROVAL')) {
+      await connection.rollback();
+      return res.status(409).json({ error: 'Your profile request is already waiting for administrator review.' });
+    }
+    if (active.length) {
+      await connection.query("UPDATE profile_change_requests SET status='SUPERSEDED',new_password_hash=NULL WHERE user_id=? AND status IN ('VERIFYING','PENDING_APPROVAL')", [current.id]);
+    }
+
+    const [recent] = await connection.query<any[]>(`SELECT COUNT(*) AS total FROM profile_change_requests
+      WHERE user_id=? AND requested_at>DATE_SUB(NOW(),INTERVAL 15 MINUTE)`, [current.id]);
+    if (Number(recent[0]?.total || 0) >= 10) {
+      await connection.rollback();
+      return res.status(429).json({ error: 'Too many profile change requests. Please wait 15 minutes before trying again.' });
+    }
+
+    const [duplicates] = await connection.query<any[]>(`SELECT id FROM users WHERE id<>? AND is_archived=0
+      AND ((? IS NOT NULL AND LOWER(email)=LOWER(?)) OR (? IS NOT NULL AND mobile_number=?)) LIMIT 1`,
+    [current.id, payload.email, payload.email, payload.mobileNumber, payload.mobileNumber]);
+    if (duplicates.length) {
+      await connection.rollback();
+      return res.status(409).json({ error: 'That email or mobile number is already connected to another account.' });
+    }
+
+    const same = (a: unknown, b: unknown) => JSON.stringify(a ?? '') === JSON.stringify(b ?? '');
+    const existingAddress = objectValue(current.address_data);
+    changedFields = ([
+      ['First name', current.first_name, payload.firstName], ['Middle name', current.middle_name || '', payload.middleName || ''],
+      ['Last name', current.last_name, payload.lastName], ['Suffix', current.suffix || '', payload.suffix || ''],
+      ['Date of birth', String(current.date_of_birth || '').slice(0, 10), payload.dateOfBirth],
+      ['Email', current.email || '', payload.email || ''], ['Mobile number', current.mobile_number || '', payload.mobileNumber || ''],
+      ['Residential address', existingAddress, payload.address],
+    ] as [string, unknown, unknown][]).filter(([, before, after]) => !same(before, after)).map(([field]) => field);
+    if (!changedFields.length) {
+      await connection.rollback();
+      return res.status(400).json({ error: 'No profile changes were made.' });
+    }
+
+    const [insert] = await connection.query<any>(`INSERT INTO profile_change_requests
+      (user_id,request_type,payload,new_password_hash,proofs,expires_at,status)
+      VALUES(?,'PROFILE',?,NULL,'[]',DATE_ADD(NOW(),INTERVAL 30 DAY),'PENDING_APPROVAL')`,
+    [current.id, JSON.stringify(payload)]);
+    requestId = Number(insert.insertId);
+    workerName = [current.first_name, current.last_name].filter(Boolean).join(' ');
+    workerCode = `WRK-${String(current.id).padStart(6, '0')}`;
+    await connection.query('INSERT INTO audit_logs(actor_user_id,actor_role,action,target_type,target_id,result,details,ip_address) VALUES(?,?,?,?,?,\'SUCCESS\',?,?)',
+      [current.id, current.role, 'WORKER_PROFILE_CHANGE_REQUESTED', 'PROFILE_CHANGE_REQUEST', String(requestId), JSON.stringify({ changedFields }), req.ip]);
+    await connection.commit();
+  } catch (error: any) {
+    await connection.rollback();
+    return res.status(error.code === 'ER_DUP_ENTRY' ? 409 : 500).json({ error: error.code === 'ER_DUP_ENTRY' ? 'A profile change request is already active.' : 'Could not submit your profile changes.' });
+  } finally { connection.release(); }
+
+  req.app.emit('profile-change-requests-updated');
+  let adminNotified = false;
+  let notificationError = '';
+  try {
+    const [admins] = await pool.query<any[]>(`SELECT email FROM users WHERE role IN ('ADMIN','SUPER_ADMIN')
+      AND email_verified_at IS NOT NULL AND is_archived=0 AND email IS NOT NULL`);
+    const deliveries = await Promise.allSettled(admins.map((adminUser: any) => deliverMessage(
+      { channel: 'email', destination: adminUser.email },
+      'BJMP worker profile change approval requested',
+      `Account: ${workerName} (${workerCode})\nRequest: Profile change\nChanged fields: ${changedFields.join(', ')}\nReview request #${requestId} in Administrator Dashboard > Staff > Profile Change Requests.`,
+    )));
+    adminNotified = deliveries.some(delivery => delivery.status === 'fulfilled');
+    const failure = deliveries.find(delivery => delivery.status === 'rejected') as PromiseRejectedResult | undefined;
+    notificationError = failure ? String(failure.reason?.message || 'Administrator email could not be sent.').slice(0, 500) : adminNotified ? '' : 'No verified administrator email was available.';
+  } catch (error: any) { notificationError = String(error?.message || 'Administrator email could not be sent.').slice(0, 500); }
+  try {
+    await pool.query('UPDATE profile_change_requests SET admin_notified_at=?,notification_error=? WHERE id=?', [adminNotified ? new Date() : null, notificationError || null, requestId]);
+  } catch { /* The review request remains saved even if notification metadata cannot be updated. */ }
+
+  return res.json({ success: true, awaitingApproval: true, adminNotified, message: adminNotified
+    ? 'Your profile changes were sent to the administrator for approval. They will take effect after approval.'
+    : 'Your profile changes were saved for administrator approval, but the administrator email could not be delivered. Contact an administrator directly.' });
+}
+
 async function updateProfile(connection: any, user: any, payload: any) {
   const [duplicates] = await connection.query(`SELECT id FROM users WHERE id<>? AND is_archived=0
     AND ((? IS NOT NULL AND LOWER(email)=?) OR (? IS NOT NULL AND mobile_number=?)) LIMIT 1 FOR UPDATE`,
@@ -165,6 +260,7 @@ accountChangesRouter.post('/profile', accountChangeLimit, auth, async (req, res)
     const user = (req as any).user;
     const payload = profilePayload(req.body, user);
     requireVerifiedEmail(user);
+    if (user.role === 'WORKER') return await prepareWorkerProfileRequest(req, res, payload);
     return await prepareRequest(req, res, { requestType: 'PROFILE', payload, contacts: profileContacts(user, payload) });
   } catch (error: any) { return res.status(400).json({ error: error.message || 'Could not request profile changes.' }); }
 });
@@ -182,6 +278,24 @@ accountChangesRouter.post('/password', accountChangeLimit, auth, async (req, res
     }
     return await prepareRequest(req, res, { requestType: 'PASSWORD', passwordHash: await hashPass(String(req.body.password)), contacts: [contact] });
   } catch (error: any) { return res.status(400).json({ error: error.message || 'Could not request a password change.' }); }
+});
+
+accountChangesRouter.post('/password/recovery', accountChangeLimit, auth, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    if (user.role !== 'WORKER') return res.status(403).json({ error: 'This signed-in recovery option is for worker accounts.' });
+    const contact = requireVerifiedEmail(user);
+    const password = String(req.body.password || '');
+    if (!strongPassword(password) || password !== req.body.confirmPassword) {
+      return res.status(400).json({ error: 'Choose matching strong passwords (8–128 characters, uppercase, lowercase, number and symbol).' });
+    }
+    return await prepareRequest(req, res, {
+      requestType: 'PASSWORD',
+      payload: { source: 'PASSWORD_RECOVERY' },
+      passwordHash: await hashPass(password),
+      contacts: [contact],
+    });
+  } catch (error: any) { return res.status(400).json({ error: error.message || 'Could not request password recovery.' }); }
 });
 
 accountChangesRouter.post('/verify', accountChangeLimit, auth, async (req, res) => {
@@ -227,16 +341,26 @@ accountChangesRouter.post('/verify', accountChangeLimit, auth, async (req, res) 
     if (!isAdmin) {
       await connection.query(`UPDATE profile_change_requests SET proofs=?,status='PENDING_APPROVAL',verified_at=NOW() WHERE id=?`, [JSON.stringify(proofs), request.id]);
       await connection.commit();
+      req.app.emit('profile-change-requests-updated');
       const [admins] = await pool.query<any[]>(`SELECT id,email FROM users WHERE role IN ('ADMIN','SUPER_ADMIN') AND email_verified_at IS NOT NULL AND is_archived=0 AND email IS NOT NULL`);
       let adminNotified = false;
       const staffName = [current.first_name, current.last_name].filter(Boolean).join(' ');
+      const workerCode = `WRK-${String(current.id).padStart(6, '0')}`;
       const subject = 'BJMP worker account change approval requested';
-      const message = `${staffName} has verified a ${request.request_type === 'PASSWORD' ? 'password change' : 'profile change'} request. Review it in Administrator Dashboard > Staff > Profile Change Requests.`;
+      const isPasswordRecovery = request.request_type === 'PASSWORD' && payload.source === 'PASSWORD_RECOVERY';
+      const changedFields = request.request_type === 'PASSWORD' ? [isPasswordRecovery ? 'Password recovery' : 'Password'] : [
+        ['First name', current.first_name, payload.firstName], ['Middle name', current.middle_name, payload.middleName],
+        ['Last name', current.last_name, payload.lastName], ['Suffix', current.suffix, payload.suffix],
+        ['Date of birth', String(current.date_of_birth || '').slice(0, 10), payload.dateOfBirth],
+        ['Email', current.email, payload.email], ['Mobile number', current.mobile_number, payload.mobileNumber],
+        ['Residential address', objectValue(current.address_data), payload.address],
+      ].filter(([, before, after]: any[]) => JSON.stringify(before || '') !== JSON.stringify(after || '')).map(([field]: any[]) => field);
+      const message = `Account: ${staffName} (${workerCode})\nRequest: ${isPasswordRecovery ? 'Forgot password recovery' : request.request_type === 'PASSWORD' ? 'Password change' : 'Profile change'}\nChanged fields: ${changedFields.join(', ') || 'No profile fields detected'}\nReview exact details in Administrator Dashboard > Staff > Profile Change Requests.`;
       const deliveries = await Promise.allSettled(admins.map((adminUser: any) => deliverMessage({ channel: 'email', destination: adminUser.email }, subject, message)));
       adminNotified = deliveries.some(delivery => delivery.status === 'fulfilled');
       const failure = deliveries.find(delivery => delivery.status === 'rejected') as PromiseRejectedResult | undefined;
       await pool.query('UPDATE profile_change_requests SET admin_notified_at=?,notification_error=? WHERE id=?', [adminNotified ? new Date() : null, failure ? String(failure.reason?.message || 'Administrator email could not be sent.').slice(0, 500) : (adminNotified ? null : 'No verified administrator email was available.'), request.id]);
-      return res.json({ success: true, complete: true, awaitingApproval: true, adminNotified, message: 'Email verified. Your changes are waiting for administrator approval.' });
+      return res.json({ success: true, complete: true, awaitingApproval: true, adminNotified, message: adminNotified ? 'Email verified. Your changes are waiting for administrator approval, and the administrator was notified by email.' : 'Email verified. Your changes are waiting for administrator approval, but the administrator email could not be delivered. Contact an administrator directly.' });
     }
 
     if (request.request_type === 'PASSWORD') {
@@ -259,6 +383,12 @@ accountChangesRouter.post('/verify', accountChangeLimit, auth, async (req, res) 
   } finally { connection.release(); }
 });
 
+accountChangesRouter.get('/admin/requests/count', auth, admin, async (_req, res) => {
+  const [rows] = await pool.query<any[]>(`SELECT COUNT(*) AS count FROM profile_change_requests r
+    JOIN users u ON u.id=r.user_id WHERE r.status='PENDING_APPROVAL' AND u.role='WORKER' AND u.is_archived=0`);
+  res.json({ count: Number(rows[0]?.count || 0) });
+});
+
 accountChangesRouter.get('/admin/requests', auth, admin, async (_req, res) => {
   const [rows] = await pool.query<any[]>(`SELECT r.id,r.user_id,r.request_type,r.payload,r.requested_at,r.verified_at,
     u.first_name,u.middle_name,u.last_name,u.email,u.mobile_number,u.address_data,u.address_street,u.address_municipality,u.zip_code
@@ -271,6 +401,7 @@ accountChangesRouter.get('/admin/requests', auth, admin, async (_req, res) => {
     id: row.id,
     userId: row.user_id,
     requestType: row.request_type,
+    source: row.request_type === 'PASSWORD' && requested.source === 'PASSWORD_RECOVERY' ? 'PASSWORD_RECOVERY' : 'ACCOUNT_CHANGE',
     requestedAt: row.requested_at,
     workerName: [row.first_name,row.middle_name,row.last_name].filter(Boolean).join(' '),
     current: { firstName: row.first_name, middleName: row.middle_name || '', lastName: row.last_name, email: row.email, mobileNumber: row.mobile_number, address: objectValue(row.address_data) },
@@ -284,7 +415,7 @@ accountChangesRouter.post('/admin/requests/:id/review', auth, admin, async (req,
   const reason = clean(req.body.reason, 1000);
   const actor = (req as any).user;
   if (!['APPROVE','REJECT'].includes(decision)) return res.status(400).json({ error: 'Choose approve or reject.' });
-  if (decision === 'REJECT' && !reason) return res.status(400).json({ error: 'Record a reason for rejecting this request.' });
+  if (!reason) return res.status(400).json({ error: 'Enter the administrator’s decision note so the worker can be told why the request was approved or rejected.' });
   const connection = await pool.getConnection();
   let workerEmail = '';
   let workerId = '';
@@ -312,6 +443,7 @@ accountChangesRouter.post('/admin/requests/:id/review', auth, admin, async (req,
     }
     await connection.query('INSERT INTO audit_logs(actor_user_id,actor_role,action,target_type,target_id,result,details,ip_address) VALUES(?,?,?,?,?,\'SUCCESS\',?,?)', [actor.id,actor.role,`WORKER_PROFILE_CHANGE_${decision}`,'PROFILE_CHANGE_REQUEST',String(request.id),JSON.stringify({workerId:worker.id,requestType:request.request_type,reason:reason||null}),req.ip]);
     await connection.commit();
+    req.app.emit('profile-change-requests-updated');
     workerId = String(worker.id);
     workerEmail = request.request_type === 'PROFILE' && decision === 'APPROVE' ? String(payload.email || worker.email) : String(worker.email || '');
     if (decision === 'APPROVE') req.app.emit('sessions-invalidated', workerId);
@@ -319,7 +451,7 @@ accountChangesRouter.post('/admin/requests/:id/review', auth, admin, async (req,
     if (workerEmail) {
       try {
         await deliverMessage({ channel: 'email', destination: workerEmail }, `BJMP account change ${decision.toLowerCase()}`,
-          decision === 'APPROVE' ? 'Your administrator approved your verified account change. Sign in again to use the updated account.' : `Your account change request was not approved. Reason: ${reason}`);
+          decision === 'APPROVE' ? `Your administrator approved your verified account change. Administrator note: ${reason}. ${request.request_type === 'PASSWORD' ? 'Use the new password you submitted to sign in.' : 'Sign in again to use the updated account.'}` : `Your account change request was not approved. Administrator note: ${reason}`);
         emailSent = true;
       } catch { /* The decision remains recorded even if the mail provider is unavailable. */ }
     }

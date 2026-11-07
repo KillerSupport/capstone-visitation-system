@@ -232,6 +232,7 @@ app.use('/api/staff',staffRouter);
 app.use('/api/incidents',incidentRouter);
 app.use('/api/visitor-records',visitorRecordsRouter);
 (app as any).on('visitation-changed',()=>{broadcast('VISITATION_UPDATED',{});void dispatchScheduleNotifications().catch(()=>{});});
+(app as any).on('profile-change-requests-updated',()=>{broadcast('PROFILE_CHANGE_REQUESTS_UPDATED',{});});
 app.get('/api/kyc/status',async(req,res)=>{const [rows]=await pool.query<any[]>('SELECT id,id_type,status,automated_check,submitted_at,reviewed_at,rejection_reason FROM kyc_submissions WHERE user_id=? ORDER BY submitted_at DESC,id DESC LIMIT 1',[(req as any).user.id]);res.json({status:rows[0]||{status:'NOT_SUBMITTED'}})});
 app.post('/api/kyc/submissions',async(req,res)=>{try{
   const user=(req as any).user;

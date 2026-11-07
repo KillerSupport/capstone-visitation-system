@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { X, AlertCircle, Check, Circle } from 'lucide-react';
 import { UserProfile, UserAddress } from '../../types';
 import { AddressFields, emptyAddress } from '../Common/AddressFields';
-import { MobileInput, SuffixSelect, PasswordInput, ageFromBirthdate, birthdateCutoff } from '../Common/IdentityFields';
+import { BirthDateFields, MobileInput, SuffixSelect, PasswordInput, ageFromBirthdate, birthdateCutoff } from '../Common/IdentityFields';
 
 interface Props { isOpen: boolean; onClose: () => void; onRegisterSuccess: (u: UserProfile) => Promise<void> | void }
 
@@ -50,12 +50,10 @@ export const SignUpModal: React.FC<Props> = ({ isOpen, onClose, onRegisterSucces
         <div className="grid gap-3 sm:grid-cols-2">
           {[[firstName, setFirstName, 'First name'], [middleName, setMiddleName, 'Middle name (optional)'], [lastName, setLastName, 'Last name']].map(([value, set, label]: any) => <label key={label} className="text-xs">{label}<input required={!label.includes('optional')} maxLength={100} className={`${input} mt-1`} value={value} onChange={e => set(e.target.value)} /></label>)}
           <label className="text-xs">Suffix (optional)<SuffixSelect className={`${input} mt-1`} value={suffix} onChange={setSuffix} /></label>
-          <label className="text-xs">Date of Birth
-            <input type="date" max={birthdateCutoff(18)} required aria-describedby="signup-birthdate-help" aria-invalid={!!dateOfBirth && (age === null || underage)} className={`${input} mt-1`} value={dateOfBirth} onChange={e => setBirth(e.target.value)} />
-            <span id="signup-birthdate-help" className={`mt-1 block ${dateOfBirth && (age === null || underage) ? 'text-rose-400' : ''}`} aria-live="polite">
-              {dateOfBirth ? age === null ? 'Enter a valid birthdate that is not in the future.' : underage ? `Age: ${age}. You must be at least 18 years old to register.` : `Age: ${age}` : 'You must be 18 years old or older.'}
-            </span>
-          </label>
+          <BirthDateFields className="sm:col-span-2" inputClassName={input} value={dateOfBirth} onChange={setBirth} maxDate={birthdateCutoff(18)} descriptionId="signup-birthdate-help" legend="Date of birth (month, day, and year)" />
+          <p id="signup-birthdate-help" className={`sm:col-span-2 -mt-2 text-xs ${dateOfBirth && (age === null || underage) ? 'text-rose-400' : 'text-slate-300'}`} aria-live="polite">
+            {dateOfBirth ? age === null ? 'Enter a valid birthdate that is not in the future.' : underage ? `Age: ${age}. You must be at least 18 years old to register.` : `Age: ${age}` : 'You must be 18 years old or older.'}
+          </p>
           <label className="text-xs">Gender<select className={`${input} mt-1`} value={gender} onChange={e => setGender(e.target.value)}>{['Prefer not to say', 'Female', 'Male', 'Other'].map(x => <option key={x}>{x}</option>)}</select></label>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">

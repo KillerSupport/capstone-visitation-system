@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   X, UserPlus, FileText, Shield, User, MapPin, Scale,
   Check, AlertTriangle, Sparkles, Plus, Trash2, Camera,
@@ -8,6 +8,7 @@ import { PDL, MaritalStatus, PDLBodyMark } from '../../types';
 import { BJMP_JAIL_FACILITIES } from '../../data/bjmpData';
 import { BodyMarkPicker } from './BodyMarkPicker';
 import { SignatureCapture } from '../Common/SignatureCapture';
+import { BirthDateFields } from '../Common/IdentityFields';
 
 interface PDLRegistrationModalProps {
   onClose: () => void;
@@ -23,6 +24,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
   existingPdl,
 }) => {
   const [activeTab, setActiveTab] = useState<TabKey>('DEMOGRAPHICS');
+  const formRef = useRef<HTMLFormElement>(null);
   const [saving,setSaving]=useState(false),[saveError,setSaveError]=useState('');
   const [signatureDataUrl, setSignatureDataUrl] = useState(existingPdl?.signatureDataUrl || '');
 
@@ -158,7 +160,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
     setMiddleName('Flores');
     setSuffix('');
     setAliases('FICTIONAL DEMONSTRATION DATA — sample only');
-    setPdlNumber(`DEMO-FICTIONAL-${crypto.randomUUID()}`);
+    setPdlNumber('');
     setSex('Male');
     setDateOfBirth('1994-09-28');
     setAgeAtAdmission(30);
@@ -369,6 +371,22 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
     { key: 'PROPERTY', label: '6. Property Receipt', icon: Package },
     { key: 'DOCUMENTS', label: '7. GCTA & Documents', icon: CheckSquare },
   ];
+  const activeStepIndex = tabs.findIndex((tab) => tab.key === activeTab);
+  const moveStep = (direction: -1 | 1) => {
+    if (direction > 0) {
+      const form = formRef.current;
+      const requiredFields = form ? Array.from(form.querySelectorAll<HTMLElement>(':required')) as (HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement)[] : [];
+      const invalidField = requiredFields.find((field) => !field.checkValidity());
+      if (invalidField) {
+        invalidField.reportValidity();
+        invalidField.focus();
+        return;
+      }
+    }
+    const nextIndex = Math.max(0, Math.min(tabs.length - 1, activeStepIndex + direction));
+    setActiveTab(tabs[nextIndex].key);
+    formRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-3 sm:p-6 overflow-y-auto">
@@ -417,31 +435,16 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
           </div>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="bg-slate-950/60 border-b border-slate-800 px-6 flex items-center gap-1 overflow-x-auto scrollbar-none">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.key;
-            return (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => setActiveTab(tab.key)}
-                className={`flex items-center gap-2 py-3 px-3 text-xs font-bold whitespace-nowrap border-b-2 transition-colors cursor-pointer ${
-                  isActive
-                    ? 'border-blue-400 text-blue-400 bg-blue-500/5'
-                    : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-700'
-                }`}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
+        <div className="border-b border-slate-800 bg-slate-950/60 px-6 py-3" aria-live="polite">
+          <div className="flex items-center justify-between gap-3">
+            <div><p className="text-[10px] font-bold uppercase tracking-wider text-blue-300">Step {activeStepIndex + 1} of {tabs.length}</p><h3 className="mt-0.5 text-sm font-bold text-white">{tabs[activeStepIndex]?.label.replace(/^\d+\.\s*/, '')}</h3></div>
+            <span className="text-xs text-slate-400">Complete this section, then choose Next.</span>
+          </div>
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-800"><div className="h-full rounded-full bg-blue-400 transition-all" style={{ width: `${((activeStepIndex + 1) / tabs.length) * 100}%` }} /></div>
         </div>
 
         {/* Modal Form Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6 text-xs">
+        <form ref={formRef} onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6 text-xs">
           
           {/* ========================================================
               TAB 1: DEMOGRAPHICS & IDENTIFICATION
@@ -450,32 +453,32 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
             <div className="space-y-4">
               <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 flex flex-wrap gap-4 items-center justify-between">
                 <div>
-                  <span className="text-[10px] text-slate-400 block font-semibold">PRISONER / PDL NUMBER</span>
-                  <input
-                    type="text"
-                    required
-                    value={pdlNumber}
-                    onChange={(e) => setPdlNumber(e.target.value)}
-                    className="font-mono font-bold text-blue-300 text-sm bg-slate-900 border border-slate-700 rounded px-2.5 py-1 mt-0.5 focus:outline-none focus:border-blue-400"
-                  />
+                  <label className="text-[10px] text-slate-300 block font-semibold">PRISONER / PDL NUMBER (AUTOMATIC)
+                    <input type="text" readOnly value={pdlNumber || 'Assigned automatically when saved'} className="block w-full font-mono font-bold text-blue-300 text-sm bg-slate-900 border border-slate-700 rounded px-2.5 py-2 mt-1" />
+                  </label>
+                  <p className="mt-1 max-w-xs text-[10px] text-slate-400">Unique system number for this PDL record. It is assigned from the database when you save.</p>
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-400 block font-semibold">FILE NUMBER (JACKET)</span>
+                  <label className="text-[10px] text-slate-300 block font-semibold">FILE NUMBER (JACKET) — OPTIONAL
                   <input
                     type="text"
                     value={fileNumber}
                     onChange={(e) => setFileNumber(e.target.value)}
-                    className="font-mono text-slate-200 text-sm bg-slate-900 border border-slate-700 rounded px-2.5 py-1 mt-0.5 focus:outline-none focus:border-blue-400"
+                    className="block w-full font-mono text-slate-200 text-sm bg-slate-900 border border-slate-700 rounded px-2.5 py-2 mt-1 focus:outline-none focus:border-blue-400"
                   />
+                  <span className="mt-1 block text-[10px] font-normal text-slate-400">Physical paper jacket or case-folder reference, if one has been assigned.</span>
+                  </label>
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-400 block font-semibold">BJMP ID NUMBER</span>
+                  <label className="text-[10px] text-slate-300 block font-semibold">BJMP ID NUMBER — OPTIONAL
                   <input
                     type="text"
                     value={bjmpIdNumber}
                     onChange={(e) => setBjmpIdNumber(e.target.value)}
-                    className="font-mono text-slate-200 text-sm bg-slate-900 border border-slate-700 rounded px-2.5 py-1 mt-0.5 focus:outline-none focus:border-blue-400"
+                    className="block w-full font-mono text-slate-200 text-sm bg-slate-900 border border-slate-700 rounded px-2.5 py-2 mt-1 focus:outline-none focus:border-blue-400"
                   />
+                  <span className="mt-1 block text-[10px] font-normal text-slate-400">Official BJMP identification number already assigned to the PDL, if available.</span>
+                  </label>
                 </div>
                 <div>
                   <span className="text-[10px] text-slate-400 block font-semibold">CURRENT STATUS</span>
@@ -578,16 +581,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-300 mb-1">Date of Birth (mm/dd/yyyy) *</label>
-                  <input
-                    type="date"
-                    required
-                    value={dateOfBirth}
-                    onChange={(e) => setDateOfBirth(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
-                  />
-                </div>
+                <BirthDateFields className="sm:col-span-2" inputClassName="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400" value={dateOfBirth} onChange={setDateOfBirth} legend="Date of birth (month, day, and year) *" />
                 <div>
                   <label className="block font-semibold text-slate-300 mb-1">Age at Admission *</label>
                   <input
@@ -721,19 +715,8 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                 </div>
                 <div>
                   <label className="block font-semibold text-slate-300 mb-1">Gang / Group Affiliation (Pangkat)</label>
-                  <select
-                    value={gangGroupAffiliation}
-                    onChange={(e) => setGangGroupAffiliation(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400 font-semibold"
-                  >
-                    <option value="Non-Affiliated (Neutral)">Non-Affiliated (Neutral / Walang Pangkat)</option>
-                    <option value="Sigue-Sigue Sputnik">Sigue-Sigue Sputnik</option>
-                    <option value="Batang City Jail (BCJ)">Batang City Jail (BCJ)</option>
-                    <option value="Bahala Na Gang (BNG)">Bahala Na Gang (BNG)</option>
-                    <option value="Commando Gang">Commando Gang</option>
-                    <option value="Genuine Ilocano Gang (GIG)">Genuine Ilocano Gang (GIG)</option>
-                    <option value="Batang Cebu 45">Batang Cebu 45</option>
-                  </select>
+                  <input type="text" maxLength={200} value={gangGroupAffiliation} onChange={(e) => setGangGroupAffiliation(e.target.value)} placeholder="Type the group name, Non-Affiliated, or Unknown" className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400" />
+                  <p className="mt-1 text-[10px] text-slate-400">Enter any current affiliation, even if it is not listed elsewhere.</p>
                 </div>
               </div>
 
@@ -1491,31 +1474,16 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
             </div>
           )}
 
-          <SignatureCapture value={signatureDataUrl} onChange={setSignatureDataUrl} label="PDL registration signature" />
+          {activeTab === 'DOCUMENTS' && <SignatureCapture value={signatureDataUrl} onChange={setSignatureDataUrl} label="PDL registration signature" />}
 
           {/* Modal Footer Controls */}
           {saveError&&<p role="alert" className="text-sm text-rose-300">{saveError}</p>}
-          <div className="pt-4 border-t border-slate-800 flex items-center justify-between">
-            <span className="text-[11px] text-slate-500">
-              * Official BJMP Standard Operating Procedure (SOP) on Inmate Booking & Records Management
-            </span>
-
-            <div className="flex items-center space-x-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-lg cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={saving}
-                className="bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold px-5 py-2 rounded-lg flex items-center gap-1.5 cursor-pointer shadow-lg shadow-blue-500/20"
-              >
-                <Check className="w-4 h-4" />
-                <span>{saving?'Saving…':existingPdl ? 'Save Updated Booking' : 'Complete & Register PDL'}</span>
-              </button>
+          <div className="pt-4 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-[11px] text-slate-400">Step {activeStepIndex + 1} of {tabs.length} · * BJMP booking and records details</p>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={onClose} disabled={saving} className="rounded-lg bg-slate-800 px-4 py-2 text-slate-300 hover:bg-slate-700">Cancel</button>
+              {activeStepIndex > 0 && <button type="button" onClick={() => moveStep(-1)} disabled={saving} className="rounded-lg border border-slate-600 px-4 py-2 text-slate-200 hover:bg-slate-800">Previous</button>}
+              {activeStepIndex < tabs.length - 1 ? <button type="button" onClick={() => moveStep(1)} disabled={saving} className="rounded-lg bg-blue-500 px-5 py-2 font-bold text-slate-950 hover:bg-blue-400">Next</button> : <button type="submit" disabled={saving} className="flex items-center gap-1.5 rounded-lg bg-blue-500 px-5 py-2 font-bold text-slate-950 shadow-lg shadow-blue-500/20 hover:bg-blue-400"><Check className="w-4 h-4" /><span>{saving?'Saving…':existingPdl ? 'Save Updated Booking' : 'Complete & Register PDL'}</span></button>}
             </div>
           </div>
 

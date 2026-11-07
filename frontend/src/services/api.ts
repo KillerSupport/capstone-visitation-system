@@ -63,9 +63,11 @@ export const api = {
   async verifyReset(identifier:string,code:string){return request<any>('/auth/verify-reset',{method:'POST',body:JSON.stringify({identifier,code})})},
   async resetPassword(data:any){return request<any>('/auth/reset-password',{method:'POST',body:JSON.stringify(data)})},
   async changePassword(data:any){return request<any>('/account-changes/password',{method:'POST',body:JSON.stringify(data)})},
+  async requestPasswordRecovery(data:any){return request<any>('/account-changes/password/recovery',{method:'POST',body:JSON.stringify(data)})},
   async requestProfileChange(data:any){return request<any>('/account-changes/profile',{method:'POST',body:JSON.stringify(data)})},
   async verifyProfileChange(code:string){return request<any>('/account-changes/verify',{method:'POST',body:JSON.stringify({code})})},
   async getWorkerProfileChangeRequests(){return request<any[]>('/account-changes/admin/requests')},
+  async getWorkerProfileChangeRequestCount(){return request<{count:number}>('/account-changes/admin/requests/count')},
   async reviewWorkerProfileChange(id:string,decision:'APPROVE'|'REJECT',reason=''){return request<any>(`/account-changes/admin/requests/${encodeURIComponent(id)}/review`,{method:'POST',body:JSON.stringify({decision,reason})})},
   async resumeVerification(identifier:string,password:string){return request<any>('/auth/resume-verification',{method:'POST',body:JSON.stringify({identifier,password})})},
   async companionPolicy(){return request<any>('/companion-policy')},
@@ -246,6 +248,9 @@ export const api = {
 
   async getVisitorRecords(query='') {
     return request<any[]>(`/visitor-records/admin/visitors?q=${encodeURIComponent(query)}`);
+  },
+  async getVisitorRestrictionOptions(query='') {
+    return request<any[]>(`/visitor-records/admin/visitors/restriction-options?q=${encodeURIComponent(query)}`);
   },
   async getVisitorRecord(id:string) {
     return request<any>(`/visitor-records/admin/visitors/${encodeURIComponent(id)}`);
