@@ -10,6 +10,7 @@ export async function migrateVisitorRecords(conn: PoolConnection) {
     full_name VARCHAR(255) NOT NULL,
     gender VARCHAR(30) NULL,
     address TEXT NULL,
+    address_data LONGTEXT NULL,
     age SMALLINT UNSIGNED NULL,
     contact_number VARCHAR(50) NULL,
     contact_email VARCHAR(255) NULL,
@@ -26,6 +27,10 @@ export async function migrateVisitorRecords(conn: PoolConnection) {
     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
     FOREIGN KEY (archived_by) REFERENCES users(id) ON DELETE SET NULL
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+  const [visitorColumns] = await conn.query<any[]>('SHOW COLUMNS FROM visitor_records');
+  if (!visitorColumns.some((column: any) => column.Field === 'address_data')) {
+    await conn.query('ALTER TABLE visitor_records ADD COLUMN address_data LONGTEXT NULL AFTER address');
+  }
 
   await conn.query(`CREATE TABLE IF NOT EXISTS visitor_qr_identities (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -163,10 +168,10 @@ export async function migrateVisitorRecords(conn: PoolConnection) {
         address = data?.completeAddress || [data?.houseUnitStreet,data?.barangay,data?.municipality,data?.province,data?.region,data?.zipCode].filter(Boolean).join(', ') || address;
       } catch { /* Retain the legacy address value. */ }
       const [insert] = await conn.query<any[]>(`INSERT IGNORE INTO visitor_records
-        (visitor_code,legacy_user_id,full_name,gender,address,age,contact_number,contact_email,status,is_archived,created_at)
-        VALUES(?,?,?,?,?,IF(? IS NULL,NULL,TIMESTAMPDIFF(YEAR,?,CURDATE())),?,?, 'ACTIVE',0,COALESCE(?,NOW()))`, [
+        (visitor_code,legacy_user_id,full_name,gender,address,address_data,age,contact_number,contact_email,status,is_archived,created_at)
+        VALUES(?,?,?,?,?,?,IF(? IS NULL,NULL,TIMESTAMPDIFF(YEAR,?,CURDATE())),?,?, 'ACTIVE',0,COALESCE(?,NOW()))`, [
           `VIS-BAC-${String(user.id).padStart(6,'0')}`, user.id, fullName || `Legacy visitor ${user.id}`, user.gender || null,
-          address || null, user.date_of_birth, user.date_of_birth, user.mobile_number || null, user.email || null, user.registered_at || null,
+          address || null, user.address_data || null, user.date_of_birth, user.date_of_birth, user.mobile_number || null, user.email || null, user.registered_at || null,
         ]);
       const [[record]] = await conn.query<any[]>(`SELECT id FROM visitor_records WHERE legacy_user_id=?`,[user.id]);
       const [links] = await conn.query<any[]>(`SELECT id,pdl_id,relationship,is_active,approved_by,approved_at,archived_by,archived_at,archive_reason

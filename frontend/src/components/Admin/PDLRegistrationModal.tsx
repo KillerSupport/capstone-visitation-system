@@ -1,22 +1,45 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   X, UserPlus, FileText, Shield, User, MapPin, Scale,
   Check, AlertTriangle, Sparkles, Plus, Trash2, Camera,
   Package, Calendar, CheckSquare, Fingerprint
 } from 'lucide-react';
-import { PDL, MaritalStatus, PDLBodyMark } from '../../types';
+import { PDL, MaritalStatus, PDLBodyMark, UserAddress } from '../../types';
 import { BJMP_JAIL_FACILITIES } from '../../data/bjmpData';
 import { BodyMarkPicker } from './BodyMarkPicker';
 import { SignatureCapture } from '../Common/SignatureCapture';
-import { BirthDateFields } from '../Common/IdentityFields';
+import { AddressFields, addressFromSaved, formatAddress } from '../Common/AddressFields';
+import { MobileInput, mobileDigits, todayInManila } from '../Common/IdentityFields';
+import { api } from '../../services/api';
 
 interface PDLRegistrationModalProps {
   onClose: () => void;
-  onSave: (pdl: PDL) => void | Promise<void>;
+  onSave: (pdl: PDL) => void | PDL | Promise<void | PDL>;
   existingPdl?: PDL | null;
 }
 
 type TabKey = 'DEMOGRAPHICS' | 'PHYSICAL' | 'FAMILY' | 'ARREST' | 'LEGAL' | 'PROPERTY' | 'DOCUMENTS';
+
+const IMUS_PDL_FACILITY_IDS = ['imus-city-jail-male', 'imus-city-jail-female'];
+const IMUS_PDL_FACILITIES = BJMP_JAIL_FACILITIES.filter((facility) => IMUS_PDL_FACILITY_IDS.includes(facility.id));
+const CHARGED_VIOLATION_SUGGESTIONS = [
+  'Theft — Article 308, Revised Penal Code',
+  'Qualified Theft — Article 310, Revised Penal Code',
+  'Robbery — Article 293, Revised Penal Code',
+  'Estafa — Article 315, Revised Penal Code',
+  'Murder — Article 248, Revised Penal Code',
+  'Homicide — Article 249, Revised Penal Code',
+  'Physical Injuries — Article 263, Revised Penal Code',
+  'Violation of Section 5, Article II, R.A. 9165 — Sale or Trading of Dangerous Drugs',
+  'Violation of Section 11, Article II, R.A. 9165 — Possession of Dangerous Drugs',
+  'Violation of Section 12, Article II, R.A. 9165 — Possession of Drug Paraphernalia',
+  'Violation of Section 28(a), R.A. 10591 — Unlawful Acquisition or Possession of a Small Arm',
+];
+const IMUS_COURT_BRANCH_SUGGESTIONS = [
+  ...[20, 21, 22, 120, 121, 122, 123, 124, 125, 126, 127].map((branch) => `RTC Branch ${branch}, City of Imus, Cavite`),
+  'RTC Family Court Branch 4, City of Imus, Cavite',
+  ...[1, 2, 3, 4].map((branch) => `MTCC Branch ${branch}, City of Imus, Cavite`),
+];
 
 export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
   onClose,
@@ -48,10 +71,8 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
   const [citizenship, setCitizenship] = useState(existingPdl?.citizenship || 'Filipino');
   const [religion, setReligion] = useState(existingPdl?.religion || '');
   const [tribalAffiliation, setTribalAffiliation] = useState(existingPdl?.tribalAffiliation || '');
-  const [presentAddress, setPresentAddress] = useState(
-    existingPdl?.presentAddress || '');
-  const [provincialAddress, setProvincialAddress] = useState(
-    existingPdl?.provincialAddress || '');
+  const [presentAddress, setPresentAddress] = useState<UserAddress>(addressFromSaved(existingPdl?.presentAddress || '', existingPdl?.presentAddressDetails));
+  const [provincialAddress, setProvincialAddress] = useState<UserAddress>(addressFromSaved(existingPdl?.provincialAddress || '', existingPdl?.provincialAddressDetails));
   const [highestEducationalAttainment, setHighestEducationalAttainment] = useState(
     existingPdl?.highestEducationalAttainment || '');
   const [course, setCourse] = useState(existingPdl?.course || '');
@@ -77,19 +98,17 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
   // Family & Emergency
   const [spouseName, setSpouseName] = useState(existingPdl?.spouseName || '');
   const [fatherName, setFatherName] = useState(existingPdl?.fatherName || '');
-  const [fatherAddress, setFatherAddress] = useState(existingPdl?.fatherAddress || '');
+  const [fatherAddress, setFatherAddress] = useState<UserAddress>(addressFromSaved(existingPdl?.fatherAddress || '', existingPdl?.fatherAddressDetails));
   const [motherName, setMotherName] = useState(existingPdl?.motherName || '');
-  const [motherAddress, setMotherAddress] = useState(existingPdl?.motherAddress || '');
+  const [motherAddress, setMotherAddress] = useState<UserAddress>(addressFromSaved(existingPdl?.motherAddress || '', existingPdl?.motherAddressDetails));
   const [numberOfChildren, setNumberOfChildren] = useState<number>(existingPdl?.numberOfChildren || 0);
   const [childrenNamesStr, setChildrenNamesStr] = useState(existingPdl?.childrenNames?.join(', ') || '');
   const [emergencyContactPerson, setEmergencyContactPerson] = useState(
     existingPdl?.emergencyContactPerson || '');
   const [emergencyContactRelation, setEmergencyContactRelation] = useState(
     existingPdl?.emergencyContactRelation || '');
-  const [emergencyContactAddress, setEmergencyContactAddress] = useState(
-    existingPdl?.emergencyContactAddress || '');
-  const [emergencyContactPhone, setEmergencyContactPhone] = useState(
-    existingPdl?.emergencyContactPhone || '');
+  const [emergencyContactAddress, setEmergencyContactAddress] = useState<UserAddress>(addressFromSaved(existingPdl?.emergencyContactAddress || '', existingPdl?.emergencyContactAddressDetails));
+  const [emergencyContactPhone, setEmergencyContactPhone] = useState(mobileDigits(existingPdl?.emergencyContactPhone || ''));
 
   // Arrest & Intake
   const [dateCommitted, setDateCommitted] = useState(
@@ -107,7 +126,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
     existingPdl?.receivingOfficer || '');
   const [searchedBy, setSearchedBy] = useState(existingPdl?.searchedBy || '');
   const [jailFacilityId, setJailFacilityId] = useState(
-    existingPdl?.jailFacilityId || 'imus-city-jail-male'
+    existingPdl?.sex === 'Female' ? 'imus-city-jail-female' : 'imus-city-jail-male'
   );
   const [cellDormitory, setCellDormitory] = useState(
     existingPdl?.cellDormitory || '');
@@ -118,8 +137,8 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
   // Legal & Court
   const [primaryOffense, setPrimaryOffense] = useState(
     existingPdl?.primaryOffense || '');
-  const [caseNumber1, setCaseNumber1] = useState(
-    existingPdl?.cases?.[0]?.caseNumber || '');
+  const [caseNumberSuffix, setCaseNumberSuffix] = useState(
+    (existingPdl?.cases?.[0]?.caseNumber || existingPdl?.criminalCaseNumbers?.[0] || '').replace(/^CC-/i, ''));
   const [counts1, setCounts1] = useState<number>(existingPdl?.cases?.[0]?.counts || 1);
   const [dateCrimeCommitted, setDateCrimeCommitted] = useState(
     existingPdl?.dateCrimeCommitted || '');
@@ -141,6 +160,22 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
   );
   const [propertyReceiptNumber, setPropertyReceiptNumber] = useState(
     existingPdl?.propertyReceipt?.receiptNumber || '');
+  const [propertyReceiptLoading, setPropertyReceiptLoading] = useState(!existingPdl?.propertyReceipt?.receiptNumber);
+
+  useEffect(() => {
+    if (existingPdl?.propertyReceipt?.receiptNumber) {
+      setPropertyReceiptNumber(existingPdl.propertyReceipt.receiptNumber);
+      setPropertyReceiptLoading(false);
+      return;
+    }
+    let active = true;
+    setPropertyReceiptLoading(true);
+    void api.getNextPropertyReceiptNumber()
+      .then(({ receiptNumber }) => { if (active) setPropertyReceiptNumber(receiptNumber); })
+      .catch(() => {})
+      .finally(() => { if (active) setPropertyReceiptLoading(false); });
+    return () => { active = false; };
+  }, [existingPdl?.id, existingPdl?.propertyReceipt?.receiptNumber]);
 
   // Documents Checklist & GCTA
   const [chkMittimus, setChkMittimus] = useState(existingPdl?.documentsChecklist?.mitimus ?? false);
@@ -159,7 +194,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
     setFirstName('Crisanto');
     setMiddleName('Flores');
     setSuffix('');
-    setAliases('FICTIONAL DEMONSTRATION DATA — sample only');
+    setAliases('');
     setPdlNumber('');
     setSex('Male');
     setDateOfBirth('1994-09-28');
@@ -169,8 +204,8 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
     setCitizenship('Filipino');
     setReligion('Roman Catholic');
     setTribalAffiliation('Tagalog');
-    setPresentAddress('Blk 8 Lot 15, Greenstate Subd., Brgy. Malagasang 2-A, Imus City, Cavite');
-    setProvincialAddress('Sitio Maligaya, Silang, Cavite');
+    setPresentAddress(addressFromSaved('Blk 8 Lot 15, Greenstate Subd., Brgy. Malagasang 2-A, Imus City, Cavite'));
+    setProvincialAddress(addressFromSaved('Sitio Maligaya, Silang, Cavite'));
     setHighestEducationalAttainment('High School Graduate');
     setCourse('Secondary Education');
     setOccupation('Motorcycle Courier / Rider');
@@ -186,15 +221,15 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
     setBertillionMarks('Cross with initials "CF" on right wrist; 3-inch burn scar on right forearm; Panther head tattoo on left upper chest');
     setSpouseName('Clarissa Manalo Villarama');
     setFatherName('Danilo Villarama');
-    setFatherAddress('Brgy. Malagasang 2-A, Imus City, Cavite');
+    setFatherAddress(addressFromSaved('Brgy. Malagasang 2-A, Imus City, Cavite'));
     setMotherName('Rosalinda Flores Villarama');
-    setMotherAddress('Brgy. Malagasang 2-A, Imus City, Cavite');
+    setMotherAddress(addressFromSaved('Brgy. Malagasang 2-A, Imus City, Cavite'));
     setNumberOfChildren(2);
     setChildrenNamesStr('Christian Villarama (7 y/o), Chloe Villarama (3 y/o)');
     setEmergencyContactPerson('Clarissa Manalo Villarama');
     setEmergencyContactRelation('Spouse');
-    setEmergencyContactAddress('Blk 8 Lot 15, Greenstate Subd., Brgy. Malagasang 2-A, Imus City, Cavite');
-    setEmergencyContactPhone('+63 918 321 8844');
+    setEmergencyContactAddress(addressFromSaved('Blk 8 Lot 15, Greenstate Subd., Brgy. Malagasang 2-A, Imus City, Cavite'));
+    setEmergencyContactPhone('9183218844');
     setDateCommitted(new Date().toISOString().split('T')[0]);
     setDateCrimeCommitted('2025-01-10');
     setTimeAndDateOfArrest('2025-01-11 11:20 PM');
@@ -206,7 +241,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
     setJailFacilityId('imus-city-jail-male');
     setCellDormitory('Brigada 3 - Cell Dorm A');
     setPrimaryOffense('Robbery with Intimidation (Art. 294 RPC) & Illegal Possession of Weapon');
-    setCaseNumber1('CC-25-11840');
+    setCaseNumberSuffix('25-11840');
     setCounts1(1);
     setCourtBranch('RTC Branch 20, Imus City, Cavite');
     setPresidingJudge('Hon. Amy Ana L. De Villa-Rosales');
@@ -237,6 +272,9 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const caseNumberRemainder = caseNumberSuffix.trim().replace(/^CC-/i, '');
+    const caseNumber1 = caseNumberRemainder ? `CC-${caseNumberRemainder}` : '';
 
     const constructedFullName = [firstName, middleName, lastName, suffix]
       .filter(Boolean)
@@ -269,8 +307,10 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
       citizenship,
       religion,
       tribalAffiliation,
-      presentAddress,
-      provincialAddress,
+      presentAddress: formatAddress(presentAddress),
+      presentAddressDetails: presentAddress,
+      provincialAddress: formatAddress(provincialAddress),
+      provincialAddressDetails: provincialAddress,
       highestEducationalAttainment,
       course,
       occupation,
@@ -289,15 +329,18 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
       bodyMarks,
       spouseName,
       fatherName,
-      fatherAddress,
+      fatherAddress: formatAddress(fatherAddress),
+      fatherAddressDetails: fatherAddress,
       motherName,
-      motherAddress,
+      motherAddress: formatAddress(motherAddress),
+      motherAddressDetails: motherAddress,
       numberOfChildren: Number(numberOfChildren) || 0,
       childrenNames: childrenArr,
       emergencyContactPerson,
       emergencyContactRelation,
-      emergencyContactAddress,
-      emergencyContactPhone,
+      emergencyContactAddress: formatAddress(emergencyContactAddress),
+      emergencyContactAddressDetails: emergencyContactAddress,
+      emergencyContactPhone: emergencyContactPhone ? `+63${emergencyContactPhone}` : '',
       dateCommitted,
       dateCrimeCommitted,
       timeAndDateOfArrest,
@@ -359,7 +402,11 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
 
     if(saving)return;
     setSaving(true);setSaveError('');
-    try{await onSave(newPDL);onClose();}catch(error){setSaveError(error instanceof Error?error.message:'The PDL record could not be saved. Your entries have been retained.');}finally{setSaving(false);}
+    try{
+      const savedPdl = await onSave(newPDL);
+      if (savedPdl?.propertyReceipt?.receiptNumber) setPropertyReceiptNumber(savedPdl.propertyReceipt.receiptNumber);
+      onClose();
+    }catch(error){setSaveError(error instanceof Error?error.message:'The PDL record could not be saved. Your entries have been retained.');}finally{setSaving(false);}
   };
 
   const tabs: { key: TabKey; label: string; icon: any }[] = [
@@ -444,21 +491,21 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
         </div>
 
         {/* Modal Form Body */}
-        <form ref={formRef} onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6 text-xs">
+        <form ref={formRef} onSubmit={handleSubmit} className="flex-1 space-y-6 overflow-y-auto p-4 text-xs sm:p-6">
           
           {/* ========================================================
               TAB 1: DEMOGRAPHICS & IDENTIFICATION
           ======================================================== */}
           {activeTab === 'DEMOGRAPHICS' && (
             <div className="space-y-4">
-              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 flex flex-wrap gap-4 items-center justify-between">
-                <div>
+              <div className="grid grid-cols-1 items-start gap-3 rounded-xl border border-slate-800 bg-slate-950 p-4 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="min-w-0">
                   <label className="text-[10px] text-slate-300 block font-semibold">PRISONER / PDL NUMBER (AUTOMATIC)
-                    <input type="text" readOnly value={pdlNumber || 'Assigned automatically when saved'} className="block w-full font-mono font-bold text-blue-300 text-sm bg-slate-900 border border-slate-700 rounded px-2.5 py-2 mt-1" />
+                    <input type="text" readOnly value={pdlNumber || 'Assigned automatically when saved'} className="mt-1 block w-full rounded border border-slate-700 bg-slate-900 px-2.5 py-2 text-sm font-mono font-bold text-blue-300" />
                   </label>
                   <p className="mt-1 max-w-xs text-[10px] text-slate-400">Unique system number for this PDL record. It is assigned from the database when you save.</p>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <label className="text-[10px] text-slate-300 block font-semibold">FILE NUMBER (JACKET) — OPTIONAL
                   <input
                     type="text"
@@ -469,7 +516,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                   <span className="mt-1 block text-[10px] font-normal text-slate-400">Physical paper jacket or case-folder reference, if one has been assigned.</span>
                   </label>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <label className="text-[10px] text-slate-300 block font-semibold">BJMP ID NUMBER — OPTIONAL
                   <input
                     type="text"
@@ -480,12 +527,12 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                   <span className="mt-1 block text-[10px] font-normal text-slate-400">Official BJMP identification number already assigned to the PDL, if available.</span>
                   </label>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <span className="text-[10px] text-slate-400 block font-semibold">CURRENT STATUS</span>
                   <select
                     value={status}
                     onChange={(e) => setStatus(e.target.value as PDL['status'])}
-                    className="bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded px-2.5 py-1 mt-0.5 focus:outline-none focus:border-blue-400"
+                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 p-2 text-slate-200 focus:outline-none focus:border-blue-400"
                   >
                     <option value="In Custody">In Custody</option>
                     <option value="On Trial">On Trial</option>
@@ -497,7 +544,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
               </div>
 
               {status === 'Released' && <div className="mb-3 grid gap-3 rounded-lg border border-amber-300/20 bg-amber-300/5 p-3 sm:grid-cols-2"><div><label className="mb-1 block text-xs font-semibold text-amber-100">Release date</label><input type="date" required value={releaseDate} onChange={e=>setReleaseDate(e.target.value)} className="w-full rounded border border-slate-700 bg-slate-900 p-2 text-sm"/></div><div><label className="mb-1 block text-xs font-semibold text-amber-100">Mode of release</label><input required value={releaseMode} onChange={e=>setReleaseMode(e.target.value)} placeholder="Court order, bail, sentence served…" className="w-full rounded border border-slate-700 bg-slate-900 p-2 text-sm"/></div><p className="text-xs text-amber-100 sm:col-span-2">Saving Released records this action as administrator approval and includes the details on the discharge certificate and monthly register.</p></div>}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <div>
                   <label className="block font-semibold text-slate-300 mb-1">Last Name (Apelyido) *</label>
                   <input
@@ -542,8 +589,8 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
+              <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="sm:col-span-2 xl:col-span-2">
                   <label className="block font-semibold text-slate-300 mb-1">Alias / Nickname / "A.K.A."</label>
                   <input
                     type="text"
@@ -557,7 +604,11 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                   <label className="block font-semibold text-slate-300 mb-1">Sex *</label>
                   <select
                     value={sex}
-                    onChange={(e) => setSex(e.target.value as 'Male' | 'Female')}
+                    onChange={(e) => {
+                      const nextSex = e.target.value as 'Male' | 'Female';
+                      setSex(nextSex);
+                      setJailFacilityId(nextSex === 'Female' ? 'imus-city-jail-female' : 'imus-city-jail-male');
+                    }}
                     className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   >
                     <option value="Male">Male</option>
@@ -580,8 +631,20 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                <BirthDateFields className="sm:col-span-2" inputClassName="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400" value={dateOfBirth} onChange={setDateOfBirth} legend="Date of birth (month, day, and year) *" />
+              <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div>
+                  <label className="mb-1 block font-semibold text-slate-300">Date of birth *</label>
+                  <input
+                    type="date"
+                    required
+                    min="1900-01-01"
+                    max={todayInManila()}
+                    autoComplete="bday"
+                    value={dateOfBirth}
+                    onChange={(e) => setDateOfBirth(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
+                  />
+                </div>
                 <div>
                   <label className="block font-semibold text-slate-300 mb-1">Age at Admission *</label>
                   <input
@@ -603,7 +666,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   />
                 </div>
-                <div>
+                <div className="sm:col-span-2">
                   <label className="block font-semibold text-slate-300 mb-1">Place of Birth</label>
                   <input
                     type="text"
@@ -612,9 +675,6 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   />
                 </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-300 mb-1">Religion</label>
                   <input
@@ -637,31 +697,12 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                 </div>
               </div>
 
-              <div className="space-y-3">
-                <div>
-                  <label className="block font-semibold text-slate-300 mb-1">Present Residential Address *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="House/Blk/Lot, Street, Barangay, City/Municipality, Province"
-                    value={presentAddress}
-                    onChange={(e) => setPresentAddress(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-slate-300 mb-1">Provincial Permanent Address</label>
-                  <input
-                    type="text"
-                    placeholder="Provincial address or origin..."
-                    value={provincialAddress}
-                    onChange={(e) => setProvincialAddress(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
-                  />
-                </div>
+              <div className="space-y-3 rounded-xl border border-slate-800 bg-slate-950 p-4">
+                <AddressFields value={presentAddress} onChange={setPresentAddress} legend="Present residential address *" className="w-full rounded-lg border border-slate-700 bg-slate-900 p-2 focus:outline-none focus:border-blue-400" />
+                <AddressFields value={provincialAddress} onChange={setProvincialAddress} required={false} legend="Provincial permanent address (optional)" className="w-full rounded-lg border border-slate-700 bg-slate-900 p-2 focus:outline-none focus:border-blue-400" />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 <div>
                   <label className="block font-semibold text-slate-300 mb-1">Highest Educational Attainment</label>
                   <select
@@ -702,7 +743,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2">
                 <div>
                   <label className="block font-semibold text-slate-300 mb-1">Special Skills / Talents</label>
                   <input
@@ -738,7 +779,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <div>
                   <label className="block font-semibold text-slate-300 mb-1">Height (Taas)</label>
                   <input
@@ -786,7 +827,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <div>
                   <label className="block font-semibold text-slate-300 mb-1">Eyes (Mata)</label>
                   <input
@@ -872,7 +913,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
           ======================================================== */}
           {activeTab === 'FAMILY' && (
             <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2">
                 <div>
                   <label className="block font-semibold text-slate-300 mb-1">Spouse / Live-in Partner Name</label>
                   <input
@@ -883,7 +924,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 items-start gap-2 sm:grid-cols-2">
                   <div>
                     <label className="block font-semibold text-slate-300 mb-1">No. of Children</label>
                     <input
@@ -907,7 +948,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2">
                 <div>
                   <label className="block font-semibold text-slate-300 mb-1">Father's Full Name (Pangalan ng Ama)</label>
                   <input
@@ -917,18 +958,10 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   />
                 </div>
-                <div>
-                  <label className="block font-semibold text-slate-300 mb-1">Father's Address</label>
-                  <input
-                    type="text"
-                    value={fatherAddress}
-                    onChange={(e) => setFatherAddress(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
-                  />
-                </div>
+                <AddressFields value={fatherAddress} onChange={setFatherAddress} required={false} legend="Father's address (optional)" className="w-full rounded-lg border border-slate-700 bg-slate-900 p-2 focus:outline-none focus:border-blue-400" />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2">
                 <div>
                   <label className="block font-semibold text-slate-300 mb-1">Mother's Full Maiden Name (Pangalan ng Ina)</label>
                   <input
@@ -938,22 +971,14 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                     className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                   />
                 </div>
-                <div>
-                  <label className="block font-semibold text-slate-300 mb-1">Mother's Address</label>
-                  <input
-                    type="text"
-                    value={motherAddress}
-                    onChange={(e) => setMotherAddress(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
-                  />
-                </div>
+                <AddressFields value={motherAddress} onChange={setMotherAddress} required={false} legend="Mother's address (optional)" className="w-full rounded-lg border border-slate-700 bg-slate-900 p-2 focus:outline-none focus:border-blue-400" />
               </div>
 
               <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
                 <h4 className="font-bold text-blue-300 text-xs uppercase tracking-wider">
                   Emergency Contact / Nearest Kin (Tatawagan kung may Emergency)
                 </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   <div>
                     <label className="block font-semibold text-slate-300 mb-1">Contact Person *</label>
                     <input
@@ -975,24 +1000,10 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                   </div>
                   <div>
                     <label className="block font-semibold text-slate-300 mb-1">Contact Phone Number *</label>
-                    <input
-                      type="text"
-                      required
-                      value={emergencyContactPhone}
-                      onChange={(e) => setEmergencyContactPhone(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
-                    />
+                    <MobileInput required value={emergencyContactPhone} onChange={setEmergencyContactPhone} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 p-2 text-slate-100 focus:outline-none focus:border-blue-400" />
                   </div>
                 </div>
-                <div>
-                  <label className="block font-semibold text-slate-300 mb-1">Complete Address of Emergency Contact</label>
-                  <input
-                    type="text"
-                    value={emergencyContactAddress}
-                    onChange={(e) => setEmergencyContactAddress(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
-                  />
-                </div>
+                <AddressFields value={emergencyContactAddress} onChange={setEmergencyContactAddress} required={false} legend="Emergency contact address (optional)" className="w-full rounded-lg border border-slate-700 bg-slate-900 p-2 focus:outline-none focus:border-blue-400" />
               </div>
 
             </div>
@@ -1003,7 +1014,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
           ======================================================== */}
           {activeTab === 'ARREST' && (
             <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 <div>
                   <label className="block font-semibold text-slate-300 mb-1">Date Committed to BJMP (Petsa ng Pagpasok) *</label>
                   <input
@@ -1036,7 +1047,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2">
                 <div>
                   <label className="block font-semibold text-slate-300 mb-1">Arresting Officer / Unit</label>
                   <input
@@ -1059,7 +1070,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2">
                 <div>
                   <label className="block font-semibold text-slate-300 mb-1">BJMP Receiving Officer *</label>
                   <input
@@ -1087,16 +1098,17 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                 <h4 className="font-bold text-blue-300 text-xs uppercase tracking-wider">
                   Facility Housing & Cell / Brigada Assignment
                 </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2">
                   <div>
                     <label className="block font-semibold text-slate-300 mb-1">Designated Jail Facility</label>
                     <select
+                      required
                       value={jailFacilityId}
                       onChange={(e) => setJailFacilityId(e.target.value)}
                       className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                     >
-                      {BJMP_JAIL_FACILITIES.map((f) => (
-                        <option key={f.id} value={f.id}>{f.name}</option>
+                      {IMUS_PDL_FACILITIES.map((f) => (
+                        <option key={f.id} value={f.id} disabled={f.id !== (sex === 'Female' ? 'imus-city-jail-female' : 'imus-city-jail-male')}>{f.name}</option>
                       ))}
                     </select>
                   </div>
@@ -1128,17 +1140,22 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                   Primary Criminal Case & Judicial Information
                 </h4>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   <div>
                     <label className="block font-semibold text-slate-300 mb-1">Criminal Case Number *</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. CC-24-10294"
-                      value={caseNumber1}
-                      onChange={(e) => setCaseNumber1(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 font-mono font-bold focus:outline-none focus:border-blue-400"
-                    />
+                    <div className="flex overflow-hidden rounded-lg border border-slate-700 bg-slate-900 focus-within:border-blue-400">
+                      <span className="flex items-center border-r border-slate-700 px-3 font-mono font-bold text-blue-300">CC-</span>
+                      <input
+                        type="text"
+                        required
+                        maxLength={60}
+                        placeholder="e.g. 24-10294"
+                        value={caseNumberSuffix}
+                        onChange={(e) => setCaseNumberSuffix(e.target.value.replace(/^CC-/i, ''))}
+                        className="min-w-0 flex-1 bg-transparent p-2 font-mono font-bold text-slate-100 focus:outline-none"
+                      />
+                    </div>
+                    <p className="mt-1 text-[11px] text-slate-400">Enter the remaining number as it appears on the court papers. CC- is added automatically.</p>
                   </div>
                   <div>
                     <label className="block font-semibold text-slate-300 mb-1">Counts (Bilang ng Kaso)</label>
@@ -1166,24 +1183,34 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                   <input
                     type="text"
                     required
+                    list="pdl-charged-violation-suggestions"
                     placeholder="e.g. Violation of Sec. 11, Art. II of R.A. 9165 (Comprehensive Dangerous Drugs Act)"
                     value={primaryOffense}
                     onChange={(e) => setPrimaryOffense(e.target.value)}
                     className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400 font-medium"
                   />
+                  <datalist id="pdl-charged-violation-suggestions">
+                    {CHARGED_VIOLATION_SUGGESTIONS.map((offense) => <option key={offense} value={offense} />)}
+                  </datalist>
+                  <p className="mt-1 text-[11px] text-slate-400">Choose a suggestion or type the exact charge from the court papers.</p>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2">
                   <div>
                     <label className="block font-semibold text-slate-300 mb-1">Court & Branch *</label>
                     <input
                       type="text"
                       required
+                      list="imus-court-branch-suggestions"
                       placeholder="e.g. RTC Branch 20, Imus City, Cavite"
                       value={courtBranch}
                       onChange={(e) => setCourtBranch(e.target.value)}
                       className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 focus:outline-none focus:border-blue-400"
                     />
+                    <datalist id="imus-court-branch-suggestions">
+                      {IMUS_COURT_BRANCH_SUGGESTIONS.map((court) => <option key={court} value={court} />)}
+                    </datalist>
+                    <p className="mt-1 text-[11px] text-slate-400">Suggestions cover Imus courts; you can type another nearby court and branch.</p>
                   </div>
                   <div>
                     <label className="block font-semibold text-slate-300 mb-1">Presiding Judge</label>
@@ -1214,7 +1241,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                 <span className="font-bold text-blue-300 text-xs uppercase tracking-wider block">
                   Hearing Status Checklist (Official PDL Jacket Tracker)
                 </span>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 items-start gap-2 sm:grid-cols-2 xl:grid-cols-3">
                   <label className="flex items-center space-x-2 bg-slate-900 p-2 rounded cursor-pointer">
                     <input
                       type="checkbox"
@@ -1280,7 +1307,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
           ======================================================== */}
           {activeTab === 'PROPERTY' && (
             <div className="space-y-4">
-              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 flex items-center justify-between">
+              <div className="grid grid-cols-1 items-end gap-3 rounded-xl border border-slate-800 bg-slate-950 p-4 sm:grid-cols-[minmax(0,1fr)_auto]">
                 <div>
                   <h4 className="font-bold text-white text-sm">PDL's Property Receipt / Declaration of Valuables</h4>
                   <p className="text-[11px] text-slate-400">
@@ -1291,10 +1318,11 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                   <span className="text-[10px] text-slate-400 block font-semibold">RECEIPT #</span>
                   <input
                     type="text"
-                    value={propertyReceiptNumber}
-                    onChange={(e) => setPropertyReceiptNumber(e.target.value)}
-                    className="font-mono font-bold text-blue-300 text-xs bg-slate-900 border border-slate-700 rounded px-2 py-0.5"
+                    readOnly
+                    value={propertyReceiptNumber || (propertyReceiptLoading ? 'Checking sequence…' : 'Assigned when saved')}
+                    className="w-48 font-mono font-bold text-blue-300 text-xs bg-slate-900 border border-slate-700 rounded px-2 py-1"
                   />
+                  <span className="mt-1 block text-[10px] text-slate-400">Assigned from the next database receipt number when saved.</span>
                 </div>
               </div>
 
@@ -1313,25 +1341,25 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
 
                 <div className="space-y-2">
                   {propertyItems.map((item, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
+                    <div key={idx} className="grid grid-cols-1 items-start gap-2 sm:grid-cols-[minmax(0,7rem)_minmax(0,1fr)_auto]">
                       <input
                         type="text"
                         placeholder="Unit (e.g. 1 pc, 1 unit, PHP)"
                         value={item.unit}
                         onChange={(e) => handleUpdatePropertyItem(idx, 'unit', e.target.value)}
-                        className="w-28 bg-slate-900 border border-slate-700 rounded p-2 text-slate-200"
+                        className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-slate-200"
                       />
                       <input
                         type="text"
                         placeholder="Description (e.g. Casio digital watch silver strap, Black wallet with PhilSys ID)"
                         value={item.description}
                         onChange={(e) => handleUpdatePropertyItem(idx, 'description', e.target.value)}
-                        className="flex-1 bg-slate-900 border border-slate-700 rounded p-2 text-slate-200"
+                        className="min-w-0 w-full bg-slate-900 border border-slate-700 rounded p-2 text-slate-200"
                       />
                       <button
                         type="button"
                         onClick={() => handleRemovePropertyItem(idx)}
-                        className="text-slate-500 hover:text-rose-400 p-2 cursor-pointer"
+                        className="justify-self-end self-center p-2 text-slate-500 hover:text-rose-400 cursor-pointer"
                         title="Remove Item"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -1388,7 +1416,7 @@ export const PDLRegistrationModal: React.FC<PDLRegistrationModalProps> = ({
                   Mandatory Booking Documents on File (Checklist)
                 </h4>
                 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-1 items-start gap-2.5 sm:grid-cols-2">
                   <label className="flex items-center space-x-2.5 bg-slate-900 p-2.5 rounded-lg border border-slate-800 cursor-pointer">
                     <input
                       type="checkbox"

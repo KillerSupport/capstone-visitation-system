@@ -209,6 +209,16 @@ export async function initDatabase() {
         UNIQUE KEY unique_pdl_record_type (pdl_id, record_type)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+      CREATE TABLE IF NOT EXISTS pdl_number_sequence (
+        id          TINYINT PRIMARY KEY,
+        last_number BIGINT UNSIGNED NOT NULL DEFAULT 0
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+      CREATE TABLE IF NOT EXISTS pdl_property_receipt_sequence (
+        id          TINYINT PRIMARY KEY,
+        last_number BIGINT UNSIGNED NOT NULL DEFAULT 0
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
       /* The two visitor paper logs are generated from a permanent entry log. */
       CREATE TABLE IF NOT EXISTS visitor_log_entries (
         id              VARCHAR(100) PRIMARY KEY,
@@ -358,6 +368,10 @@ export async function initDatabase() {
     await migratePaperRequirements(conn);
     await migrateVisitorRecords(conn);
     await ensureImusFacilities(conn);
+    await conn.query(`UPDATE pdls SET jail_facility_id=CASE WHEN sex='Female' THEN 'imus-city-jail-female' ELSE 'imus-city-jail-male' END
+      WHERE jail_facility_id NOT IN ('imus-city-jail-male','imus-city-jail-female')
+        OR (sex='Female' AND jail_facility_id<>'imus-city-jail-female')
+        OR (sex<>'Female' AND jail_facility_id<>'imus-city-jail-male')`);
     await conn.query(`UPDATE jail_facilities SET region='Region IV-A (CALABARZON)', address='Imus City, Cavite', contact_number='Check BJMP ODBS for current contact details', visiting_days='Confirm current days in BJMP ODBS', visiting_hours='Check official system for available dates and time slots', biometric_desk_hours='Confirm biometric desk hours with the facility before traveling' WHERE id IN ('imus-city-jail-male','imus-city-jail-female')`);
   } finally {
     conn.release();
@@ -486,6 +500,18 @@ export async function saveOtp(userId: string, purpose: string, hash: string, exp
   const [recent] = await conn.query<mysql.RowDataPacket[]>('SELECT COUNT(*) AS n, MAX(created_at) AS last_sent FROM auth_otps WHERE user_id=? AND purpose=? AND created_at>DATE_SUB(NOW(), INTERVAL 15 MINUTE)', [userId,purpose]);
   if (Number(recent[0]?.n || 0) >= 3 || (recent[0]?.last_sent && Date.now()-new Date(recent[0].last_sent).getTime()<60000)) throw new Error('Verification request rate limit reached.');
   await conn.query('INSERT INTO auth_otps(user_id,purpose,code_hash,expires_at) VALUES(?,?,?,?)',[userId,purpose,hash,expires]);
+  await conn.commit();
+ } catch(error) { await conn.rollback();throw error; } finally { conn.release(); }
+}
+export async function saveRecoveryOtp(userId: string, hash: string, expires: Date) {
+ const conn=await pool.getConnection();
+ try {
+  await conn.beginTransaction();
+  await conn.query('SELECT id FROM users WHERE id=? FOR UPDATE',[userId]);
+  const [recent] = await conn.query<mysql.RowDataPacket[]>('SELECT COUNT(*) AS n FROM auth_otps WHERE user_id=? AND purpose=\'PASSWORD_RESET\' AND created_at>DATE_SUB(NOW(), INTERVAL 15 MINUTE)', [userId]);
+  if (Number(recent[0]?.n || 0) >= 5) throw new Error('Recovery code request rate limit reached.');
+  await conn.query("UPDATE auth_otps SET used_at=COALESCE(used_at,NOW()) WHERE user_id=? AND purpose='PASSWORD_RESET' AND used_at IS NULL",[userId]);
+  await conn.query("INSERT INTO auth_otps(user_id,purpose,code_hash,expires_at) VALUES(?,'PASSWORD_RESET',?,?)",[userId,hash,expires]);
   await conn.commit();
  } catch(error) { await conn.rollback();throw error; } finally { conn.release(); }
 }
@@ -660,13 +686,59 @@ async function nextPdlNumber(conn: mysql.PoolConnection) {
   return `PDL-${String(sequence.last_number).padStart(6, '0')}`;
 }
 
+function formatPropertyReceiptNumber(sequence: number) {
+  return `PR-${new Date().getFullYear()}-${String(sequence).padStart(5, '0')}`;
+}
+
+async function highestStoredPropertyReceiptNumber(conn: mysql.PoolConnection) {
+  const [[maximum]] = await conn.query<mysql.RowDataPacket[]>(`SELECT COALESCE(MAX(
+      CAST(SUBSTRING_INDEX(JSON_UNQUOTE(JSON_EXTRACT(form_data, '$.propertyReceipt.receiptNumber')), '-', -1) AS UNSIGNED)
+    ), 0) AS highest
+    FROM pdl_form_records
+    WHERE record_type='PDL_PROFILE' AND JSON_VALID(form_data)=1`);
+  return Number(maximum?.highest || 0);
+}
+
+export async function getNextPropertyReceiptNumber() {
+  const conn = await pool.getConnection();
+  try {
+    await conn.query('INSERT IGNORE INTO pdl_property_receipt_sequence(id,last_number) VALUES(1,0)');
+    const [[sequence]] = await conn.query<mysql.RowDataPacket[]>('SELECT last_number FROM pdl_property_receipt_sequence WHERE id=1');
+    const current = Math.max(Number(sequence?.last_number || 0), await highestStoredPropertyReceiptNumber(conn));
+    return formatPropertyReceiptNumber(current + 1);
+  } finally {
+    conn.release();
+  }
+}
+
+async function nextPropertyReceiptNumber(conn: mysql.PoolConnection) {
+  await conn.query('INSERT IGNORE INTO pdl_property_receipt_sequence(id,last_number) VALUES(1,0)');
+  const [[sequence]] = await conn.query<mysql.RowDataPacket[]>('SELECT last_number FROM pdl_property_receipt_sequence WHERE id=1 FOR UPDATE');
+  const current = Math.max(Number(sequence?.last_number || 0), await highestStoredPropertyReceiptNumber(conn));
+  const next = current + 1;
+  await conn.query('UPDATE pdl_property_receipt_sequence SET last_number=? WHERE id=1', [next]);
+  return formatPropertyReceiptNumber(next);
+}
+
 export async function createPdl(pdl: any) {
+  const emergencyContactPhone = normalizePhilippineMobileNumber(String(pdl.emergencyContactPhone || ''));
+  if (!emergencyContactPhone) throw new Error('Enter an emergency contact mobile number with +63 followed by 10 digits starting with 9.');
   const id = pdl.id || `pdl-${randomUUID()}`;
   const conn=await pool.getConnection();
   try{
   await conn.beginTransaction();
   const [existingRows]=await conn.query<mysql.RowDataPacket[]>('SELECT id,pdl_number FROM pdls WHERE id=? FOR UPDATE',[id]);
   const pdlNumber=existingRows[0]?.pdl_number || await nextPdlNumber(conn);
+  const [existingProfileRows] = await conn.query<mysql.RowDataPacket[]>("SELECT form_data FROM pdl_form_records WHERE pdl_id=? AND record_type='PDL_PROFILE' FOR UPDATE", [id]);
+  const existingProfile = parseRecordData(existingProfileRows[0]?.form_data);
+  const existingReceiptNumber = String(existingProfile.propertyReceipt?.receiptNumber || '').trim();
+  const receiptNumber = existingReceiptNumber || await nextPropertyReceiptNumber(conn);
+  const pdlWithReceipt = {
+    ...pdl,
+    propertyReceipt: { ...(pdl.propertyReceipt || {}), receiptNumber },
+  };
+  const sex = pdl.sex === 'Female' ? 'Female' : 'Male';
+  const imusFacilityId = sex === 'Female' ? 'imus-city-jail-female' : 'imus-city-jail-male';
   const [owners]=await conn.query<mysql.RowDataPacket[]>('SELECT id FROM pdls WHERE pdl_number=? FOR UPDATE',[pdlNumber]);
   if(owners[0]&&String(owners[0].id)!==String(id))throw Error('This PDL number is already assigned to another record.');
   await conn.query(`
@@ -714,8 +786,8 @@ export async function createPdl(pdl: any) {
       pdl.mannerism || '', pdl.dialectsSpoken || '',
       pdl.bertillionMarks || '', pdl.emergencyContactPerson || '',
       pdl.emergencyContactRelation || '', pdl.emergencyContactAddress || '',
-      pdl.emergencyContactPhone || '', pdl.dateCommitted || null,
-      pdl.jailFacilityId || 'imus-city-jail-male',
+      emergencyContactPhone, pdl.dateCommitted || null,
+      imusFacilityId,
       pdl.cellDormitory || '', pdl.status || 'In Custody',
       pdl.primaryOffense || '', pdl.courtBranch || '', pdl.presidingJudge || '',
       pdl.caseStatus || '',
@@ -726,7 +798,7 @@ export async function createPdl(pdl: any) {
     INSERT INTO pdl_form_records (id, pdl_id, record_type, status, form_data, prepared_by, created_at, updated_at)
     VALUES (?, ?, 'PDL_PROFILE', 'ACTIVE', ?, ?, ?, ?)
     ON DUPLICATE KEY UPDATE form_data=VALUES(form_data), prepared_by=VALUES(prepared_by), updated_at=VALUES(updated_at)`,
-    [`record-profile-${id}`, id, JSON.stringify(pdlProfileExtras(pdl)), pdl.preparedBy || null, now, now]);
+    [`record-profile-${id}`, id, JSON.stringify(pdlProfileExtras(pdlWithReceipt)), pdl.preparedBy || null, now, now]);
   await conn.commit();
   }catch(error){await conn.rollback();throw error}finally{conn.release()}
   const allPdls = await getAllPdls();

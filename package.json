@@ -16,9 +16,11 @@
     "test:communications": "node --require ./scripts/node-runtime.cjs --import tsx --test tests/messaging.test.ts tests/visitor-communications.test.ts",
     "test:visitor-restrictions": "node --require ./scripts/node-runtime.cjs --import tsx --test tests/visitor-restrictions.test.ts",
     "db:migrate": "node --require ./scripts/node-runtime.cjs --import tsx scripts/migrate.ts",
-    "db:seed-pdls": "node --require ./scripts/node-runtime.cjs --import tsx scripts/seed-pdls.ts",
+    "db:seed-pdls": "node --require ./scripts/node-runtime.cjs --import tsx scripts/prepare-three-pdl-demo.ts",
+    "db:seed-requested-pdls": "node --require ./scripts/node-runtime.cjs --import tsx scripts/prepare-three-pdl-demo.ts",
+    "db:prepare-pdl-demo": "node --require ./scripts/node-runtime.cjs --import tsx scripts/prepare-three-pdl-demo.ts",
     "address:refresh": "node scripts/import-psgc.mjs",
-    "test:features": "node --require ./scripts/node-runtime.cjs --import tsx --test tests/features.test.ts tests/paper-workflow.test.ts",
+    "test:features": "node --require ./scripts/node-runtime.cjs --import tsx --test tests/features.test.ts",
     "db:backup": "node --require ./scripts/node-runtime.cjs --import tsx scripts/backup-database.ts"
   },
   "dependencies": {

@@ -229,3 +229,48 @@ test('PDL-specific, facility-wide, temporary, and removed restrictions follow sc
   const assignments = await db.pool.query('SELECT pdl_id,status FROM pdl_visitor_assignments WHERE visitor_record_id=? ORDER BY pdl_id', [multi.id]);
   assert.deepEqual(assignments[0].map((row: any) => row.status), ['APPROVED', 'APPROVED']);
 });
+
+test('worker visitor data is dated, searchable, visible to administrators, and capped at seven approved visitors per PDL', async () => {
+  const multi = visitors.get('Multi PDL Visitor')!;
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  const schedule = await worker.request('/visitor-records/worker/today');
+  assert.equal(schedule.status, 200);
+  assert.equal(schedule.body.date, today);
+  assert.ok(schedule.body.visits.some((row: any) => row.visitor_name === 'Multi PDL Visitor' && row.pdl_id === pdlA));
+  assert.ok(schedule.body.visits.some((row: any) => row.visitor_name === 'Multi PDL Visitor' && row.pdl_id === pdlB));
+
+  const visitorSearch = await worker.request('/visitor-records/worker/search?q=Multi%20PDL');
+  assert.equal(visitorSearch.status, 200);
+  assert.equal(String(visitorSearch.body[0].id), multi.id);
+  assert.equal(visitorSearch.body[0].visitor_code, multi.code);
+
+  const workerHistory = await worker.request('/visitor-records/worker/recent?q=Multi%20PDL%20Visitor');
+  assert.equal(workerHistory.status, 200);
+  assert.equal(workerHistory.body.length, 2);
+  assert.ok(workerHistory.body.every((row: any) => {
+    const visitDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(row.visit_date));
+    return visitDate === today && row.time_in && row.time_out;
+  }));
+  assert.equal((await worker.request('/visitor-records/worker/active')).body.length, 0);
+
+  const adminHistory = await admin.request(`/visitor-records/admin/visit-logs?from=${today}&to=${today}&q=Multi%20PDL%20Visitor`);
+  assert.equal(adminHistory.status, 200);
+  assert.equal(adminHistory.body.length, 2);
+  assert.ok(adminHistory.body.every((row: any) => row.time_in && row.time_out));
+
+  const created: any[] = [];
+  for (let index = 0; index < 3; index++) {
+    const response = await admin.request('/visitor-records/admin/visitors', {
+      fullName: `Limit Test Visitor ${index + 1}`,
+      gender: 'Female', address: `Synthetic test address ${index + 1}`, age: 30,
+      contactNumber: `+6391234567${String(index + 1).padStart(2, '0')}`,
+    });
+    assert.equal(response.status, 201, JSON.stringify(response.body));
+    created.push(response.body.visitor);
+  }
+  assert.equal((await admin.request(`/visitor-records/admin/visitors/${created[0].id}/approve`, { pdlId: pdlA, relationship: 'Relative' })).status, 200);
+  assert.equal((await admin.request(`/visitor-records/admin/visitors/${created[1].id}/approve`, { pdlId: pdlA, relationship: 'Relative' })).status, 200);
+  const overLimit = await admin.request(`/visitor-records/admin/visitors/${created[2].id}/approve`, { pdlId: pdlA, relationship: 'Relative' });
+  assert.equal(overLimit.status, 409);
+  assert.match(overLimit.body.error, /seven active approved visitors/i);
+});

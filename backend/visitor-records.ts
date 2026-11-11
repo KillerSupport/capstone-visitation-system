@@ -2,15 +2,20 @@ import { Router } from 'express';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { pool } from './database/db.js';
 import { admin, requireDuty } from './auth.js';
-import { normalizeEmail } from './identity.js';
+import { normalizeEmail, normalizePhilippineMobileNumber } from './identity.js';
 import { manilaDate } from './validation.js';
 
 export const visitorRecordsRouter = Router();
 const adminOnly = admin;
 const gateStaff = requireDuty('GATE');
-const visitorSelect = `SELECT id,visitor_code,full_name,gender,address,age,contact_number,contact_email,status,is_archived,created_at,updated_at
+const visitorSelect = `SELECT id,visitor_code,full_name,gender,address,address_data,age,contact_number,contact_email,status,is_archived,created_at,updated_at
   FROM visitor_records`;
 const clean = (value: unknown, max: number) => String(value ?? '').trim().slice(0, max);
+const parseAddressData = (value: unknown) => {
+  if (value && typeof value === 'object') return value;
+  try { return value ? JSON.parse(String(value)) : null; } catch { return null; }
+};
+const mapVisitor = (row: any) => ({ ...row, addressDetails: parseAddressData(row.address_data) });
 const sqlDateTime = (value: unknown) => {
   if (!value) return null;
   const date = new Date(String(value));
@@ -28,18 +33,19 @@ async function audit(conn: any, actor: any, action: string, targetType: string, 
 function personFields(body: any) {
   const fullName = clean(body.fullName, 255);
   const gender = clean(body.gender, 30);
-  const address = clean(body.address, 2000);
+  const addressDetails = body.addressDetails && typeof body.addressDetails === 'object' && !Array.isArray(body.addressDetails) ? body.addressDetails : null;
+  const address = clean(body.address || addressDetails?.completeAddress, 2000);
   const age = body.age === '' || body.age == null ? null : Number(body.age);
-  const contactNumber = clean(body.contactNumber, 50);
+  const contactNumber = normalizePhilippineMobileNumber(clean(body.contactNumber, 50));
   const rawEmail = clean(body.contactEmail, 255);
   const contactEmail = rawEmail ? normalizeEmail(rawEmail) : null;
   if (!fullName) throw new Error('Enter the visitor name shown on the registration form.');
   if (!gender) throw new Error('Enter the visitor gender.');
   if (!address) throw new Error('Enter the visitor address.');
   if (!Number.isInteger(age) || age < 0 || age > 125) throw new Error('Enter a valid visitor age.');
-  if (!contactNumber) throw new Error('Enter the visitor contact number.');
+  if (!contactNumber) throw new Error('Enter a Philippine mobile number using +63 followed by 10 digits starting with 9.');
   if (rawEmail && !contactEmail) throw new Error('Enter a valid visitor email address.');
-  return { fullName, gender, address, age, contactNumber, contactEmail };
+  return { fullName, gender, address, addressDetails, age, contactNumber, contactEmail };
 }
 
 function signatureValue(value: unknown) {
@@ -102,7 +108,7 @@ visitorRecordsRouter.get('/admin/visitors/:id', adminOnly, async (req, res) => {
       NULL AS relationship,NULL AS pdl_name,NULL AS cell_number,l.purpose_of_visit
       FROM guest_visitation_logs l WHERE l.visitor_record_id=?
   ) history ORDER BY visit_date DESC,time_in DESC LIMIT 500`, [req.params.id, req.params.id]);
-  res.json({ visitor: rows[0], assignments, restrictions, visits });
+  res.json({ visitor: mapVisitor(rows[0]), assignments, restrictions, visits });
 });
 
 visitorRecordsRouter.post('/admin/visitors', adminOnly, async (req, res) => {
@@ -116,12 +122,12 @@ visitorRecordsRouter.post('/admin/visitors', adminOnly, async (req, res) => {
       LOWER(TRIM(full_name))=LOWER(TRIM(?)) AND age=? AND LOWER(TRIM(gender))=LOWER(TRIM(?)) AND LOWER(TRIM(COALESCE(address,'')))=LOWER(TRIM(?)) LIMIT 5 FOR UPDATE`,
       [fields.fullName, fields.age, fields.gender, fields.address]);
     if (possible.length) { await conn.rollback(); return res.status(409).json({ error: 'A matching visitor record may already exist. Search by name or Visitor ID and review it before creating another.', possibleMatches: possible }); }
-    const [insert] = await conn.query<any>(`INSERT INTO visitor_records(visitor_code,full_name,gender,address,age,contact_number,contact_email,status,created_by)
-      VALUES(?,?,?,?,?,?,?,'ACTIVE',?)`, [makeVisitorCode(), fields.fullName, fields.gender, fields.address, fields.age, fields.contactNumber, fields.contactEmail, actor.id]);
+    const [insert] = await conn.query<any>(`INSERT INTO visitor_records(visitor_code,full_name,gender,address,address_data,age,contact_number,contact_email,status,created_by)
+      VALUES(?,?,?,?,?,?,?,?,'ACTIVE',?)`, [makeVisitorCode(), fields.fullName, fields.gender, fields.address, JSON.stringify(fields.addressDetails), fields.age, fields.contactNumber, fields.contactEmail, actor.id]);
     await audit(conn, { ...actor, ip: req.ip }, 'VISITOR_REGISTERED', 'VISITOR', insert.insertId, { visitorCode: 'assigned' });
     await conn.commit();
     const [[visitor]] = await pool.query<any[]>(`${visitorSelect} WHERE id=?`, [insert.insertId]);
-    res.status(201).json({ visitor });
+    res.status(201).json({ visitor: mapVisitor(visitor) });
   } catch (error: any) {
     await conn.rollback();
     res.status(error.code === 'ER_DUP_ENTRY' ? 409 : 400).json({ error: error.code === 'ER_DUP_ENTRY' ? 'A matching visitor record or Visitor ID already exists.' : error.message || 'Could not create the visitor record.' });
@@ -141,11 +147,11 @@ visitorRecordsRouter.put('/admin/visitors/:id', adminOnly, async (req, res) => {
       LOWER(TRIM(full_name))=LOWER(TRIM(?)) AND age=? AND LOWER(TRIM(gender))=LOWER(TRIM(?)) AND LOWER(TRIM(COALESCE(address,'')))=LOWER(TRIM(?)) LIMIT 1`,
       [req.params.id, fields.fullName, fields.age, fields.gender, fields.address]);
     if (duplicate.length) { await conn.rollback(); return res.status(409).json({ error: 'These details match another visitor record. Review that record before saving.' }); }
-    await conn.query('UPDATE visitor_records SET full_name=?,gender=?,address=?,age=?,contact_number=?,contact_email=? WHERE id=?', [fields.fullName, fields.gender, fields.address, fields.age, fields.contactNumber, fields.contactEmail, req.params.id]);
+    await conn.query('UPDATE visitor_records SET full_name=?,gender=?,address=?,address_data=?,age=?,contact_number=?,contact_email=? WHERE id=?', [fields.fullName, fields.gender, fields.address, JSON.stringify(fields.addressDetails), fields.age, fields.contactNumber, fields.contactEmail, req.params.id]);
     await audit(conn, { ...actor, ip: req.ip }, 'VISITOR_UPDATED', 'VISITOR', req.params.id, { fields: ['fullName','gender','address','age','contactNumber','contactEmail'] });
     await conn.commit();
     const [[visitor]] = await pool.query<any[]>(`${visitorSelect} WHERE id=?`, [req.params.id]);
-    res.json({ visitor });
+    res.json({ visitor: mapVisitor(visitor) });
   } catch (error: any) { await conn.rollback(); res.status(400).json({ error: error.message || 'Could not update the visitor record.' }); }
   finally { conn.release(); }
 });
@@ -387,15 +393,15 @@ visitorRecordsRouter.get('/admin/visit-logs', adminOnly, async (req, res) => {
   const to = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.to || '')) ? String(req.query.to) : '9999-12-31';
   const q = clean(req.query.q,100), like = `%${q}%`;
   const [rows] = await pool.query<any[]>(`SELECT * FROM (
-    SELECT l.id,'PDL Visitor' AS visit_type,l.visit_date,l.time_in,l.time_out,l.visitor_name,l.gender,l.address,l.age,l.contact_number,
+    SELECT l.id,'PDL Visitor' AS visit_type,l.visit_date,l.time_in,l.time_out,l.visitor_name,v.visitor_code,l.gender,l.address,l.age,l.contact_number,
       l.relationship_to_pdl AS relationship,l.pdl_name,l.cell_number,NULL AS purpose_of_visit,l.checked_in_by,l.checked_out_by
-      FROM pdl_visitation_logs l
+      FROM pdl_visitation_logs l JOIN visitor_records v ON v.id=l.visitor_record_id
     UNION ALL
-    SELECT l.id,'Guest Visitor' AS visit_type,l.visit_date,l.time_in,l.time_out,l.visitor_name,l.gender,l.address,l.age,l.contact_number,
+    SELECT l.id,'Guest Visitor' AS visit_type,l.visit_date,l.time_in,l.time_out,l.visitor_name,v.visitor_code,l.gender,l.address,l.age,l.contact_number,
       NULL AS relationship,NULL AS pdl_name,NULL AS cell_number,l.purpose_of_visit,l.checked_in_by,l.checked_out_by
-      FROM guest_visitation_logs l
-  ) visits WHERE visit_date BETWEEN ? AND ? AND (?='' OR visitor_name LIKE ? OR contact_number LIKE ? OR pdl_name LIKE ? OR purpose_of_visit LIKE ?)
-  ORDER BY visit_date DESC,time_in DESC LIMIT 5000`, [from,to,q,like,like,like,like]);
+      FROM guest_visitation_logs l JOIN visitor_records v ON v.id=l.visitor_record_id
+  ) visits WHERE visit_date BETWEEN ? AND ? AND (?='' OR visitor_name LIKE ? OR visitor_code LIKE ? OR contact_number LIKE ? OR pdl_name LIKE ? OR purpose_of_visit LIKE ?)
+  ORDER BY visit_date DESC,time_in DESC LIMIT 5000`, [from,to,q,like,like,like,like,like]);
   res.json(rows);
 });
 
@@ -411,7 +417,7 @@ visitorRecordsRouter.get('/worker/search', gateStaff, async (req, res) => {
   const q = clean(req.query.q, 100);
   if (q.length < 2) return res.json([]);
   const like = `%${q}%`;
-  const [rows] = await pool.query<any[]>(`SELECT v.id,v.visitor_code,v.full_name,v.gender,v.address,v.age,v.contact_number,v.contact_email,v.status,v.is_archived,v.created_at,v.updated_at,
+  const [rows] = await pool.query<any[]>(`SELECT v.id,v.visitor_code,v.full_name,v.gender,v.address,v.address_data,v.age,v.contact_number,v.contact_email,v.status,v.is_archived,v.created_at,v.updated_at,
       (q.visitor_record_id IS NOT NULL) AS has_qr_identity
     FROM visitor_records v LEFT JOIN visitor_qr_identities q ON q.visitor_record_id=v.id
     WHERE v.is_archived=0 AND v.status='ACTIVE' AND (v.visitor_code LIKE ? OR v.full_name LIKE ? OR q.qr_token=?)
@@ -428,7 +434,7 @@ visitorRecordsRouter.get('/worker/search', gateStaff, async (req, res) => {
       const restriction = await hasPdlRestriction(pool, visitor.id, String(assignment.pdl_id));
       withFlags.push({ ...assignment, restricted: Boolean(restriction), restrictionReason: restriction?.reason || null });
     }
-    result.push({ ...visitor, facilityRestricted: Boolean(facilityRestriction), assignments: withFlags });
+    result.push({ ...mapVisitor(visitor), facilityRestricted: Boolean(facilityRestriction), assignments: withFlags });
   }
   res.json(result);
 });
@@ -452,18 +458,20 @@ visitorRecordsRouter.get('/worker/today', gateStaff, async (_req, res) => {
   res.json({ date, weekday, visits });
 });
 
-visitorRecordsRouter.get('/worker/recent', gateStaff, async (_req, res) => {
+visitorRecordsRouter.get('/worker/recent', gateStaff, async (req, res) => {
+  const q = clean(req.query.q, 100), like = `%${q}%`;
   const [rows] = await pool.query<any[]>(`SELECT * FROM (
-    SELECT l.id,'PDL Visitor' AS visit_type,l.visit_date,l.time_in,l.time_out,l.visitor_name,l.pdl_name,
+    SELECT l.id,'PDL Visitor' AS visit_type,l.visit_date,l.time_in,l.time_out,l.visitor_name,v.visitor_code,l.contact_number,l.pdl_name,
       l.relationship_to_pdl AS relationship,l.cell_number,NULL AS purpose_of_visit,
       CONCAT_WS(' ',u.first_name,u.last_name) AS checked_in_by_name,CONCAT_WS(' ',o.first_name,o.last_name) AS checked_out_by_name
-      FROM pdl_visitation_logs l JOIN users u ON u.id=l.checked_in_by LEFT JOIN users o ON o.id=l.checked_out_by
+      FROM pdl_visitation_logs l JOIN visitor_records v ON v.id=l.visitor_record_id JOIN users u ON u.id=l.checked_in_by LEFT JOIN users o ON o.id=l.checked_out_by
     UNION ALL
-    SELECT l.id,'Guest Visitor' AS visit_type,l.visit_date,l.time_in,l.time_out,l.visitor_name,NULL AS pdl_name,
+    SELECT l.id,'Guest Visitor' AS visit_type,l.visit_date,l.time_in,l.time_out,l.visitor_name,v.visitor_code,l.contact_number,NULL AS pdl_name,
       NULL AS relationship,NULL AS cell_number,l.purpose_of_visit,
       CONCAT_WS(' ',u.first_name,u.last_name) AS checked_in_by_name,CONCAT_WS(' ',o.first_name,o.last_name) AS checked_out_by_name
-      FROM guest_visitation_logs l JOIN users u ON u.id=l.checked_in_by LEFT JOIN users o ON o.id=l.checked_out_by
-  ) recent ORDER BY time_in DESC LIMIT 30`, []);
+      FROM guest_visitation_logs l JOIN visitor_records v ON v.id=l.visitor_record_id JOIN users u ON u.id=l.checked_in_by LEFT JOIN users o ON o.id=l.checked_out_by
+  ) recent WHERE ?='' OR visitor_name LIKE ? OR visitor_code LIKE ? OR contact_number LIKE ? OR pdl_name LIKE ? OR purpose_of_visit LIKE ? OR DATE_FORMAT(visit_date,'%Y-%m-%d') LIKE ?
+  ORDER BY time_in DESC LIMIT 500`, [q,like,like,like,like,like,like]);
   res.json(rows);
 });
 
@@ -503,13 +511,13 @@ visitorRecordsRouter.get('/worker/verify/:visitorId/:pdlId', gateStaff, async (r
 
 visitorRecordsRouter.get('/worker/active', gateStaff, async (_req, res) => {
   const [rows] = await pool.query<any[]>(`SELECT * FROM (
-    SELECT l.id,'PDL Visitor' AS visit_type,l.visit_date,l.time_in,l.visitor_name,l.visitor_record_id,l.pdl_name,l.cell_number,
+    SELECT l.id,'PDL Visitor' AS visit_type,l.visit_date,l.time_in,l.visitor_name,l.visitor_record_id,v.visitor_code,v.contact_number,l.pdl_name,l.cell_number,
       l.relationship_to_pdl AS relationship,NULL AS purpose_of_visit
-      FROM pdl_visitation_logs l WHERE l.time_out IS NULL
+      FROM pdl_visitation_logs l JOIN visitor_records v ON v.id=l.visitor_record_id WHERE l.time_out IS NULL
     UNION ALL
-    SELECT l.id,'Guest Visitor' AS visit_type,l.visit_date,l.time_in,l.visitor_name,l.visitor_record_id,NULL AS pdl_name,
+    SELECT l.id,'Guest Visitor' AS visit_type,l.visit_date,l.time_in,l.visitor_name,l.visitor_record_id,v.visitor_code,v.contact_number,NULL AS pdl_name,
       NULL AS cell_number,NULL AS relationship,l.purpose_of_visit
-      FROM guest_visitation_logs l WHERE l.time_out IS NULL
+      FROM guest_visitation_logs l JOIN visitor_records v ON v.id=l.visitor_record_id WHERE l.time_out IS NULL
   ) active ORDER BY time_in`, []);
   res.json(rows);
 });
@@ -546,6 +554,7 @@ visitorRecordsRouter.post('/worker/pdl-checkins', gateStaff, async (req, res) =>
         id,visitor.id,manilaDate(),visitor.full_name,visitor.gender,visitor.address,visitor.age,visitor.contact_number,signature,actor.id,pdlId,assignment.pdl_name,assignment.cell_dormitory,assignment.relationship]);
     await audit(conn,{...actor,ip:req.ip},'PDL_VISITOR_CHECKED_IN','PDL_VISIT',id,{visitorId,visitorCode:visitor.visitor_code,pdlId});
     await conn.commit();
+    req.app.emit('visitor-logs-updated');
     res.status(201).json({success:true,id,visitType:'PDL Visitor',timeIn:new Date().toISOString()});
   }catch(error:any){await conn.rollback();res.status(400).json({error:error.message||'Could not check in the PDL visitor.'})}finally{conn.release()}
 });
@@ -568,8 +577,8 @@ visitorRecordsRouter.post('/worker/guest-checkins', gateStaff, async (req, res) 
       const [possible]=await conn.query<any[]>(`SELECT id,visitor_code FROM visitor_records WHERE is_archived=0 AND
         LOWER(TRIM(full_name))=LOWER(TRIM(?)) AND age=? AND LOWER(TRIM(gender))=LOWER(TRIM(?)) AND LOWER(TRIM(COALESCE(address,'')))=LOWER(TRIM(?)) LIMIT 1 FOR UPDATE`,[fields.fullName,fields.age,fields.gender,fields.address]);
       if(possible.length){await conn.rollback();return res.status(409).json({error:'This visitor may already be registered. Search by name or Visitor ID and select the existing record.',possibleMatch:possible[0]});}
-      const [insert]=await conn.query<any>(`INSERT INTO visitor_records(visitor_code,full_name,gender,address,age,contact_number,status,created_by)
-        VALUES(?,?,?,?,?,?,'ACTIVE',?)`,[makeVisitorCode(),fields.fullName,fields.gender,fields.address,fields.age,fields.contactNumber,actor.id]);
+      const [insert]=await conn.query<any>(`INSERT INTO visitor_records(visitor_code,full_name,gender,address,address_data,age,contact_number,status,created_by)
+        VALUES(?,?,?,?,?,?,?,'ACTIVE',?)`,[makeVisitorCode(),fields.fullName,fields.gender,fields.address,JSON.stringify(fields.addressDetails),fields.age,fields.contactNumber,actor.id]);
       const [[created]]=await conn.query<any[]>('SELECT * FROM visitor_records WHERE id=? FOR UPDATE',[insert.insertId]);
       visitor=created;
       await audit(conn,{...actor,ip:req.ip},'GUEST_VISITOR_REGISTERED','VISITOR',visitor.id,{visitorCode:'assigned'});
@@ -584,6 +593,7 @@ visitorRecordsRouter.post('/worker/guest-checkins', gateStaff, async (req, res) 
       signature_data,checked_in_by,purpose_of_visit) VALUES(?,?,?,NOW(),?,?,?,?,?,?,?,?)`,[id,visitor.id,manilaDate(),visitor.full_name,visitor.gender,visitor.address,visitor.age,visitor.contact_number,signature,actor.id,purpose]);
     await audit(conn,{...actor,ip:req.ip},'GUEST_VISITOR_CHECKED_IN','GUEST_VISIT',id,{visitorId:visitor.id,visitorCode:visitor.visitor_code,purpose});
     await conn.commit();
+    req.app.emit('visitor-logs-updated');
     res.status(201).json({success:true,id,visitorCode:visitor.visitor_code,visitType:'Guest Visitor',timeIn:new Date().toISOString()});
   }catch(error:any){await conn.rollback();res.status(400).json({error:error.message||'Could not check in the Guest Visitor.'})}finally{conn.release()}
 });
@@ -601,6 +611,7 @@ visitorRecordsRouter.post('/worker/visits/:type/:id/checkout', gateStaff, async 
     await conn.query(`UPDATE ${table} SET time_out=NOW(),checked_out_by=? WHERE id=?`,[actor.id,req.params.id]);
     await audit(conn,{...actor,ip:req.ip},type==='PDL'?'PDL_VISITOR_CHECKED_OUT':'GUEST_VISITOR_CHECKED_OUT',type==='PDL'?'PDL_VISIT':'GUEST_VISIT',req.params.id,{visitorId:rows[0].visitor_record_id});
     await conn.commit();
+    req.app.emit('visitor-logs-updated');
     res.json({success:true});
   }catch(error:any){await conn.rollback();res.status(400).json({error:error.message||'Could not record check-out.'})}finally{conn.release()}
 });

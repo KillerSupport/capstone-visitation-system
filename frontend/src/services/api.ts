@@ -1,5 +1,6 @@
 // REST API client for the BJMP Imus City Jail Visitation System.
 import { UserProfile, VisitationAppointment, PDL, AccountStatus } from '../types';
+import { downloadPdfTable } from '../utils/pdfExport';
 
 export interface LoginCodeResponse {success:boolean;otpRequired:true;channel:'email'|'sms';destination:string;developmentOtp?:string;}
 export type LoginResult = LoginCodeResponse | {success:boolean;user:UserProfile;otpRequired?:false;};
@@ -12,6 +13,32 @@ const protocol = typeof window !== 'undefined' && window.location.protocol === '
 const backendPort = import.meta.env.VITE_BACKEND_PORT || '4001';
 const API_BASE = import.meta.env.VITE_API_BASE_URL || `${protocol}//${browserHost}:${backendPort}/api`;
 
+function parseCsvDocument(input: string): string[][] {
+  const text = input.replace(/^\uFEFF/, '');
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = '';
+  let quoted = false;
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+    if (quoted) {
+      if (character === '"' && text[index + 1] === '"') { field += '"'; index += 1; }
+      else if (character === '"') quoted = false;
+      else field += character;
+    } else if (character === '"' && field.length === 0) quoted = true;
+    else if (character === ',') { row.push(field); field = ''; }
+    else if (character === '\r' || character === '\n') {
+      row.push(field); field = '';
+      if (row.some(value => value.trim())) rows.push(row);
+      row = [];
+      if (character === '\r' && text[index + 1] === '\n') index += 1;
+    } else field += character;
+  }
+  row.push(field);
+  if (row.some(value => value.trim())) rows.push(row);
+  return rows;
+}
+
 async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const url = `${API_BASE}${endpoint}`;
   const response = await fetch(url, {
@@ -23,15 +50,23 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
   }).catch(()=>{throw new Error('Cannot reach the application server. Make sure the project and MySQL are running, then try again.');});
 
   if (!response.ok) {
-    let errorMsg = `HTTP Error ${response.status}`;
+    let errorMsg = response.status >= 500
+      ? 'Something went wrong while completing your request. Please try again. Contact an administrator if it continues.'
+      : 'We could not complete that request. Please check the information and try again.';
     try {
       const errJson = await response.json();
-      if (errJson.error) errorMsg = errJson.error;
+      const serverMessage = typeof errJson.error === 'string' ? errJson.error.trim() : '';
+      const technicalMessage = /^(?:HTTP\s+Error|Error:|TypeError:|ReferenceError:|SyntaxError:|ER_[A-Z0-9_]+|SQLSTATE)|\bSQL syntax\b|\bSELECT\b.+\bFROM\b|\bat\s+.+\(.+\)|\bDuplicate entry\b|\bCannot add or update a child row\b|\bData too long for column\b|\bUnknown column\b|\bECONNREFUSED\b|\bETIMEDOUT\b/i.test(serverMessage);
+      if (serverMessage && !technicalMessage) errorMsg = serverMessage;
     } catch {}
     throw new Error(errorMsg);
   }
 
-  return response.json();
+  try {
+    return await response.json();
+  } catch {
+    throw new Error('The application returned an unexpected response. Please try again. Contact an administrator if it continues.');
+  }
 }
 
 export const api = {
@@ -96,6 +131,7 @@ export const api = {
   async adminEnrollBiometrics(id:string,proof:string) { return request<{success:boolean;message:string}>(`/users/${encodeURIComponent(id)}/biometrics`,{method:'POST',body:JSON.stringify({proof})}); },
   async getAdminUserProfile(id:string) { return request<any>(`/admin/users/${encodeURIComponent(id)}`); },
   async getAdminKyc(status?:string) { return request<any[]>(`/admin/kyc/${status?`?status=${encodeURIComponent(status)}`:''}`); },
+  async getAdminKycCount() { return request<{count:number}>('/admin/kyc/count'); },
   async reviewKyc(id:string,status:'VERIFIED'|'REJECTED'|'NEEDS_RESUBMISSION',reason='') { return request<any>(`/admin/kyc/${encodeURIComponent(id)}/review`,{method:'PATCH',body:JSON.stringify({status,reason})}); },
   async adminKycDetail(id:string) { return request<any>(`/admin/kyc/${encodeURIComponent(id)}`); },
   async getKycDocument(url:string) { const response=await fetch(`${API_BASE}${url.replace(/^\/api/,'')}`,{credentials:'include'});if(!response.ok)throw new Error('Could not load protected document.');return URL.createObjectURL(await response.blob()); },
@@ -103,9 +139,29 @@ export const api = {
   async getAdminArchive(type='',q='') { const params=new URLSearchParams();if(type)params.set('type',type);if(q)params.set('q',q);return request<any[]>(`/admin/archive${params.size?`?${params}`:''}`); },
   async restoreArchivedRecord(type:string,id:string) { return request<{success:boolean}>(`/admin/archive/${encodeURIComponent(type)}/${encodeURIComponent(id)}/restore`,{method:'POST'}); },
   async getArchiveHistory(type:string,id:string) { return request<any[]>(`/admin/archive/${encodeURIComponent(type)}/${encodeURIComponent(id)}/history`); },
-  async getArchivedRecord(type:string,id:string) { return request<any>(`/admin/archive/${encodeURIComponent(type)}/${encodeURIComponent(id)}`); },
   async archiveRecord(type:string,id:string,reason:string) { return request<{success:boolean}>(`/admin/archive/${encodeURIComponent(type)}/${encodeURIComponent(id)}`,{method:'POST',body:JSON.stringify({reason})}); },
-  async downloadAdminExport(endpoint:string,filters:Record<string,string>={}) { const q=new URLSearchParams(Object.entries(filters).filter(([,v])=>v));const response=await fetch(`${API_BASE}${endpoint}${q.size?`?${q}`:''}`,{credentials:'include'});if(!response.ok){let message='Export failed';try{message=(await response.json()).error||message}catch{}throw new Error(message)}const blob=await response.blob();const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=response.headers.get('Content-Disposition')?.match(/filename="?([^";]+)"?/)?.[1]||'report.csv';a.click();URL.revokeObjectURL(url);return true; },
+  async downloadAdminExport(endpoint: string, filters: Record<string, string> = {}) {
+    const q = new URLSearchParams(Object.entries(filters).filter(([, value]) => value));
+    const response = await fetch(`${API_BASE}${endpoint}${q.size ? `?${q}` : ''}`, { credentials: 'include' });
+    if (!response.ok) {
+      let message = response.status >= 500
+        ? 'The report could not be prepared. Please try again. Contact an administrator if it continues.'
+        : 'The report could not be prepared. Check the selected filters and try again.';
+      try {
+        const body = await response.json();
+        const serverMessage = typeof body.error === 'string' ? body.error.trim() : '';
+        if (serverMessage && !/SQL|ER_[A-Z0-9_]+|stack|TypeError|SyntaxError|ECONNREFUSED|ETIMEDOUT/i.test(serverMessage)) message = serverMessage;
+      } catch { /* Keep the plain-language message. */ }
+      throw new Error(message);
+    }
+    const table = parseCsvDocument(await response.text());
+    if (!table.length) throw new Error('This report has no records to download.');
+    const sourceName = response.headers.get('Content-Disposition')?.match(/filename="?([^";]+)"?/)?.[1] || 'report.csv';
+    const baseName = sourceName.replace(/\.[^.]+$/, '');
+    const title = baseName.replace(/[-_]+/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase());
+    downloadPdfTable(title, 'Generated ' + new Date().toLocaleString(), table[0], table.slice(1), baseName + '.pdf');
+    return true;
+  },
   async logout() { return request<{success:boolean}>('/auth/logout',{method:'POST'}); },
   async me() { return request<{user:UserProfile}>('/auth/me'); },
 
@@ -163,6 +219,10 @@ export const api = {
   // PDLs
   async getPdls(): Promise<PDL[]> {
     return request<PDL[]>('/pdls');
+  },
+
+  async getNextPropertyReceiptNumber(): Promise<{ receiptNumber: string }> {
+    return request<{ receiptNumber: string }>('/pdl-property-receipt-number');
   },
 
   async createPdl(pdl: Partial<PDL>): Promise<{ success: boolean; pdl: PDL }> {
@@ -321,8 +381,8 @@ export const api = {
   async getTodayPdlVisitors() {
     return request<any>('/visitor-records/worker/today');
   },
-  async getRecentRecordVisits() {
-    return request<any[]>('/visitor-records/worker/recent');
+  async getRecentRecordVisits(query='') {
+    return request<any[]>(`/visitor-records/worker/recent${query.trim()?`?q=${encodeURIComponent(query.trim())}`:''}`);
   },
   async checkOutRecordVisit(type:'PDL'|'GUEST',id:string) {
     return request<any>(`/visitor-records/worker/visits/${type}/${encodeURIComponent(id)}/checkout`,{method:'POST',body:'{}'});

@@ -188,7 +188,9 @@ export interface PDL {
 
   // Addresses
   presentAddress?: string;
+  presentAddressDetails?: UserAddress;
   provincialAddress?: string;
+  provincialAddressDetails?: UserAddress;
 
   // Education & Socio-Economic
   highestEducationalAttainment?: string;
@@ -214,12 +216,15 @@ export interface PDL {
   spouseName?: string;
   fatherName?: string;
   fatherAddress?: string;
+  fatherAddressDetails?: UserAddress;
   motherName?: string;
   motherAddress?: string;
+  motherAddressDetails?: UserAddress;
   numberOfChildren?: number;
   childrenNames?: string[];
   emergencyContactPerson?: string;
   emergencyContactAddress?: string;
+  emergencyContactAddressDetails?: UserAddress;
   emergencyContactRelation?: string;
   emergencyContactPhone?: string;
 

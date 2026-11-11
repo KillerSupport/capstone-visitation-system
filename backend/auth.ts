@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { createHash, randomBytes, randomInt, scrypt as sc, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import rateLimit from 'express-rate-limit';
-import { checkOtp, createSession, deleteSession, getSessionUser, getUserByLogin, getUserById, saveOtp, markContactVerified, recordLastLogin, pool } from './database/db.js';
+import { checkOtp, createSession, deleteSession, getSessionUser, getUserByLogin, getUserById, saveOtp, saveRecoveryOtp, markContactVerified, recordLastLogin, pool } from './database/db.js';
 import { classifyLoginIdentifier } from './identity.js';
 import { deliverMessage, pendingContact, loginContact, maskContact, type Contact } from './messaging.js';
 import { createLoginChallenge, readLoginChallenge } from './login-challenge.js';
@@ -16,6 +16,7 @@ const loginLim=limit(10,'Too many sign-in attempts. Please try again later.');
 const registerLim=limit(10,'Too many registration attempts. Please try again later.');
 const verifyLim=limit(10,'Too many verification attempts. Please try again later.');
 const resendLim=limit(3,'Too many verification requests. Please try again later.');
+const recoveryLim=limit(5,'Too many recovery code requests. Please try again later.');
 async function authAudit(q:Request,user:any,action:string,result:string){await pool.query('INSERT INTO audit_logs(actor_user_id,actor_role,action,target_type,target_id,result,details,ip_address) VALUES(?,?,?,?,?,?,?,?)',[user?.id||null,user?.role||'ANONYMOUS',action,'AUTH',user?.id?String(user.id):null,result,JSON.stringify({}),q.ip||null]);}
 function cookie(q:Request,key=name){return(q.headers.cookie||'').split(';').map(x=>x.trim()).find(x=>x.startsWith(key+'='))?.slice(key.length+1);}
 function setCookie(s:Response,key:string,value:string,seconds:number,path='/') {s.append('Set-Cookie',`${key}=${value}; HttpOnly; SameSite=Lax; Path=${path}; Max-Age=${seconds}${process.env.NODE_ENV==='production'?'; Secure':''}`);}
@@ -73,11 +74,11 @@ r.post('/verify-otp',verifyLim,auth,async(q,s)=>{
   s.json({success:true,user,verificationComplete:!next,...(developmentOtp?{developmentOtp}:{}),...(failedDelivery?{deliveryError:failedDelivery}:{})});
  } catch{s.status(500).json({error:'Verification failed.'});}
 });
-const recoveryMessage='If this account has a verified contact, a recovery code will be sent. Worker recovery codes are sent to the account email. Try again after one minute if needed.';
+const recoveryMessage='If this account has a verified email, a recovery code will be sent to that email. Each code expires after 5 minutes. Requesting a new code invalidates the previous one.';
 function recoveryIdentifier(body:any){return classifyLoginIdentifier(String(body.identifier||body.email||body.mobileNumber||''));}
-r.post('/forgot-password',resendLim,async(q,s)=>{
+r.post('/forgot-password',recoveryLim,async(q,s)=>{
  const parsed=recoveryIdentifier(q.body);
- try{const u=parsed&&await getUserByLogin(parsed.value,parsed.type);if(u&&u.role==='WORKER'&&u.email&&u.emailVerified){const code=String(randomInt(100000,1000000));await saveOtp(u.id,'PASSWORD_RESET',sum(`${parsed.value}:${code}`),new Date(Date.now()+600000));await deliverMessage({channel:'email',destination:u.email},'BJMP password recovery',`Your password recovery code is ${code}. It expires in 10 minutes. Do not share it.`);}else if(u&&u.role!=='VISITOR'&&parsed&&(parsed.type==='email'?u.emailVerified:u.phoneVerified)){const code=String(randomInt(100000,1000000));await saveOtp(u.id,'PASSWORD_RESET',sum(`${parsed.value}:${code}`),new Date(Date.now()+600000));await deliverMessage({channel:parsed.type==='email'?'email':'sms',destination:parsed.value},'BJMP password recovery',`Your password recovery code is ${code}. It expires in 10 minutes. Do not share it.`);}}
+ try{const u=parsed&&await getUserByLogin(parsed.value,parsed.type);if(u&&u.role!=='VISITOR'&&u.email&&u.emailVerified){const code=String(randomInt(100000,1000000));await saveRecoveryOtp(u.id,sum(`${parsed.value}:${code}`),new Date(Date.now()+300000));await deliverMessage({channel:'email',destination:u.email},'BJMP password recovery',`Your BJMP password recovery code is ${code}. It expires in 5 minutes. Requesting a new code invalidates this one. Do not share this code.`);}}
  catch{/* Public response deliberately stays identical for absent accounts and delivery failures. */}
  s.json({success:true,message:recoveryMessage});
 });

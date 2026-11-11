@@ -1,11 +1,13 @@
 import React,{useEffect,useState} from 'react';
 import {Archive,Download,Printer,RefreshCw,Search,ShieldCheck,UserPlus,Users,RotateCcw} from 'lucide-react';
-import {PDL} from '../../types';
+import {PDL,UserAddress} from '../../types';
 import {api} from '../../services/api';
 import {generateQRCodeDataUrl} from '../../utils/qrGenerator';
+import {AddressFields,addressFromSaved,formatAddress} from '../Common/AddressFields';
+import {MobileInput,mobileDigits} from '../Common/IdentityFields';
 
-type PersonForm={fullName:string;gender:string;address:string;age:string;contactNumber:string;contactEmail:string};
-const emptyForm:PersonForm={fullName:'',gender:'',address:'',age:'',contactNumber:'',contactEmail:''};
+type PersonForm={fullName:string;gender:string;address:string;addressDetails:UserAddress;age:string;contactNumber:string;contactEmail:string};
+const emptyForm:PersonForm={fullName:'',gender:'',address:'',addressDetails:addressFromSaved(),age:'',contactNumber:'',contactEmail:''};
 const esc=(value:unknown)=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
 
 export function AdminVisitorRecordsPanel({pdls}:{pdls:PDL[]}){
@@ -14,10 +16,10 @@ export function AdminVisitorRecordsPanel({pdls}:{pdls:PDL[]}){
   const [identity,setIdentity]=useState<any>(null),[qrImage,setQrImage]=useState(''),[loading,setLoading]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
   const input='mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-blue-500';
   const load=async(q=query)=>{setLoading(true);try{setRows(await api.getVisitorRecords(q))}catch(e){setError(e instanceof Error?e.message:'Could not load visitor records.')}finally{setLoading(false)}};
-  const open=async(row:any)=>{setSelected(row);setDetail(null);setIdentity(null);setQrImage('');setError('');setNotice('');setForm(emptyForm);setLoading(true);try{const result=await api.getVisitorRecord(String(row.id));setDetail(result);setSelected(result.visitor||row);const visitor=result.visitor||{};setForm({fullName:visitor.full_name||'',gender:visitor.gender||'',address:visitor.address||'',age:visitor.age==null?'':String(visitor.age),contactNumber:visitor.contact_number||'',contactEmail:visitor.contact_email||''});setPdlId('');setRelationship('')}catch(e){setError(e instanceof Error?e.message:'Could not load the visitor record.')}finally{setLoading(false)}};
+  const open=async(row:any)=>{setSelected(row);setDetail(null);setIdentity(null);setQrImage('');setError('');setNotice('');setForm(emptyForm);setLoading(true);try{const result=await api.getVisitorRecord(String(row.id));setDetail(result);setSelected(result.visitor||row);const visitor=result.visitor||{};setForm({fullName:visitor.full_name||'',gender:visitor.gender||'',address:visitor.address||'',addressDetails:addressFromSaved(visitor.address||'',visitor.addressDetails),age:visitor.age==null?'':String(visitor.age),contactNumber:mobileDigits(visitor.contact_number||''),contactEmail:visitor.contact_email||''});setPdlId('');setRelationship('')}catch(e){setError(e instanceof Error?e.message:'Could not load the visitor record.')}finally{setLoading(false)}};
   useEffect(()=>{void load('')},[]);
-  const change=(field:keyof PersonForm,value:string)=>setForm(current=>({...current,[field]:value}));
-  const save=async(e:React.FormEvent)=>{e.preventDefault();setBusy(true);setError('');setNotice('');try{const result=selected?await api.updateVisitorRecord(String(selected.id),{...form,age:Number(form.age)}):await api.createVisitorRecord({...form,age:Number(form.age)});const row=result.visitor;setSelected(row);setForm({fullName:row.full_name,gender:row.gender,address:row.address,age:String(row.age),contactNumber:row.contact_number,contactEmail:row.contact_email||''});setNotice(selected?'Visitor record updated.':'Visitor record created.');await load();await open(row)}catch(e){setError(e instanceof Error?e.message:'Could not save the visitor record.')}finally{setBusy(false)}};
+  const change=(field:Exclude<keyof PersonForm,'addressDetails'>,value:string)=>setForm(current=>({...current,[field]:value}));
+  const save=async(e:React.FormEvent)=>{e.preventDefault();setBusy(true);setError('');setNotice('');try{const payload={...form,address:formatAddress(form.addressDetails),contactNumber:form.contactNumber?`+63${mobileDigits(form.contactNumber)}`:'',age:Number(form.age)};const result=selected?await api.updateVisitorRecord(String(selected.id),payload):await api.createVisitorRecord(payload);const row=result.visitor;setSelected(row);setForm({fullName:row.full_name,gender:row.gender,address:row.address,addressDetails:addressFromSaved(row.address||'',row.addressDetails),age:String(row.age),contactNumber:mobileDigits(row.contact_number||''),contactEmail:row.contact_email||''});setNotice(selected?'Visitor record updated.':'Visitor record created.');await load();await open(row)}catch(e){setError(e instanceof Error?e.message:'Could not save the visitor record.')}finally{setBusy(false)}};
   const approve=async(e:React.FormEvent)=>{e.preventDefault();if(!selected)return;setBusy(true);setError('');setNotice('');try{await api.approveVisitorForPdl(String(selected.id),pdlId,relationship);setNotice('PDL visitor approved. The permanent QR identity is now available.');await open(selected);await load()}catch(e){setError(e instanceof Error?e.message:'Could not approve the visitor.')}finally{setBusy(false)}};
   const showCard=async()=>{if(!selected)return;setBusy(true);setError('');try{const result=await api.getVisitorQrIdentity(String(selected.id));setIdentity(result);setQrImage(await generateQRCodeDataUrl(result.qr_token));}catch(e){setError(e instanceof Error?e.message:'No approved QR identity is available yet.')}finally{setBusy(false)}};
   const downloadQr=()=>{if(!qrImage||!selected)return;const a=document.createElement('a');a.href=qrImage;a.download=`${selected.visitor_code}-QR.png`;a.click()};
@@ -38,8 +40,8 @@ export function AdminVisitorRecordsPanel({pdls}:{pdls:PDL[]}){
       <form onSubmit={save} className="space-y-3">
         <label className="block text-sm">Name of visitor<input required maxLength={255} className={input} value={form.fullName} onChange={e=>change('fullName',e.target.value)}/></label>
         <label className="block text-sm">Gender<input required maxLength={30} className={input} value={form.gender} onChange={e=>change('gender',e.target.value)} placeholder="As recorded on the form"/></label>
-        <label className="block text-sm">Address<textarea required maxLength={2000} rows={2} className={input} value={form.address} onChange={e=>change('address',e.target.value)}/></label>
-        <div className="grid gap-3 sm:grid-cols-2"><label className="block text-sm">Age<input required type="number" min="0" max="125" className={input} value={form.age} onChange={e=>change('age',e.target.value)}/></label><label className="block text-sm">Mobile number<input required maxLength={50} className={input} value={form.contactNumber} onChange={e=>change('contactNumber',e.target.value)} placeholder="Visitor mobile number"/></label></div>
+        <AddressFields value={form.addressDetails} onChange={addressDetails=>setForm(current=>({...current,addressDetails,address:formatAddress(addressDetails)}))} legend="Visitor residential address *" className={input}/>
+        <div className="grid gap-3 sm:grid-cols-2"><label className="block text-sm">Age<input required type="number" min="0" max="125" className={input} value={form.age} onChange={e=>change('age',e.target.value)}/></label><label className="block text-sm">Mobile number<MobileInput required className={input} value={form.contactNumber} onChange={contactNumber=>setForm(current=>({...current,contactNumber}))}/></label></div>
         <label className="block text-sm">Email address (optional)<input type="email" maxLength={255} className={input} value={form.contactEmail} onChange={e=>change('contactEmail',e.target.value)} placeholder="visitor@example.com"/></label>
         <button disabled={busy} className="w-full rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">{busy?'Saving…':selected?'Save visitor details':'Register visitor'}</button>
       </form>

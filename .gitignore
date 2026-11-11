@@ -8,3 +8,4 @@ coverage/
 !.env.example
 *.zip
 .local-backups/
+/firmware/esp32e_as608/config.h

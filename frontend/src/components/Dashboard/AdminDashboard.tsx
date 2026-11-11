@@ -4,13 +4,14 @@ import {AdminVisitorRecordsPanel} from '../Admin/AdminVisitorRecordsPanel';
 import {AdminVisitorRestrictionsPanel} from '../Admin/AdminVisitorRestrictionsPanel';
 import {AdminVisitorReportsPanel} from '../Admin/AdminVisitorReportsPanel';
 import {AdminProfileChangeRequestsPanel} from '../Admin/AdminProfileChangeRequestsPanel';
+import {AdminKycPanel} from '../Admin/AdminKycPanel';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   Shield, Users, Calendar, Clock, CheckCircle2, AlertTriangle, AlertCircle, Archive,
   Search, Filter, Eye, Printer, Plus, Trash2,
   Building, RefreshCw, Check, X, ArrowUpDown, ExternalLink, QrCode,
   ShieldAlert, UserPlus, Sliders, Sparkles, MapPin,
-  FileText, Edit3, Scale, Package, CheckSquare, ListFilter, Table
+  FileText, Edit3, Scale, Package, CheckSquare, ListFilter, Table, FileCheck2
 } from 'lucide-react';
 import {
   UserProfile, VisitationAppointment, JailFacility, PDL,
@@ -26,6 +27,31 @@ import { AdminReportsPanel } from '../Admin/AdminReportsPanel';
 import { api } from '../../services/api';
 import {realtimeWS} from '../../services/websocket';
 import {todayInManila} from '../Common/IdentityFields';
+
+const incidentHistoryDetails = (value: unknown): Record<string, any> => {
+  if (value && typeof value === 'object') return value as Record<string, any>;
+  if (typeof value !== 'string') return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
+const incidentHistorySummary = (entry: any) => {
+  const details = incidentHistoryDetails(entry.details);
+  const summary: { label: string; value: string }[] = [];
+  if (typeof details.reason === 'string' && details.reason.trim()) summary.push({ label: 'Reason', value: details.reason });
+  const before = details.before && typeof details.before === 'object' ? details.before : null;
+  const after = details.after && typeof details.after === 'object' ? details.after : null;
+  if (before && after) {
+    const names: Record<string, string> = { visitor_name: 'Visitor name', facility: 'Facility', incident_type: 'Incident type', description: 'Description', action_taken: 'Action taken', reporting_officer: 'Reporting officer', timestamp: 'Incident date and time' };
+    const changed = Object.keys(names).filter(key => String(before[key] ?? '') !== String(after[key] ?? '')).map(key => names[key]);
+    if (changed.length) summary.push({ label: 'Updated information', value: changed.join(', ') });
+  }
+  return summary;
+};
 
 interface AdminDashboardProps {
   currentUser: UserProfile;
@@ -66,7 +92,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   homeRequest,
 }) => {
   // Navigation Tabs
-  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'VISITOR_RECORDS' | 'RESTRICTIONS' | 'PROFILE_APPROVALS' | 'APPOINTMENTS' | 'PDL_ROSTER' | 'SECURITY_LOGS' | 'AUDIT' | 'ARCHIVE' | 'REPORTS' | 'STAFF' | 'VISITATION' | 'FACILITY_SETTINGS'>('OVERVIEW');
+  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'VISITOR_RECORDS' | 'RESTRICTIONS' | 'PROFILE_APPROVALS' | 'IDENTITY_REVIEW' | 'APPOINTMENTS' | 'PDL_ROSTER' | 'SECURITY_LOGS' | 'AUDIT' | 'ARCHIVE' | 'REPORTS' | 'STAFF' | 'VISITATION' | 'FACILITY_SETTINGS'>('OVERVIEW');
 
   useEffect(() => { setActiveTab('OVERVIEW'); }, [homeRequest]);
 
@@ -97,6 +123,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [liveStats,setLiveStats]=useState<any>({});
   useEffect(()=>{void api.getStats().then(setLiveStats).catch(()=>{});return realtimeWS.on('STATS_UPDATED',setLiveStats)},[]);
   const [pendingProfileRequestCount, setPendingProfileRequestCount] = useState(0);
+  const [pendingKycCount, setPendingKycCount] = useState(0);
   const refreshPendingProfileRequestCount = useCallback(async () => {
     try {
       const result = await api.getWorkerProfileChangeRequestCount();
@@ -107,6 +134,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     void refreshPendingProfileRequestCount();
     return realtimeWS.on('PROFILE_CHANGE_REQUESTS_UPDATED', () => { void refreshPendingProfileRequestCount(); });
   }, [refreshPendingProfileRequestCount]);
+  const refreshPendingKycCount = useCallback(async () => {
+    try { const result = await api.getAdminKycCount(); setPendingKycCount(Number(result.count) || 0); }
+    catch { /* Keep the last known alert count if the API is temporarily unavailable. */ }
+  }, []);
+  useEffect(() => {
+    void refreshPendingKycCount();
+    return realtimeWS.on('KYC_UPDATED', () => { void refreshPendingKycCount(); });
+  }, [refreshPendingKycCount]);
   const [isAddIncidentOpen, setIsAddIncidentOpen] = useState(false);
   const [editingIncident,setEditingIncident]=useState<SecurityIncident|null>(null),[incidentReason,setIncidentReason]=useState(''),[incidentBusy,setIncidentBusy]=useState(false),[incidentError,setIncidentError]=useState(''),[incidentHistory,setIncidentHistory]=useState<any[]|null>(null);
   const [newIncidentVisitor, setNewIncidentVisitor] = useState('');
@@ -179,6 +214,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     });
     setIsAddPdlOpen(false);
     setEditingPdl(null);
+    return persistedPdl;
   };
 
   // Quick Add PDL (fallback)
@@ -264,6 +300,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <span>Profile change requests</span>
             {pendingProfileRequestCount > 0 && <span aria-label={`${pendingProfileRequestCount} pending worker requests`} aria-live="polite" title={`${pendingProfileRequestCount} pending worker request${pendingProfileRequestCount === 1 ? '' : 's'}`} className="ml-2 inline-flex min-w-5 items-center justify-center rounded-full bg-rose-600 px-1.5 py-0.5 text-[10px] font-black leading-none text-white">{pendingProfileRequestCount > 99 ? '99+' : pendingProfileRequestCount}</span>}
           </button>
+          <button type="button" onClick={() => setActiveTab('IDENTITY_REVIEW')} className={`rounded-lg border border-slate-700 px-4 py-2 text-xs font-bold whitespace-nowrap ${activeTab==='IDENTITY_REVIEW'?'bg-blue-500 text-slate-950':'text-slate-300'}`}>
+            <span className="inline-flex items-center gap-2"><FileCheck2 className="h-4 w-4"/>Identity review</span>
+            {pendingKycCount > 0 && <span aria-label={`${pendingKycCount} pending identity reviews`} aria-live="polite" title={`${pendingKycCount} identity review${pendingKycCount === 1 ? '' : 's'} waiting`} className="ml-2 inline-flex min-w-5 items-center justify-center rounded-full bg-rose-600 px-1.5 py-0.5 text-[10px] font-black leading-none text-white">{pendingKycCount > 99 ? '99+' : pendingKycCount}</span>}
+          </button>
           <button type="button" onClick={() => setActiveTab('VISITATION')} className="rounded-lg border border-slate-700 px-4 py-2 text-xs font-bold whitespace-nowrap">Approved lists & days</button>
 
           <button
@@ -277,11 +317,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           >
             <Calendar className="w-4 h-4" />
             <span>Visitations & Gate Schedule</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
-              activeTab === 'APPOINTMENTS' ? 'bg-slate-950 text-blue-400' : 'bg-slate-800 text-slate-300'
-            }`}>
-              {appointments.length}
-            </span>
+            {pendingAppointments.length > 0 && <span aria-label={`${pendingAppointments.length} appointments waiting for review`} aria-live="polite" title={`${pendingAppointments.length} appointment${pendingAppointments.length === 1 ? '' : 's'} waiting for review`} className="inline-flex min-w-5 items-center justify-center rounded-full bg-rose-600 px-1.5 py-0.5 text-[10px] font-black leading-none text-white">{pendingAppointments.length > 99 ? '99+' : pendingAppointments.length}</span>}
           </button>
 
           <button
@@ -337,6 +373,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         ======================================================== */}
         {activeTab === 'STAFF' && <AdminStaffPanel/>}
         {activeTab === 'PROFILE_APPROVALS' && <AdminProfileChangeRequestsPanel/>}
+        {activeTab === 'IDENTITY_REVIEW' && <AdminKycPanel initialStatus="PENDING_REVIEW"/>}
         {activeTab === 'VISITOR_RECORDS' && <AdminVisitorRecordsPanel pdls={pdlList}/>}
         {activeTab === 'RESTRICTIONS' && <AdminVisitorRestrictionsPanel pdls={pdlList}/>}
         {activeTab === 'VISITATION' && <AdminVisitationPanel pdls={pdls} onChanged={onRecordsRefresh}/> }
@@ -1303,7 +1340,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {/* ========================================================
           MODAL: Add Security Incident
       ======================================================== */}
-      {incidentHistory&&<div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/80 p-4"><section role="dialog" aria-modal="true" aria-label="Incident history" className="max-h-[80vh] w-full max-w-2xl overflow-auto rounded-xl border border-slate-700 bg-slate-900 p-5"><h2 className="font-bold">Incident history</h2><button className="my-3 underline" onClick={()=>setIncidentHistory(null)}>Close</button>{incidentHistory.map(h=><div key={h.id} className="border-t border-slate-700 py-3 text-sm"><p>{new Date(h.created_at).toLocaleString()} · {h.officer} · {h.action}</p><pre className="mt-2 whitespace-pre-wrap text-xs">{JSON.stringify(typeof h.details==='string'?JSON.parse(h.details):h.details,null,2)}</pre></div>)}</section></div>}
+      {incidentHistory&&<div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/80 p-4"><section role="dialog" aria-modal="true" aria-label="Incident history" className="max-h-[80vh] w-full max-w-2xl overflow-auto rounded-xl border border-slate-700 bg-slate-900 p-5"><div className="flex items-center justify-between"><h2 className="font-bold">Incident history</h2><button className="rounded-lg border border-slate-600 px-3 py-1.5 text-sm hover:bg-slate-800" onClick={()=>setIncidentHistory(null)}>Close</button></div>{incidentHistory.map(h=><div key={h.id} className="border-t border-slate-700 py-3 text-sm"><p className="font-medium">{String(h.action||'Incident updated').replace(/_/g,' ').toLowerCase().replace(/\b\w/g,letter=>letter.toUpperCase())}</p><p className="mt-1 text-xs text-slate-400">{new Date(h.created_at).toLocaleString()} · {h.officer||'Staff member'}</p>{incidentHistorySummary(h).length?<dl className="mt-3 space-y-2 rounded-lg bg-slate-800/70 p-3">{incidentHistorySummary(h).map(item=><div key={item.label}><dt className="text-xs text-slate-400">{item.label}</dt><dd className="break-words">{item.value}</dd></div>)}</dl>:<p className="mt-3 text-xs text-slate-400">No additional information was recorded.</p>}</div>)}</section></div>}
       {isAddIncidentOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full shadow-2xl overflow-hidden p-6 text-slate-100">
