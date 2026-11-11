@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Eye, FileCheck2, Search, Check, X, RefreshCw, AlertTriangle } from 'lucide-react';
 import { api } from '../../services/api';
 import { realtimeWS } from '../../services/websocket';
+import { confirmAction, promptAction } from '../../utils/appDialogs';
 
 const reviewStatuses: Record<string, string> = {
   PENDING_REVIEW: 'Waiting for review',
@@ -64,12 +65,12 @@ export const AdminKycPanel: React.FC<{ initialStatus?: string; onReviewed?: () =
     if (!selected) return;
     let reason = '';
     if (status !== 'VERIFIED') {
-      const response = window.prompt(status === 'REJECTED' ? 'Reason for rejection (required):' : 'What needs to be corrected?');
+      const response = await promptAction(status === 'REJECTED' ? 'Explain why this submission is rejected.' : 'Tell the visitor what needs to be corrected.', { title: status === 'REJECTED' ? 'Reject identity submission' : 'Request resubmission', inputLabel: status === 'REJECTED' ? 'Rejection reason' : 'Correction instructions', placeholder: 'Enter clear details', confirmLabel: status === 'REJECTED' ? 'Continue' : 'Continue', tone: status === 'REJECTED' ? 'danger' : 'warning' });
       if (response === null) return;
       reason = response.trim();
       if (!reason) { setError('Provide a review reason.'); return; }
     }
-    if (status === 'VERIFIED' && !window.confirm('Approve this document review? Account access remains pending in-person biometric verification.')) return;
+    if (status === 'VERIFIED' && !await confirmAction('Account access will remain pending in-person biometric verification.', { title: 'Approve this document review?', confirmLabel: 'Approve review', tone: 'success' })) return;
     setBusy(true);
     setError('');
     try {

@@ -199,6 +199,11 @@
 .government-theme [class*="text-amber-"] { color: #8a5d20; }
 .government-theme [class*="text-rose-"] { color: #9c3949; }
 .government-theme [class*="text-sky-"],.government-theme [class*="text-cyan-"],.government-theme [class*="text-blue-"] { color: #3c587a; }
+/* Keep dark slate text utilities dark after the light-surface palette remapping. */
+.government-theme [class~="text-slate-900"],
+.government-theme [class~="text-slate-800"],
+.government-theme [class~="text-slate-700"] { color: var(--text-primary); }
+.government-theme [class~="text-slate-600"] { color: #46586f; }
 .government-theme .admin-dashboard-nav { background: #f8f9fa; border: 1px solid #cbd3dd; padding: .65rem; }
 .government-theme .admin-dashboard-nav > button { padding: .8rem .9rem; font-size: .8rem; font-weight: 600; }
 .government-theme .admin-dashboard-nav > button { border: 1px solid #cbd3dd; border-radius: .6rem; }
@@ -211,7 +216,7 @@
 .government-theme td { padding: .85rem 1rem; border-bottom: 1px solid #e5e9ee; }
 .government-theme tbody tr:hover { background: #f5f7fa; }
 .government-theme input, .government-theme select, .government-theme textarea { color-scheme: light; border-color: #cbd4de; }
-.government-theme input::placeholder, .government-theme textarea::placeholder { color: #758296; }
+.government-theme input::placeholder, .government-theme textarea::placeholder { color: #526276; }
 .government-theme [role="dialog"] { border-color: #d5dce4; }
 .government-theme .rounded-2xl { border-radius: .8rem; }
 .government-theme .tracking-widest { letter-spacing: .08em; }
@@ -248,6 +253,47 @@
 .visitor-theme .text-slate-400 {
   color: #435368;
 }
+
+/* Calm, high-contrast red accents for restriction controls. */
+.government-theme .restriction-nav-active {
+  background-color: #873548;
+  border-color: #873548;
+  color: #fff;
+}
+.government-theme .restriction-nav-active:hover {
+  background-color: #702b3c;
+  border-color: #702b3c;
+  color: #fff;
+}
+.government-theme .restriction-action-button {
+  background-color: #873548;
+  border-color: #873548;
+  color: #fff;
+}
+.government-theme .restriction-action-button:hover:not(:disabled) {
+  background-color: #702b3c;
+  border-color: #702b3c;
+  color: #fff;
+}
+.government-theme .restriction-action-button:focus-visible,
+.government-theme .restriction-nav-active:focus-visible {
+  outline: 3px solid #b77986;
+  outline-offset: 2px;
+}
+.government-theme .visitor-revoke-button {
+  background-color: #873548;
+  border-color: #873548;
+  color: #fff;
+}
+.government-theme .visitor-revoke-button:hover:not(:disabled) {
+  background-color: #702b3c;
+  border-color: #702b3c;
+  color: #fff;
+}
+.government-theme .visitor-revoke-button:focus-visible {
+  outline: 3px solid #b77986;
+  outline-offset: 2px;
+}
 .visitor-theme input::placeholder,
 .visitor-theme textarea::placeholder {
   color: #58697d;
@@ -257,3 +303,98 @@
 .government-theme .visitor-operations-desk [class~="bg-white"] {
   color: var(--text-primary);
 }
+.government-theme .bjmp-document-canvas [class~="text-slate-950"] {
+  color: var(--text-primary);
+}
+
+.app-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgb(25 38 53 / 58%);
+  backdrop-filter: blur(3px);
+  animation: app-dialog-fade-in 120ms ease-out;
+}
+.app-dialog-card {
+  width: min(100%, 32rem);
+  overflow: hidden;
+  border: 1px solid #d5dce4;
+  border-radius: 1rem;
+  background: #fff;
+  color: #26364a;
+  box-shadow: 0 24px 70px rgb(12 25 39 / 28%);
+  animation: app-dialog-rise-in 160ms ease-out;
+}
+.app-dialog-header {
+  display: flex;
+  align-items: flex-start;
+  gap: .9rem;
+  padding: 1.25rem 1.25rem 1rem;
+}
+.app-dialog-icon {
+  display: grid;
+  width: 2.6rem;
+  height: 2.6rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: .8rem;
+}
+.app-dialog-tone-default { background: #eaf0f6; color: #355577; }
+.app-dialog-tone-warning { background: #fff4dc; color: #805a10; }
+.app-dialog-tone-danger { background: #f7e9ec; color: #873548; }
+.app-dialog-tone-success { background: #e7f3ec; color: #28644d; }
+.app-dialog-title { margin: .1rem 0 0; color: #26364a; font-size: 1.05rem; font-weight: 700; line-height: 1.35; }
+.app-dialog-message { margin: .45rem 0 0; color: #526276; font-size: .9rem; line-height: 1.55; }
+.app-dialog-close {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0;
+  border-radius: .55rem;
+  background: transparent;
+  color: #526276;
+  cursor: pointer;
+}
+.app-dialog-close:hover { background: #eef1f4; color: #26364a; }
+.app-dialog-field { padding: 0 1.25rem 1rem; }
+.app-dialog-field label { display: block; margin-bottom: .4rem; color: #34485f; font-size: .82rem; font-weight: 650; }
+.app-dialog-field textarea {
+  display: block;
+  width: 100%;
+  min-height: 5.2rem;
+  resize: vertical;
+  border: 1px solid #cbd4de;
+  border-radius: .65rem;
+  background: #f5f7f9;
+  padding: .7rem .8rem;
+  color: #26364a;
+  font: inherit;
+  font-size: .9rem;
+  line-height: 1.45;
+}
+.app-dialog-field textarea::placeholder { color: #718094; }
+.app-dialog-field textarea:focus { border-color: #42698e; outline: 3px solid rgb(66 105 142 / 18%); }
+.app-dialog-validation { margin: .35rem 0 0; color: #873548; font-size: .78rem; font-weight: 600; }
+.app-dialog-hint { margin: .35rem 0 0; color: #718094; font-size: .73rem; }
+.app-dialog-actions { display: flex; justify-content: flex-end; gap: .6rem; border-top: 1px solid #e6eaf0; background: #f8f9fa; padding: .85rem 1.25rem; }
+.app-dialog-cancel, .app-dialog-confirm { min-width: 5.5rem; border-radius: .6rem; padding: .6rem .9rem; font-size: .84rem; font-weight: 700; cursor: pointer; transition: background-color 150ms, border-color 150ms, color 150ms, transform 150ms; }
+.app-dialog-cancel { border: 1px solid #cbd3dd; background: #fff; color: #34485f; }
+.app-dialog-cancel:hover { border-color: #9aacc0; background: #eef1f4; }
+.app-dialog-confirm { border: 1px solid #355577; background: #355577; color: #fff; }
+.app-dialog-confirm:hover { border-color: #2b4968; background: #2b4968; }
+.app-dialog-confirm-warning { border-color: #805a10; background: #805a10; color: #fff; }
+.app-dialog-confirm-warning:hover { border-color: #68480c; background: #68480c; }
+.app-dialog-confirm-danger { border-color: #873548; background: #873548; color: #fff; }
+.app-dialog-confirm-danger:hover { border-color: #702b3c; background: #702b3c; }
+.app-dialog-confirm-success { border-color: #28644d; background: #28644d; color: #fff; }
+.app-dialog-confirm-success:hover { border-color: #1f523e; background: #1f523e; }
+.app-dialog-cancel:focus-visible, .app-dialog-confirm:focus-visible, .app-dialog-close:focus-visible { outline: 3px solid #93abc4; outline-offset: 2px; }
+.government-theme .app-dialog-confirm { color: #fff; }
+@keyframes app-dialog-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes app-dialog-rise-in { from { opacity: 0; transform: translateY(8px) scale(.99); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@media (prefers-reduced-motion: reduce) { .app-dialog-backdrop, .app-dialog-card { animation: none; } }

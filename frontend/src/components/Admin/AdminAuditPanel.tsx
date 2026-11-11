@@ -84,10 +84,10 @@ const AuditDateField: React.FC<{ label: string; value: string; onChange: (value:
     setParts(next);
     onChange(next.month || next.day || next.year ? `${next.year}-${next.month}-${next.day}` : '');
   };
-  const selectClass = 'min-w-0 w-full rounded-lg border border-white/10 bg-slate-900 px-2 py-2 text-xs text-white';
+  const selectClass = 'h-8 min-w-0 w-full rounded-lg border border-white/10 bg-slate-900 px-2 text-xs leading-4 text-white';
 
-  return <fieldset className="min-w-0 text-[10px] text-slate-400">
-    <legend>{label}</legend>
+  return <fieldset className="min-w-0 text-[10px] leading-[13px] text-slate-400">
+    <legend className="p-0">{label}</legend>
     <div className="mt-1 grid grid-cols-3 gap-1">
       <select aria-label={`${label} month`} value={parts.month} onChange={event => update('month', event.target.value)} className={selectClass}>
         <option value="">Month</option>{months.map((month, index) => <option key={month} value={String(index + 1).padStart(2, '0')}>{month}</option>)}
@@ -160,11 +160,18 @@ export const AdminAuditPanel: React.FC = () => {
       <div><p className="text-xs font-bold uppercase tracking-widest text-blue-300">Administrative oversight</p><h2 className="text-2xl font-bold">Audit Logs</h2><p className="mt-1 text-xs text-slate-400">A record of administrator, security, and visitation activity.</p></div>
       <div className="flex gap-2"><button onClick={() => void exportRows()} className="flex items-center gap-2 rounded-lg border border-blue-300/20 px-3 py-2 text-xs text-blue-200"><Download className="h-4 w-4"/>Download PDF</button><button onClick={() => void load()} className="rounded-lg border border-white/15 p-2" aria-label="Refresh"><RefreshCw className="h-4 w-4"/></button></div>
     </header>
-    <div className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-      <label className="relative"><span className="sr-only">Search actor, action, or record</span><Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500"/><input value={filters.q} onFocus={() => setSearchFocused(true)} onBlur={() => window.setTimeout(() => setSearchFocused(false), 120)} onChange={e => set('q', e.target.value)} placeholder="Search actor, action, or record" aria-label="Search actor, action, or record" className="w-full rounded-lg border border-white/10 bg-slate-900 py-2 pl-9 pr-2 text-sm"/>{searchFocused && actorSuggestions.length > 0 && <div className="absolute left-0 right-0 top-full z-30 mt-1 overflow-hidden rounded-lg border border-white/10 bg-slate-900 shadow-xl">{actorSuggestions.map(name => <button key={name} type="button" onMouseDown={event => event.preventDefault()} onClick={() => { set('q', name); setSearchFocused(false); }} className="block w-full px-3 py-2 text-left text-sm hover:bg-blue-500/20">{name}</button>)}</div>}</label>
+    <div className="mb-4 grid items-end gap-2 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="min-w-0">
+        <label htmlFor="audit-log-search" className="mb-1 block text-[10px] leading-[13px] text-slate-400">Search</label>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500"/>
+          <input id="audit-log-search" value={filters.q} onFocus={() => setSearchFocused(true)} onBlur={() => window.setTimeout(() => setSearchFocused(false), 120)} onChange={e => set('q', e.target.value)} placeholder="Search actor, action, or record" aria-label="Search actor, action, or record" className="h-8 w-full rounded-lg border border-white/10 bg-slate-900 py-0 pl-9 pr-2 text-sm"/>
+          {searchFocused && actorSuggestions.length > 0 && <div className="absolute left-0 right-0 top-full z-30 mt-1 overflow-hidden rounded-lg border border-white/10 bg-slate-900 shadow-xl">{actorSuggestions.map(name => <button key={name} type="button" onMouseDown={event => event.preventDefault()} onClick={() => { set('q', name); setSearchFocused(false); }} className="block w-full px-3 py-2 text-left text-sm hover:bg-blue-500/20">{name}</button>)}</div>}
+        </div>
+      </div>
       <AuditDateField label="From" value={filters.from} onChange={value => set('from', value)}/>
       <AuditDateField label="To" value={filters.to} onChange={value => set('to', value)}/>
-      <button type="button" disabled={loading} onClick={applyFilters} aria-busy={loading} className="rounded-lg bg-blue-500 px-4 py-2 text-sm font-bold text-slate-950 disabled:cursor-wait disabled:opacity-70">{loading ? 'Applying…' : 'Apply filters'}</button>
+      <button type="button" disabled={loading} onClick={applyFilters} aria-busy={loading} className="h-8 w-full rounded-lg bg-blue-500 px-4 text-sm font-bold text-slate-950 disabled:cursor-wait disabled:opacity-70">{loading ? 'Applying…' : 'Apply filters'}</button>
     </div>
     <p className="-mt-2 mb-3 text-xs text-slate-400">Search updates as you type. Set a From and/or To date, then apply to narrow the results by date.</p>
     {error && <p className="mb-3 text-sm text-rose-300">{error}</p>}

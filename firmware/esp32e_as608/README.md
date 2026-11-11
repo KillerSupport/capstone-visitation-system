@@ -5,26 +5,44 @@ fingerprint sensor through the backend's authenticated `/hardware` WebSocket.
 It implements the website's fingerprint enrollment and entrance verification
 commands. It does not implement the optional GM65 QR reader.
 
-## Arduino setup
+## Build in VS Code with PlatformIO
 
-Open `esp32e_as608.ino` in Arduino IDE. Install these libraries through Library
-Manager:
+1. Install the **PlatformIO IDE** and **C/C++** extensions in VS Code.
+2. Open the capstone project root (the folder containing `package.json`) in VS Code.
+   The root `platformio.ini` points PlatformIO to this firmware folder.
+3. Copy `config.example.h` to `config.h` in `firmware/esp32e_as608`, then set:
 
-- Adafruit Fingerprint Sensor Library
-- WebSockets by Markus Sattler (Links2004/arduinoWebSockets)
-- ArduinoJson 7.x
+   - `WIFI_SSID` and `WIFI_PASSWORD` for the Wi-Fi network shared with the
+     development computer.
+   - `BACKEND_HOST` to the development computer's LAN IPv4 address. Do not use
+     `localhost` or `127.0.0.1`.
+   - `HARDWARE_DEVICE_TOKEN` to a long random value.
 
-Copy `config.example.h` to `config.h` in this folder and set the local Wi-Fi
-name/password, laptop LAN IP, backend port, and shared device token. The private
-`config.h` is excluded from git. Do not put these values in the website's
-frontend configuration or share the device token publicly.
+4. Set the same token as `HARDWARE_DEVICE_TOKEN` in the project's private root
+   `.env` file. Never put it in frontend configuration or commit either secret
+   file.
+5. From the project root, start the site and backend with `npm.cmd run dev`.
+   Keep the ESP32 and computer on the same reachable network and allow the
+   computer's firewall to accept port `4001`.
+6. In PlatformIO's Project Tasks, choose `esp32dev` → Build, then Upload. Open
+   the Serial Monitor at `115200` baud. The first build downloads the board
+   framework and libraries listed in `platformio.ini`.
 
-In the backend's private `.env`, set `HARDWARE_DEVICE_TOKEN` to the same random
-token. Start the project with `npm.cmd run dev`. The ESP32 and laptop must be on
-the same reachable network, and the laptop firewall must allow the backend
-port (default `4001`). The sketch connects to
-`ws://<laptop-LAN-IP>:4001/hardware`; `localhost` on the ESP32 points to the
-ESP32 itself.
+The PlatformIO configuration installs the Adafruit Fingerprint Sensor Library,
+WebSockets by Markus Sattler, and ArduinoJson 7.x. It currently targets the
+classic `ESP32 Dev Module` (`esp32dev`); change the PlatformIO board if your
+board is a different ESP32 variant.
+
+The device connects to `ws://<computer-LAN-IP>:4001/hardware`. The `HTTPClient`
+and `biometric.php` URL in the sample sketch do not match this project: its
+backend requires an authenticated WebSocket and staff-started enrollment or
+verification requests.
+
+## Arduino IDE
+
+You can also open `esp32e_as608.ino` in Arduino IDE. Install the same three
+libraries through Library Manager, then create `config.h` from
+`config.example.h` and follow the network and token setup above.
 
 For the sample pin defaults, connect sensor TX to ESP32 GPIO 16 (RX2), sensor
 RX to GPIO 17 (TX2), and connect grounds together. Confirm the sensor's power

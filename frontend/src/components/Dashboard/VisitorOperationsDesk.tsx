@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { BadgeCheck, BookUser, CalendarDays, LogOut, RefreshCw, Search, ShieldAlert, UserRoundCheck } from 'lucide-react';
 import { UserAddress, UserProfile } from '../../types';
 import { api } from '../../services/api';
+import { confirmAction } from '../../utils/appDialogs';
 import { realtimeWS } from '../../services/websocket';
 import { SignatureCapture } from '../Common/SignatureCapture';
 import { generateQRCodeDataUrl } from '../../utils/qrGenerator';
@@ -113,7 +114,7 @@ export function VisitorOperationsDesk({ user }: { user: UserProfile }) {
   };
   const checkout = async (row: any) => {
     const type = row.visit_type === 'PDL Visitor' ? 'PDL' : 'GUEST';
-    if (!window.confirm(`Record check-out for ${row.visitor_name}?`)) return;
+    if (!await confirmAction(`Record check-out for ${row.visitor_name}?`, { title: 'Confirm visitor check-out', confirmLabel: 'Record check-out', tone: 'warning' })) return;
     setBusy(true); setError(''); setNotice('');
     try { await api.checkOutRecordVisit(type, String(row.id)); setNotice(`${row.visit_type} check-out recorded.`); await loadDesk(); }
     catch (e) { setError(e instanceof Error ? e.message : 'Could not record the check-out.'); }

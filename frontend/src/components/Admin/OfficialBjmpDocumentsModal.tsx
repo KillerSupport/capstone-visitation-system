@@ -156,7 +156,7 @@ export const OfficialBjmpDocumentsModal: React.FC<OfficialBjmpDocumentsModalProp
         {/* Printable Official Document Canvas (Styled as official BJMP Paperwork) */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-950/90 flex justify-center">
           
-          <div className="w-full max-w-4xl bg-white text-slate-900 rounded-xl shadow-2xl p-6 sm:p-10 font-sans border border-slate-300 print:border-none print:shadow-none print:m-0 print:p-0 print:w-full">
+          <div className="bjmp-document-canvas self-start h-fit min-h-max w-full max-w-4xl bg-white text-slate-900 rounded-xl shadow-2xl p-6 sm:p-10 font-sans border border-slate-300 print:border-none print:shadow-none print:m-0 print:p-0 print:w-full">
             
             {/* Standard BJMP Official Header (Photos 3, 4, 10, 11) */}
             <div className="text-center border-b-2 border-slate-900 pb-3 mb-5">

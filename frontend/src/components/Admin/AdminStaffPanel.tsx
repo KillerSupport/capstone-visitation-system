@@ -3,6 +3,7 @@ import { Search, UserPlus } from 'lucide-react';
 import { UserProfile } from '../../types';
 import { api } from '../../services/api';
 import { BirthDateFields, MobileInput, mobileDigits, PasswordInput, SuffixSelect } from '../Common/IdentityFields';
+import { confirmAction } from '../../utils/appDialogs';
 
 const duties = ['RECORDS', 'GATE', 'IDENTITY_REVIEW', 'ENROLLMENT'];
 const labels: Record<string, string> = { RECORDS: 'PDL records', GATE: 'Gate and visitor history', IDENTITY_REVIEW: 'Identity review', ENROLLMENT: 'Fingerprint enrollment' };
@@ -58,7 +59,7 @@ export function AdminStaffPanel() {
   };
   const submitReset = async (event: React.FormEvent) => {
     event.preventDefault(); if (!resetTarget) return;
-    if (!window.confirm(`Reset the password for ${resetTarget.firstName} ${resetTarget.lastName}? Their current sessions will be signed out.`)) return;
+    if (!await confirmAction(`Their current sessions will be signed out.`, { title: `Reset the password for ${resetTarget.firstName} ${resetTarget.lastName}?`, confirmLabel: 'Reset password', tone: 'warning' })) return;
     setBusy(true); setError(''); setMessage('');
     try { await api.resetWorkerPassword(resetTarget.id, resetPassword); setMessage(`Password reset for ${resetTarget.firstName} ${resetTarget.lastName}. Give the new password to them directly.`); setResetTarget(null); setResetPassword(''); }
     catch (e) { setError(e instanceof Error ? e.message : 'Could not reset the worker password.'); }

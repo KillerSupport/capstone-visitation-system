@@ -11,11 +11,13 @@ import { VisitorOperationsDesk } from './components/Dashboard/VisitorOperationsD
 import { AdminKycPanel } from './components/Admin/AdminKycPanel';
 import { GuardScannerModal } from './components/Guard/GuardScannerModal';
 import {ProfileEditor} from './components/Common/ProfileEditor';
+import {AppDialogHost} from './components/Common/AppDialogHost';
 import {SecurityNotice} from './components/Common/SecurityNotice';
 import { Bell } from 'lucide-react';
 import { api, type LoginResult } from './services/api';
 import { realtimeWS } from './services/websocket';
 import {hardware} from './services/hardware';
+import {confirmAction,promptAction} from './utils/appDialogs';
 
 export default function App() {
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -185,8 +187,8 @@ export default function App() {
   };
 
   const handleDeleteAppointment = async (appointmentId: string) => {
-    if (!window.confirm('Archive this visit? It will leave active schedules but remain available in Archive for restoration.')) return;
-    const reason=window.prompt('Archive reason:'); if(!reason?.trim()) return;
+    if (!await confirmAction('This visit will leave active schedules but remain available in Archive for restoration.', { title: 'Archive visit?', confirmLabel: 'Continue', tone: 'warning' })) return;
+    const reason=await promptAction('Give a short reason for archiving this visit.', { title: 'Archive visit', inputLabel: 'Archive reason', placeholder: 'Enter the reason', confirmLabel: 'Archive visit', tone: 'danger' }); if(reason===null) return;
     try {
       await api.deleteAppointment(appointmentId,reason);
       setAppointments((prev) => prev.filter((item) => item.id !== appointmentId));
@@ -199,6 +201,7 @@ export default function App() {
 
   return (
     <div className="government-theme min-h-screen flex flex-col text-slate-100 font-sans antialiased">
+      <AppDialogHost />
       
       {/* Refined Toast Notification */}
       {toastMessage && (

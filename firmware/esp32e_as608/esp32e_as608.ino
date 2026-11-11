@@ -396,6 +396,7 @@ void setup() {
                                "AS608 fingerprint sensor not detected.");
 
   WiFi.mode(WIFI_STA);
+  Serial.printf("Connecting to Wi-Fi: %s\n", WIFI_SSID);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   lastWiFiAttempt = millis();
 
@@ -407,6 +408,8 @@ void setup() {
 void loop() {
   if (WiFi.status() == WL_CONNECTED) {
     if (!socketStarted) {
+      Serial.printf("Wi-Fi connected. ESP32 IP: %s\n",
+                    WiFi.localIP().toString().c_str());
       Serial.print("Connecting to hardware bridge at ");
       Serial.print(BACKEND_HOST);
       Serial.print(":");

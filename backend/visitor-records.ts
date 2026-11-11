@@ -83,9 +83,23 @@ visitorRecordsRouter.get('/admin/visitors', adminOnly, async (req, res) => {
 
 visitorRecordsRouter.get('/admin/visitors/restriction-options', adminOnly, async (req, res) => {
   const q = clean(req.query.q, 100), like = `%${q}%`;
-  const [rows] = await pool.query<any[]>(`SELECT id,visitor_code,full_name,contact_number,contact_email,status,is_archived
-    FROM visitor_records WHERE (?='' OR visitor_code LIKE ? OR full_name LIKE ? OR contact_email LIKE ? OR contact_number LIKE ?)
-    ORDER BY is_archived,full_name LIMIT 500`, [q, like, like, like, like]);
+  const [rows] = await pool.query<any[]>(`SELECT v.id,v.visitor_code,v.full_name,v.contact_number,v.contact_email,v.status,
+      EXISTS(SELECT 1 FROM pdl_visitation_logs l WHERE l.visitor_record_id=v.id) AS has_pdl_visit,
+      EXISTS(SELECT 1 FROM guest_visitation_logs l WHERE l.visitor_record_id=v.id) AS has_guest_visit
+    FROM visitor_records v
+    WHERE v.is_archived=0
+      AND (EXISTS(SELECT 1 FROM pdl_visitation_logs l WHERE l.visitor_record_id=v.id)
+        OR EXISTS(SELECT 1 FROM guest_visitation_logs l WHERE l.visitor_record_id=v.id))
+      AND (?='' OR v.visitor_code LIKE ? OR v.full_name LIKE ? OR v.contact_email LIKE ? OR v.contact_number LIKE ?
+        OR EXISTS(SELECT 1 FROM pdl_visitation_logs l WHERE l.visitor_record_id=v.id AND l.visitor_name LIKE ?)
+        OR EXISTS(SELECT 1 FROM guest_visitation_logs l WHERE l.visitor_record_id=v.id AND l.visitor_name LIKE ?)
+        OR EXISTS(SELECT 1 FROM pdl_visitor_assignments a JOIN pdls p ON p.id=a.pdl_id
+          WHERE a.visitor_record_id=v.id AND a.status='APPROVED' AND (p.pdl_number LIKE ? OR CONCAT_WS(' ',p.first_name,p.middle_name,p.last_name,p.suffix) LIKE ?))
+        OR EXISTS(SELECT 1 FROM pdl_visitation_logs l LEFT JOIN pdls p ON p.id=l.pdl_id
+          WHERE l.visitor_record_id=v.id AND (l.pdl_name LIKE ? OR p.pdl_number LIKE ? OR CONCAT_WS(' ',p.first_name,p.middle_name,p.last_name,p.suffix) LIKE ?)))
+    ORDER BY GREATEST(COALESCE((SELECT MAX(l.time_in) FROM pdl_visitation_logs l WHERE l.visitor_record_id=v.id),'1000-01-01 00:00:00'),
+      COALESCE((SELECT MAX(l.time_in) FROM guest_visitation_logs l WHERE l.visitor_record_id=v.id),'1000-01-01 00:00:00')) DESC,v.full_name
+    LIMIT 100`, [q, ...Array(11).fill(like)]);
   res.json(rows);
 });
 

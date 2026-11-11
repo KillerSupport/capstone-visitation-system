@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Check, RefreshCw, X } from 'lucide-react';
 import { api } from '../../services/api';
 import { realtimeWS } from '../../services/websocket';
+import { confirmAction } from '../../utils/appDialogs';
 
 const label = (key: string) => ({
   firstName: 'First name', middleName: 'Middle name', lastName: 'Last name', suffix: 'Suffix',
@@ -33,7 +34,7 @@ export function AdminProfileChangeRequestsPanel() {
     const reason = reasons[String(request.id)] || '';
     if (!reason.trim()) { setError('Enter an administrator decision note before approving or rejecting a request.'); return; }
     const verb = decision === 'APPROVE' ? 'Approve' : 'Reject';
-    if (!window.confirm(`${verb} ${request.workerName}'s ${request.requestType === 'PASSWORD' ? 'password' : 'profile'} change request?`)) return;
+    if (!await confirmAction(`${verb} ${request.workerName}'s ${request.requestType === 'PASSWORD' ? 'password' : 'profile'} change request?`, { title: `${verb} worker request?`, confirmLabel: verb, tone: decision === 'REJECT' ? 'danger' : 'default' })) return;
     setBusy(String(request.id)); setError(''); setMessage('');
     try {
       const result = await api.reviewWorkerProfileChange(String(request.id), decision, reason);

@@ -23,6 +23,7 @@ import { PDLRegistrationModal } from '../Admin/PDLRegistrationModal';
 import { OfficialBjmpDocumentsModal } from '../Admin/OfficialBjmpDocumentsModal';
 import { AdminAuditPanel } from '../Admin/AdminAuditPanel';
 import { AdminArchivePanel } from '../Admin/AdminArchivePanel';
+import { alertAction, confirmAction, promptAction } from '../../utils/appDialogs';
 import { AdminReportsPanel } from '../Admin/AdminReportsPanel';
 import { api } from '../../services/api';
 import {realtimeWS} from '../../services/websocket';
@@ -294,7 +295,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <span>Visitor Records</span>
           </button>
 
-          <button type="button" onClick={() => setActiveTab('RESTRICTIONS')} className={`rounded-lg border border-slate-700 px-4 py-2 text-xs font-bold whitespace-nowrap ${activeTab==='RESTRICTIONS'?'bg-rose-700 text-white':'text-slate-300'}`}>Visitor restrictions</button>
+          <button type="button" onClick={() => setActiveTab('RESTRICTIONS')} className={`rounded-lg border border-slate-700 px-4 py-2 text-xs font-bold whitespace-nowrap ${activeTab==='RESTRICTIONS'?'restriction-nav-active':'text-slate-300'}`}>Visitor restrictions</button>
           <button type="button" onClick={() => setActiveTab('STAFF')} className="rounded-lg border border-slate-700 px-4 py-2 text-xs font-bold whitespace-nowrap">Worker accounts</button>
           <button type="button" onClick={() => setActiveTab('PROFILE_APPROVALS')} className={`rounded-lg border border-slate-700 px-4 py-2 text-xs font-bold whitespace-nowrap ${activeTab==='PROFILE_APPROVALS'?'bg-blue-500 text-slate-950':'text-slate-300'}`}>
             <span>Profile change requests</span>
@@ -304,7 +305,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <span className="inline-flex items-center gap-2"><FileCheck2 className="h-4 w-4"/>Identity review</span>
             {pendingKycCount > 0 && <span aria-label={`${pendingKycCount} pending identity reviews`} aria-live="polite" title={`${pendingKycCount} identity review${pendingKycCount === 1 ? '' : 's'} waiting`} className="ml-2 inline-flex min-w-5 items-center justify-center rounded-full bg-rose-600 px-1.5 py-0.5 text-[10px] font-black leading-none text-white">{pendingKycCount > 99 ? '99+' : pendingKycCount}</span>}
           </button>
-          <button type="button" onClick={() => setActiveTab('VISITATION')} className="rounded-lg border border-slate-700 px-4 py-2 text-xs font-bold whitespace-nowrap">Approved lists & days</button>
+          <button type="button" onClick={() => setActiveTab('VISITATION')} className="rounded-lg border border-slate-700 px-4 py-2 text-xs font-bold whitespace-nowrap">Approved lists & Scheduling</button>
 
           <button
             type="button"
@@ -978,7 +979,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <Edit3 className="w-3.5 h-3.5 text-blue-400" />
                           <span>Edit Booking</span>
                         </button>
-                        <button type="button" onClick={async()=>{if(!window.confirm(`Archive PDL ${pdl.fullName}? Related visit history will be retained.`))return;const reason=window.prompt('Archive reason:');if(!reason?.trim())return;try{await api.archiveRecord('PDLS',pdl.id,reason);setPdlList(list=>list.filter(item=>item.id!==pdl.id))}catch(e:any){window.alert(e.message)}}} className="col-span-2 rounded-lg border border-rose-300/20 py-1.5 text-[11px] font-semibold text-rose-200">Archive PDL record</button>
+                        <button type="button" onClick={async()=>{if(!await confirmAction(`Related visit history will be retained.`,{title:`Archive PDL ${pdl.fullName}?`,confirmLabel:'Continue',tone:'warning'}))return;const reason=await promptAction('Give a short reason for archiving this PDL record.',{title:'Archive PDL record',inputLabel:'Archive reason',placeholder:'Enter the reason',confirmLabel:'Archive PDL',tone:'danger'});if(reason===null)return;try{await api.archiveRecord('PDLS',pdl.id,reason);setPdlList(list=>list.filter(item=>item.id!==pdl.id))}catch(e:any){await alertAction(e instanceof Error?e.message:'Could not archive the PDL record.',{title:'Unable to archive PDL',tone:'danger'})}}} className="col-span-2 rounded-lg border border-rose-300/20 py-1.5 text-[11px] font-semibold text-rose-200">Archive PDL record</button>
                       </div>
 
                     </div>
@@ -1166,7 +1167,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <td className="py-3 px-4 font-mono text-slate-400 text-[11px]">
                           {inc.reportingOfficer}
                         </td>
-                        <td className="py-3 px-4"><button className="mb-2 mr-2 rounded border border-slate-600 px-2 py-1" onClick={()=>{setEditingIncident(inc);setNewIncidentVisitor(inc.visitorName);setNewIncidentType(inc.incidentType);setNewIncidentDesc(inc.description);setNewIncidentAction(inc.actionTaken);setIncidentReason('');setIncidentError('');setIsAddIncidentOpen(true)}}>Edit / follow up</button><button className="mb-2 mr-2 rounded border border-slate-600 px-2 py-1" onClick={async()=>{try{setIncidentHistory(await api.getIncidentHistory(inc.id))}catch(e){window.alert(e.message)}}}>History</button><button type="button" onClick={async()=>{if(!window.confirm('Archive this security incident? Its audit history will remain available.'))return;const reason=window.prompt('Archive reason:');if(!reason?.trim())return;try{await api.archiveRecord('INCIDENTS',inc.id,reason);setIncidentList(list=>list.filter(item=>item.id!==inc.id))}catch(e:any){window.alert(e.message)}}} className="rounded border border-rose-300/20 px-2 py-1 text-[11px] text-rose-200">Archive</button></td>
+                        <td className="py-3 px-4"><button className="mb-2 mr-2 rounded border border-slate-600 px-2 py-1" onClick={()=>{setEditingIncident(inc);setNewIncidentVisitor(inc.visitorName);setNewIncidentType(inc.incidentType);setNewIncidentDesc(inc.description);setNewIncidentAction(inc.actionTaken);setIncidentReason('');setIncidentError('');setIsAddIncidentOpen(true)}}>Edit / follow up</button><button className="mb-2 mr-2 rounded border border-slate-600 px-2 py-1" onClick={async()=>{try{setIncidentHistory(await api.getIncidentHistory(inc.id))}catch(e){await alertAction(e instanceof Error?e.message:'Could not load incident history.',{title:'Unable to load history',tone:'danger'})}}}>History</button><button type="button" onClick={async()=>{if(!await confirmAction('The incident’s audit history will remain available.',{title:'Archive this security incident?',confirmLabel:'Continue',tone:'warning'}))return;const reason=await promptAction('Give a short reason for archiving this security incident.',{title:'Archive security incident',inputLabel:'Archive reason',placeholder:'Enter the reason',confirmLabel:'Archive incident',tone:'danger'});if(reason===null)return;try{await api.archiveRecord('INCIDENTS',inc.id,reason);setIncidentList(list=>list.filter(item=>item.id!==inc.id))}catch(e:any){await alertAction(e instanceof Error?e.message:'Could not archive the security incident.',{title:'Unable to archive incident',tone:'danger'})}}} className="rounded border border-rose-300/20 px-2 py-1 text-[11px] text-rose-200">Archive</button></td>
                       </tr>
                     ))}
                   </tbody>
