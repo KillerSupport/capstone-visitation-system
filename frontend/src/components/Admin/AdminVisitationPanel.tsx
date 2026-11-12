@@ -37,17 +37,17 @@ export function AdminVisitationPanel({ pdls, onChanged }: { pdls: PDL[]; onChang
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!selectedPdlId || weekday === '') return;
-    if (!await confirmAction(`Check-in authorization will use ${days[Number(weekday)]} immediately.`, { title: `Set visitation day to ${days[Number(weekday)]}?`, confirmLabel: 'Save visitation day', tone: 'warning' })) return;
+    if (!await confirmAction(`Approved visitors may check in to visit this PDL on ${days[Number(weekday)]}. Visitors do not book individual visit dates.`, { title: `Set this PDL's weekly visiting day to ${days[Number(weekday)]}?`, confirmLabel: 'Save weekly day', tone: 'warning' })) return;
     setBusy(true); setError(''); setMessage('');
     try {
       await api.saveAdminPdlSchedule(selectedPdlId, Number(weekday), reason);
       await Promise.all([loadSchedules(), loadDetail(selectedPdlId)]);
-      await onChanged?.(); setReason(''); setMessage('PDL visitation day saved. Workers will verify this day during check-in.');
+      await onChanged?.(); setReason(''); setMessage(`Weekly PDL visiting day saved for ${days[Number(weekday)]}. Workers will check it only for visits to this PDL; jail/guest visits are separate.`);
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not save the PDL schedule.'); }
     finally { setBusy(false); }
   };
   return <section className="space-y-5 rounded-xl border border-slate-700 bg-slate-900 p-5">
-    <header><h2 className="text-xl font-bold">PDL visitation schedules</h2><p className="mt-2 text-sm text-slate-400">Assign one weekly visitation day to each PDL. Worker check-in verifies the selected PDL’s day and active visitor approval.</p></header>
+    <header><h2 className="text-xl font-bold">PDL visitation schedules</h2><p className="mt-2 text-sm text-slate-400">Set one weekly visiting day for each PDL. This is an entry check for approved visitors who want to visit that PDL; visitors do not book dates or send appointment requests. Jail/guest visits are recorded separately and do not use this schedule.</p></header>
     {error && <p role="alert" className="text-sm text-rose-300">{error}</p>}{message && <p role="status" className="text-sm text-emerald-300">{message}</p>}
     <label className="block text-sm font-semibold">Search PDL by name or number<div className="relative mt-1"><Search className="absolute left-3 top-3 h-4 w-4 text-slate-400"/><input value={pdlSearch} onChange={e => setPdlSearch(e.target.value)} placeholder="Type a PDL name or number" className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-sm font-normal text-[#26364a]"/></div></label>
     <div className="overflow-x-auto rounded-lg border border-slate-700"><table className="w-full min-w-[650px] text-left text-sm"><thead className="bg-slate-950 text-xs uppercase text-slate-400"><tr><th className="p-3">PDL</th><th className="p-3">Status</th><th className="p-3">Visitation day</th><th className="p-3">Approved visitors</th><th className="p-3">Updated</th></tr></thead><tbody className="divide-y divide-slate-800">{visibleSchedules.map(row => <tr key={row.pdl_id} role="button" tabIndex={0} aria-selected={selectedPdlId === row.pdl_id} className={`cursor-pointer ${selectedPdlId === row.pdl_id ? 'bg-blue-900/30' : 'hover:bg-slate-800'}`} onClick={() => selectPdl(row.pdl_id)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectPdl(row.pdl_id); } }}><td className="p-3">{row.pdl_name}<span className="block text-xs text-slate-500">{row.pdl_number}</span></td><td className="p-3">{row.status}</td><td className="p-3">{row.weekday == null ? 'Not assigned' : days[row.weekday]}</td><td className="p-3">{row.approved_count} / 7</td><td className="p-3 text-xs">{row.updated_at ? new Date(row.updated_at).toLocaleString() : '—'}</td></tr>)}{!visibleSchedules.length && <tr><td colSpan={5} className="p-4 text-center text-slate-400">{schedules.length ? 'No PDLs match your search.' : 'No PDL records available.'}</td></tr>}</tbody></table></div>

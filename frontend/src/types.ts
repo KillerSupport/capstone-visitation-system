@@ -269,6 +269,7 @@ export interface PDL {
   releaseApprovedBy?: string;
 }
 
+/** Legacy read-only shape retained for old source files; visitor booking is disabled. */
 export interface VisitationAppointment {
   companions?: {fullName:string;dateOfBirth:string;relationshipToPdl:string;relationshipToVisitor?:string;verificationStatus?:string;reviewNote?:string}[];
   checkedInAt?: string;

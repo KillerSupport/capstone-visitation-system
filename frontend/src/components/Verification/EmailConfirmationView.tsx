@@ -50,20 +50,18 @@ export const EmailConfirmationView: React.FC<EmailConfirmationViewProps> = ({
             </div>
             <div>
               <span className="text-xs uppercase font-bold tracking-wider text-blue-400">
-                Step 1 • Contact verification
+                Staff account • Contact verification
               </span>
               <h2 className="text-2xl font-black text-white tracking-tight mt-0.5">
                 Confirm your {verificationMethod}
               </h2>
-              <p className="text-xs text-slate-400 mt-1">
-                Enter the 6-digit code sent to your registered contact.
-              </p>
+              <p className="text-xs text-slate-400 mt-1">Confirm the contact details on your staff account to continue.</p>
             </div>
           </div>
           <div className="text-right">
-            <span className="text-[11px] text-slate-400 block font-mono">Reference No.</span>
+            <span className="text-[11px] text-slate-400 block font-mono">Worker ID</span>
             <span className="text-xs font-bold text-blue-400 font-mono bg-blue-500/10 px-2.5 py-1 rounded border border-blue-500/20">
-              {user.biometricReferenceNumber}
+              WRK-{String(user.id).padStart(6, '0')}
             </span>
           </div>
         </div>
@@ -164,7 +162,7 @@ export const EmailConfirmationView: React.FC<EmailConfirmationViewProps> = ({
                   Sent to: <strong className="text-slate-300">{deliveryDestination}</strong>
                 </div>
                 <h4 className="text-sm font-bold text-white mt-2">
-                  Action Required: Verify your BJMP visitor account
+                  Action Required: Verify your BJMP staff contact
                 </h4>
               </div>
 
@@ -185,7 +183,7 @@ export const EmailConfirmationView: React.FC<EmailConfirmationViewProps> = ({
                 </p>
 
                 <p className="text-xs leading-relaxed text-slate-300">
-                  Thank you for applying for a visitor account with the BJMP Imus City Jail Visitation System. Your account application has been received and is pending identity verification.
+                  Your BJMP staff account is ready. Confirm this contact address or mobile number to sign in and use your assigned staff tools.
                 </p>
 
                 <div className="bg-slate-950 border border-blue-500/30 rounded-lg p-4 text-center">
@@ -197,7 +195,7 @@ export const EmailConfirmationView: React.FC<EmailConfirmationViewProps> = ({
                   </div>
                   <span className="text-[10px] text-slate-500">Valid for 10 minutes</span>
                 </div><div className="border-t border-slate-800 pt-3 text-[10px] text-slate-400 leading-relaxed">
-                  <strong className="text-blue-400">Next Mandatory Step:</strong> After verifying your registered contacts, continue to the protected Identity Verification page to submit your ID for administrator review. Confirm current facility details before traveling.
+                  <strong className="text-blue-400">Next step:</strong> Enter the code sent to this contact. If the code does not arrive, use Resend code or contact your administrator.
                 </div>
               </div>
             </div>

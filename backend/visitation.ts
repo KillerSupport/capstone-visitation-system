@@ -1,8 +1,8 @@
 import {Router} from 'express';
 import {randomBytes,randomUUID} from 'node:crypto';
 import type {PoolConnection} from 'mysql2/promise';
-import {pool,getAllPdls,getAllAppointments,ensureSlotCapacity} from './database/db.js';
-import {admin,visitorActive} from './auth.js';
+import {pool,getAllAppointments} from './database/db.js';
+import {admin} from './auth.js';
 import {manilaDate,validateCompanions} from './validation.js';
 import {appointmentConfirmation,deliverMessage,DeliveryUnavailable} from './messaging.js';
 
@@ -106,34 +106,6 @@ export async function assertPdlEligibility(conn:PoolConnection,pdlId:string,user
 }
 
 export const visitationRouter=Router();
-visitationRouter.get('/linked-pdls',visitorActive,async(req,res)=>{
-  try{
-    const [links]=await pool.query<any[]>(`SELECT l.pdl_id,l.relationship,s.weekday,s.version FROM pdl_visitor_links l LEFT JOIN pdl_visitation_schedules s ON s.pdl_id=l.pdl_id WHERE l.user_id=? AND l.is_active=1`,[(req as any).user.id]);
-    const pdls=await getAllPdls();
-    res.json(links.map(l=>{const p=pdls.find(p=>p.id===l.pdl_id&&p.status==='In Custody');return p?{id:p.id,fullName:p.fullName,pdlNumber:p.pdlNumber,sex:p.sex,status:p.status,jailFacilityId:p.jailFacilityId,cellDormitory:p.cellDormitory,relationship:l.relationship,weekday:l.weekday,version:l.version,visitingHours:VISITING_HOURS}:null}).filter(Boolean));
-  }catch{res.status(500).json({error:'Could not load your approved PDL connections.'});}
-});
-visitationRouter.patch('/visits/:id/date',visitorActive,async(req,res)=>{
-  const date=String(req.body.visitDate||''),user=(req as any).user;
-  try{dateWeekday(date);if(date<=manilaDate())throw Error('Choose an upcoming visit date.');}catch(error:any){return res.status(400).json({error:error.message});}
-  const conn=await pool.getConnection();try{await conn.beginTransaction();
-    const [rows]=await conn.query<any[]>('SELECT * FROM appointments WHERE id=? AND user_id=? AND is_archived=0 FOR UPDATE',[req.params.id,user.id]);const row=rows[0];
-    if(!row){await conn.rollback();return res.status(404).json({error:'Selected visit not found.'});}
-    if(row.selection_mode!=='PDL_DAY'||row.status!=='Approved'||row.checked_in_at)throw Error('Only an upcoming unused selected visit can be rescheduled.');
-    if(dayOnly(row.visit_date)<=manilaDate())throw Error('An elapsed or same-day visit cannot be rescheduled.');
-    if(dayOnly(row.visit_date)===date){await conn.rollback();return res.json({success:true,unchanged:true});}
-    const schedule=await assertPdlEligibility(conn,row.pdl_id,String(user.id),date,undefined,JSON.parse(row.companions||'[]'));
-    await ensureSlotCapacity(conn,row.jail_facility_id,date,VISITING_HOURS,1+JSON.parse(row.companions||'[]').length);
-    const [duplicate]=await conn.query<any[]>("SELECT id FROM appointments WHERE id<>? AND user_id=? AND pdl_id=? AND visit_date=? AND is_archived=0 AND status IN ('Approved','Pending Review')",[row.id,user.id,row.pdl_id,date]);
-    if(duplicate.length)throw Error('You already selected this date for this PDL.');
-    await conn.query('UPDATE appointments SET visit_date=?,time_slot=?,schedule_version=? WHERE id=?',[date,VISITING_HOURS,schedule.version,row.id]);
-    await conn.query('DELETE FROM gate_verification_sessions WHERE appointment_id=? AND consumed_at IS NULL',[row.id]);
-    await queueVisitConfirmation(conn, { id: row.id, pdlId: row.pdl_id, userId: String(user.id),
-      visitDate: date, timeSlot: VISITING_HOURS, appointmentReference: row.appointment_reference,
-      jailFacilityName: row.jail_facility_name }, true);
-    await audit(conn,user,'VISIT_DATE_CHANGED','APPOINTMENT',row.id,{previousDate:dayOnly(row.visit_date),visitDate:date});await conn.commit();req.app.emit('visitation-changed');res.json({success:true});
-  }catch(error:any){await conn.rollback();res.status(400).json({error:error.message||'Could not change the visit date.'});}finally{conn.release();}
-});
 visitationRouter.get('/admin',admin,async(_req,res)=>{
   try{
     const [policy]=await pool.query<any[]>('SELECT visitor_limit FROM visitation_policy WHERE id=1');

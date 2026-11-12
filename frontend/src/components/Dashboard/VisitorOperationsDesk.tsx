@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { BadgeCheck, BookUser, CalendarDays, LogOut, RefreshCw, Search, ShieldAlert, UserRoundCheck } from 'lucide-react';
 import { UserAddress, UserProfile } from '../../types';
 import { api } from '../../services/api';
+import { hardware } from '../../services/hardware';
 import { confirmAction } from '../../utils/appDialogs';
 import { realtimeWS } from '../../services/websocket';
 import { SignatureCapture } from '../Common/SignatureCapture';
@@ -36,6 +37,11 @@ export function VisitorOperationsDesk({ user }: { user: UserProfile }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [scanId, setScanId] = useState('');
+  const pendingScan = useRef('');
+  const [searchedQuery, setSearchedQuery] = useState('');
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const lookupVersion = useRef(0);
   const input = 'mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900';
 
   const loadDesk = useCallback(async (historyQuery = appliedRecentSearch) => {
@@ -53,21 +59,113 @@ export function VisitorOperationsDesk({ user }: { user: UserProfile }) {
   useEffect(() => { void loadDesk(); }, [loadDesk]);
   useEffect(() => realtimeWS.on('VISITOR_LOGS_UPDATED', () => { void loadDesk(); }), [loadDesk]);
 
-  const search = async (e?: React.FormEvent) => {
-    e?.preventDefault();
-    setError(''); setNotice(''); setSelected(null); setVerification(null);
-    if (query.trim().length < 2) { setResults([]); return; }
-    setLoading(true);
-    try { setResults(await api.searchVisitorRecords(query.trim())); }
-    catch (e) { setError(e instanceof Error ? e.message : 'Visitor search failed.'); }
-    finally { setLoading(false); }
-  };
-  const choose = (row: any) => {
+  useEffect(() => { if (mode === 'PDL') hardware.connect(); }, [mode]);
+
+  const choose = useCallback((row: any) => {
     setSelected(row);
     setPerson({ fullName: row.full_name || '', gender: row.gender || '', address: row.address || '', addressDetails: addressFromSaved(row.address || '', row.addressDetails), age: row.age == null ? '' : String(row.age), contactNumber: mobileDigits(row.contact_number || '') });
     setPdlId(''); setVerification(null); setSignature(''); setError(''); setNotice('');
+  }, []);
+
+  const findVisitor = useCallback(async (value: string, fromScanner = false) => {
+    const version = ++lookupVersion.current;
+    setSearchedQuery('');
+    setError(''); setNotice(''); setSelected(null); setVerification(null);
+    setResults([]);
+    if (fromScanner && !/^[a-f0-9]{64}$/.test(value.trim())) {
+      setError('Invalid code. Scan a visitor QR issued by this system.');
+      return;
+    }
+    if (value.trim().length < 2) { setResults([]); return; }
+    setLoading(true);
+    try {
+      const matches = await api.searchVisitorRecords(value.trim(), fromScanner);
+      if (version !== lookupVersion.current) return;
+      setResults(matches);
+      if (!fromScanner) setSearchedQuery(value.trim());
+      if (fromScanner && !matches.length) setError('QR not recognized. No active visitor record matches this code.');
+      if (fromScanner && matches.length === 1) {
+        choose(matches[0]);
+        setNotice('Visitor QR found. Choose a PDL to verify the visit.');
+      }
+    }
+    catch (e) {
+      if (version === lookupVersion.current) setError(e instanceof Error ? e.message : 'Visitor search failed.');
+    }
+    finally { if (version === lookupVersion.current) setLoading(false); }
+  }, [choose]);
+  useEffect(() => () => {
+    clearTimeout(searchTimer.current);
+    ++lookupVersion.current;
+  }, []);
+  const updateQuery = (value: string) => {
+    clearTimeout(searchTimer.current);
+    ++lookupVersion.current;
+    setQuery(value);
+    setSearchedQuery('');
+    setResults([]); setSelected(null); setVerification(null);
+    setError(''); setNotice(''); setLoading(false);
+    if (value.trim().length >= 2) searchTimer.current = setTimeout(() => void findVisitor(value), 300);
+  };
+  const search = (e: React.FormEvent) => {
+    e.preventDefault();
+    clearTimeout(searchTimer.current);
+    if (!busy && !scanId) void findVisitor(query);
+  };
+  useEffect(() => {
+    const unsubscribe = hardware.onEvent(event => {
+      const requestId = pendingScan.current;
+      if (!requestId) return;
+      if (event.type === 'DEVICE_STATUS' && event.payload.connected === false) {
+        pendingScan.current = '';
+        setScanId('');
+        setError('The ESP32 QR scanner is offline.');
+        return;
+      }
+      if (event.requestId !== requestId) return;
+      if (event.type === 'DEVICE_ERROR') {
+        pendingScan.current = '';
+        setScanId('');
+        setError(String(event.payload.message || 'QR scan failed.'));
+      }
+      if (event.type === 'QR_SCANNED') {
+        pendingScan.current = '';
+        setScanId('');
+        const code = String(event.payload.code || '').trim();
+        setQuery('');
+        void findVisitor(code, true);
+      }
+    });
+    return () => { unsubscribe(); };
+  }, [findVisitor]);
+  useEffect(() => {
+    if (!scanId) return;
+    const timeout = setTimeout(() => {
+      if (pendingScan.current !== scanId) return;
+      pendingScan.current = '';
+      setScanId('');
+      setError('The scanner did not send a result. Check the ESP32 connection and try again.');
+    }, 23000);
+    return () => clearTimeout(timeout);
+  }, [scanId]);
+  const scanQr = () => {
+    clearTimeout(searchTimer.current);
+    setSearchedQuery('');
+    setError(''); setNotice(''); setResults([]); setSelected(null); setVerification(null);
+    try {
+      const requestId = crypto.randomUUID();
+      pendingScan.current = requestId;
+      hardware.command('QR_SCAN_START', {}, requestId);
+      setScanId(requestId);
+    } catch (e) {
+      pendingScan.current = '';
+      setError(e instanceof Error ? e.message : 'Could not start QR scan.');
+    }
   };
   const switchMode = (next: Mode) => {
+    pendingScan.current = '';
+    clearTimeout(searchTimer.current);
+    setScanId('');
     setMode(next); setSelected(null); setVerification(null); setSignature(''); setPurpose('');
     setPerson(blank); setError(''); setNotice('');
   };
@@ -101,7 +199,8 @@ export function VisitorOperationsDesk({ user }: { user: UserProfile }) {
       if (mode === 'PDL') {
         if (!selected || !pdlId || !verification?.allowed) throw new Error('Verify an approved PDL visitor and assigned visitation day first.');
         const result = await api.checkInPdlVisitor({ visitorId: String(selected.id), pdlId, signatureData: signature });
-        setNotice(`PDL Visitor checked in at ${new Date(result.timeIn).toLocaleTimeString()}.`);
+        setNotice(`${selected.full_name} checked in to visit ${verification.pdl.pdl_name} at ${new Date(result.timeIn).toLocaleTimeString()}.`);
+        setVerification(null);
       } else {
         if (!purpose.trim()) throw new Error('Enter the purpose of visit.');
         const result = await api.checkInGuestVisitor({ visitorId: selected ? String(selected.id) : undefined, ...person, address: formatAddress(person.addressDetails), contactNumber: person.contactNumber ? `+63${person.contactNumber}` : '', age: Number(person.age), purposeOfVisit: purpose, signatureData: signature });
@@ -127,6 +226,8 @@ export function VisitorOperationsDesk({ user }: { user: UserProfile }) {
     <label className="text-sm">Age<input required type="number" min="0" max="125" readOnly={readOnly} className={`${input} ${readOnly ? 'bg-slate-50' : ''}`} value={person.age} onChange={e => setPerson({ ...person, age: e.target.value })}/></label>
     <label className="text-sm">Mobile number<MobileInput required readOnly={readOnly} className={`${input} ${readOnly ? 'bg-slate-50' : ''}`} value={person.contactNumber} onChange={contactNumber => setPerson(current => ({ ...current, contactNumber }))}/></label>
   </div>;
+  const approvedAssignments = (selected?.assignments || []).filter((assignment: any) => assignment.status === 'APPROVED' && !assignment.pdl_archived && assignment.pdl_status === 'In Custody');
+  const activeVisit = selected ? active.find(row => String(row.visitor_record_id) === String(selected.id)) : undefined;
   const scheduleTerm = scheduleSearch.trim().toLowerCase();
   const pdlScheduleGroups: any[] = Object.values((today.visits || []).reduce((groups: Record<string, any>, row: any) => {
     const key = String(row.pdl_id || row.pdl_number || row.pdl_name);
@@ -138,28 +239,47 @@ export function VisitorOperationsDesk({ user }: { user: UserProfile }) {
 
   return <main className="visitor-operations-desk min-h-screen bg-slate-100 px-4 py-7 text-slate-900 sm:px-6">
     <div className="mx-auto max-w-7xl space-y-5">
-      <header className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-widest text-blue-700">Visitor verification and gate logs</p><h1 className="mt-1 text-3xl font-extrabold">Worker Desk</h1><p className="mt-1 text-sm text-slate-600">Welcome, {user.firstName}. Record each visit on its separate form.</p></div><button onClick={() => void loadDesk()} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"><RefreshCw size={15}/>Refresh</button></header>
-      <nav className="flex flex-wrap gap-2" aria-label="Visitor workflows"><button aria-pressed={mode === 'PDL'} onClick={() => switchMode('PDL')} className={`rounded-lg px-4 py-2 text-sm font-bold ${mode === 'PDL' ? 'bg-blue-700 text-white' : 'border border-slate-300 bg-white'}`}>PDL Visitation</button><button aria-pressed={mode === 'GUEST'} onClick={() => switchMode('GUEST')} className={`rounded-lg px-4 py-2 text-sm font-bold ${mode === 'GUEST' ? 'bg-blue-700 text-white' : 'border border-slate-300 bg-white'}`}>Jail / Guest Visitor</button><button aria-pressed={mode === 'ACTIVE'} onClick={() => switchMode('ACTIVE')} className={`rounded-lg px-4 py-2 text-sm font-bold ${mode === 'ACTIVE' ? 'bg-blue-700 text-white' : 'border border-slate-300 bg-white'}`}>Active Visitors</button></nav>
+      <header className="flex flex-wrap items-end justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4"><div><p className="text-xs font-bold uppercase tracking-widest text-blue-700">Visitor verification and gate logs</p><h1 className="mt-1 text-3xl font-extrabold text-slate-900">Worker Desk</h1><p className="mt-1 text-sm text-slate-600">Welcome, {user.firstName}. Record each visit on its separate form.</p></div><button type="button" onClick={() => window.location.reload()} disabled={busy} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:opacity-40"><RefreshCw size={15}/>Refresh</button></header>
+      <nav className="flex flex-wrap gap-2" aria-label="Visitor workflows"><button disabled={busy || loading} aria-pressed={mode === 'PDL'} onClick={() => switchMode('PDL')} className={`rounded-lg px-4 py-2 text-sm font-bold ${mode === 'PDL' ? 'bg-blue-700 text-white' : 'border border-slate-300 bg-white'}`}>PDL Visitation</button><button disabled={busy || loading} aria-pressed={mode === 'GUEST'} onClick={() => switchMode('GUEST')} className={`rounded-lg px-4 py-2 text-sm font-bold ${mode === 'GUEST' ? 'bg-blue-700 text-white' : 'border border-slate-300 bg-white'}`}>Jail / Guest Visitor</button><button disabled={busy || loading} aria-pressed={mode === 'ACTIVE'} onClick={() => switchMode('ACTIVE')} className={`rounded-lg px-4 py-2 text-sm font-bold ${mode === 'ACTIVE' ? 'bg-blue-700 text-white' : 'border border-slate-300 bg-white'}`}>Active Visitors</button></nav>
       <section className="grid gap-3 sm:grid-cols-3"><div className="rounded-xl border border-slate-200 bg-white p-4"><span className="text-xs text-slate-500">Currently checked in</span><strong className="mt-1 block text-2xl">{active.length}</strong></div><div className="rounded-xl border border-slate-200 bg-white p-4"><span className="text-xs text-slate-500">PDL Visitor entries</span><strong className="mt-1 block text-2xl">{active.filter(x => x.visit_type === 'PDL Visitor').length}</strong></div><div className="rounded-xl border border-slate-200 bg-white p-4"><span className="text-xs text-slate-500">Guest Visitor entries</span><strong className="mt-1 block text-2xl">{active.filter(x => x.visit_type === 'Guest Visitor').length}</strong></div></section>
       {error && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}{notice && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
-      {mode === 'ACTIVE' && <section className="rounded-xl border border-slate-200 bg-white p-5"><div className="mb-3 flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-lg font-bold">Active check-ins</h2><p className="text-xs text-slate-500">Find someone currently checked in, then record their time out.</p></div><label className="w-full text-xs font-semibold text-slate-700 sm:w-72">Find checked-in visitor<input type="search" value={activeSearch} onChange={e => setActiveSearch(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal" placeholder="Visitor name, ID, contact, or PDL"/></label></div><div className="overflow-x-auto"><table className="w-full min-w-[750px] text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Type / visitor</th><th className="p-3">PDL / purpose</th><th className="p-3">Date and time in</th><th className="p-3">Time out</th><th className="p-3">Action</th></tr></thead><tbody className="divide-y divide-slate-100">{active.filter(row => `${row.visitor_name} ${row.visitor_code || ''} ${row.contact_number || ''} ${row.pdl_name || ''} ${row.purpose_of_visit || ''}`.toLowerCase().includes(activeSearch.trim().toLowerCase())).map(row => <tr key={`${row.visit_type}-${row.id}`}><td className="p-3"><strong>{row.visit_type}</strong><span className="block">{row.visitor_name}</span><span className="block text-xs text-slate-500">{row.visitor_code} · {row.contact_number}</span></td><td className="p-3">{row.pdl_name || row.purpose_of_visit || '—'}<span className="block text-xs text-slate-500">{row.relationship || row.cell_number || ''}</span></td><td className="p-3">{String(row.visit_date).slice(0, 10)}<span className="block text-xs text-slate-500">{new Date(row.time_in).toLocaleTimeString()}</span></td><td className="p-3">—</td><td className="p-3"><button onClick={() => void checkout(row)} disabled={busy} className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white"><LogOut size={13}/>Time out</button></td></tr>)}{active.length > 0 && !active.some(row => `${row.visitor_name} ${row.visitor_code || ''} ${row.contact_number || ''} ${row.pdl_name || ''} ${row.purpose_of_visit || ''}`.toLowerCase().includes(activeSearch.trim().toLowerCase())) && <tr><td colSpan={5} className="p-5 text-center text-slate-500">No active visitors match that name.</td></tr>}{!active.length && <tr><td colSpan={5} className="p-5 text-center text-slate-500">No visitors are currently checked in.</td></tr>}</tbody></table></div></section>}
+      {mode === 'ACTIVE' && <section className="rounded-xl border border-slate-200 bg-white p-5"><div className="mb-3 flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-lg font-bold">Active check-ins</h2><p className="text-xs text-slate-500">Find someone currently checked in, then record their time out.</p></div><label className="w-full text-xs font-semibold text-slate-700 sm:w-72">Find checked-in visitor<input type="search" value={activeSearch} onChange={e => setActiveSearch(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal" placeholder="Visitor name, ID, contact, or PDL"/></label></div><div className="overflow-x-auto"><table className="w-full min-w-[750px] text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Type / visitor</th><th className="p-3">PDL / purpose</th><th className="p-3">Date and time in</th><th className="p-3">Time out</th><th className="p-3">Action</th></tr></thead><tbody className="divide-y divide-slate-100">{active.filter(row => `${row.visitor_name} ${row.visitor_code || ''} ${row.contact_number || ''} ${row.pdl_name || ''} ${row.purpose_of_visit || ''}`.toLowerCase().includes(activeSearch.trim().toLowerCase())).map(row => <tr key={`${row.visit_type}-${row.id}`}><td className="p-3"><strong>{row.visit_type}</strong><span className="block">{row.visitor_name}</span><span className="block text-xs text-slate-500">{row.visitor_code} · {row.contact_number}</span></td><td className="p-3">{row.pdl_name || row.purpose_of_visit || '—'}<span className="block text-xs text-slate-500">{row.relationship || row.cell_number || ''}</span></td><td className="p-3">{String(row.visit_date).slice(0, 10)}<span className="block text-xs text-slate-500">{new Date(row.time_in).toLocaleTimeString()}</span></td><td className="p-3">—</td><td className="p-3"><button onClick={() => void checkout(row)} disabled={busy} className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white"><LogOut size={13}/>Check out</button></td></tr>)}{active.length > 0 && !active.some(row => `${row.visitor_name} ${row.visitor_code || ''} ${row.contact_number || ''} ${row.pdl_name || ''} ${row.purpose_of_visit || ''}`.toLowerCase().includes(activeSearch.trim().toLowerCase())) && <tr><td colSpan={5} className="p-5 text-center text-slate-500">No active visitors match that name.</td></tr>}{!active.length && <tr><td colSpan={5} className="p-5 text-center text-slate-500">No visitors are currently checked in.</td></tr>}</tbody></table></div></section>}
       {mode !== 'ACTIVE' && <section className="grid gap-5 lg:grid-cols-[minmax(300px,.8fr)_minmax(400px,1.2fr)]">
-        <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-5"><div><h2 className="text-lg font-bold">Find visitor to check in</h2><p className="mt-1 text-xs text-slate-500">Look up an existing visitor record by name or Visitor ID, or scan their QR token.</p></div><form onSubmit={search} className="flex items-end gap-2"><label className="min-w-0 flex-1 text-xs font-semibold text-slate-700">Visitor name, ID, or QR<input value={query} onChange={e => setQuery(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm font-normal" placeholder="Enter visitor name or ID, or scan QR"/></label><button className="rounded-lg bg-blue-700 px-3 text-white"><Search size={17}/></button></form>{loading && <p className="text-xs text-slate-500">Searching…</p>}
-          <div className="max-h-[420px] space-y-2 overflow-auto">{results.map(row => <button key={row.id} onClick={() => choose(row)} className={`w-full rounded-lg border p-3 text-left ${String(selected?.id) === String(row.id) ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:bg-slate-50'}`}><span className="flex items-center justify-between gap-2"><strong>{row.full_name}</strong>{row.facilityRestricted ? <ShieldAlert size={16} className="text-rose-700"/> : row.has_qr_identity ? <BadgeCheck size={16} className="text-emerald-700"/> : null}</span><span className="block text-xs text-slate-500">{row.visitor_code} · {row.gender} · Age {row.age ?? '—'}</span>{row.facilityRestricted && <span className="mt-1 block text-xs font-bold text-rose-700">FACILITY-WIDE RESTRICTION</span>}</button>)}{query.length > 1 && !loading && !results.length && <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-500">No visitor record found.</p>}</div>
+        <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-5"><div><h2 className="text-lg font-bold">Find visitor to check in</h2><p className="mt-1 text-xs text-slate-500">Look up an existing visitor record by name or Visitor ID, or scan their QR token.</p></div>{mode === 'PDL' && <button type="button" onClick={scanQr} disabled={busy || Boolean(scanId) || loading} className="rounded-lg border border-blue-700 px-3 py-2 text-sm font-semibold text-blue-700 disabled:opacity-50">{scanId ? 'Waiting for QR…' : 'Scan QR'}</button>}<form onSubmit={search} className="flex items-end gap-2"><label className="min-w-0 flex-1 text-xs font-semibold text-slate-700">Visitor name, ID, or QR<input value={query} disabled={busy || Boolean(scanId)} onChange={e => updateQuery(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm font-normal" placeholder="Enter visitor name or ID, or scan QR"/></label><button disabled={busy || Boolean(scanId) || loading} className="rounded-lg bg-blue-700 px-3 text-white disabled:opacity-50"><Search size={17}/><span className="sr-only">Search visitors</span></button></form>{loading && <p className="text-xs text-slate-500">Searching…</p>}
+          <div className="max-h-[420px] space-y-2 overflow-auto">{results.map(row => <button key={row.id} disabled={busy || loading || Boolean(scanId)} onClick={() => choose(row)} className={`w-full rounded-lg border p-3 text-left ${String(selected?.id) === String(row.id) ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:bg-slate-50'}`}><span className="flex items-center justify-between gap-2"><strong>{row.full_name}</strong>{row.facilityRestricted ? <ShieldAlert size={16} className="text-rose-700"/> : row.has_qr_identity ? <BadgeCheck size={16} className="text-emerald-700"/> : null}</span><span className="block text-xs text-slate-500">{row.visitor_code} · {row.gender} · Age {row.age ?? '—'}</span>{row.facilityRestricted && <span className="mt-1 block text-xs font-bold text-rose-700">FACILITY-WIDE RESTRICTION</span>}</button>)}{searchedQuery === query.trim() && searchedQuery.length > 1 && !loading && !results.length && <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-500">No visitor record found.</p>}</div>
         </div>
         <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-widest text-blue-700">{mode === 'PDL' ? 'PDL Visitor form' : 'Jail Visitor form'}</p><h2 className="mt-1 text-lg font-bold">{mode === 'PDL' ? 'Check in an approved PDL Visitor' : 'Register or retrieve a Guest Visitor'}</h2></div>{selected && <button type="button" onClick={() => void printId()} disabled={busy || !selected.has_qr_identity} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold disabled:opacity-40"><BookUser size={14}/>Print existing ID</button>}</div>
           {mode === 'PDL' && <>
             {!selected && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">Select the visitor record first. Only an active approved PDL assignment can be checked in.</p>}
             {selected && <><div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><div className="flex flex-wrap items-center justify-between gap-2"><strong>{selected.full_name} · {selected.visitor_code}</strong><span className={selected.has_qr_identity ? 'text-xs font-bold text-emerald-700' : 'text-xs font-bold text-rose-700'}>{selected.has_qr_identity ? 'QR identity exists' : 'No approved PDL QR identity'}</span></div>{selected.facilityRestricted && <p className="mt-2 text-sm font-bold text-rose-700">FACILITY-WIDE RESTRICTION: Entry is not permitted.</p>}</div>
-              <label className="block text-sm">Assigned PDL<select className={input} value={pdlId} onChange={e => { setPdlId(e.target.value); setVerification(null); }}><option value="">Choose approved PDL</option>{(selected.assignments || []).filter((a: any) => a.status === 'APPROVED').map((a: any) => <option key={a.pdl_id} value={a.pdl_id}>{a.pdl_name} · {a.relationship}{a.restricted ? ' · RESTRICTED' : ''}</option>)}</select></label>
-              <button type="button" onClick={() => void verify()} disabled={busy || !pdlId} className="inline-flex items-center gap-2 rounded-lg border border-blue-700 px-3 py-2 text-sm font-bold text-blue-800 disabled:opacity-40"><UserRoundCheck size={16}/>Verify authorization and schedule</button>
+              <fieldset className="space-y-2" disabled={busy || Boolean(activeVisit)}>
+                <legend className="text-sm font-bold text-slate-900">Approved PDLs and visiting days</legend>
+                {approvedAssignments.length === 0 && <p className="text-sm text-slate-600">This visitor has no current approved PDL assignments.</p>}
+                {approvedAssignments.map((assignment: any) => (
+                  <label key={assignment.pdl_id} className="flex items-start gap-3 rounded-lg border border-slate-300 bg-slate-50 p-3 text-slate-900">
+                    <input type="radio" name="worker-desk-pdl" className="mt-1" checked={String(assignment.pdl_id) === pdlId}
+                      disabled={Boolean(assignment.restricted || selected.facilityRestricted)}
+                      onChange={() => { setPdlId(String(assignment.pdl_id)); setVerification(null); setError(''); setNotice(''); }} />
+                    <span>
+                      <strong className="block text-sm">{assignment.pdl_name}</strong>
+                      <span className="block text-xs text-slate-600">{assignment.relationship} · {assignment.weekday == null ? 'Visiting day not assigned' : `Every ${weekdays[Number(assignment.weekday)]}`}</span>
+                      {(assignment.restricted || selected.facilityRestricted) && <span className="block text-xs font-bold text-rose-700">Entry restricted</span>}
+                    </span>
+                  </label>
+                ))}
+              </fieldset>
+              {activeVisit && <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-300 bg-slate-50 p-3 text-slate-900">
+                <span className="text-sm">Checked in{activeVisit.pdl_name ? ` to visit ${activeVisit.pdl_name}` : ' as a guest'}.</span>
+                <button type="button" onClick={() => void checkout(activeVisit)} disabled={busy} className="rounded-lg border border-slate-400 bg-white px-3 py-2 text-sm font-bold text-slate-900 disabled:opacity-40">Check out</button>
+              </div>}
+              <button type="button" onClick={() => void verify()} disabled={busy || !pdlId || Boolean(activeVisit)} className="inline-flex items-center gap-2 rounded-lg border border-blue-700 px-3 py-2 text-sm font-bold text-blue-800 disabled:opacity-40"><UserRoundCheck size={16}/>Verify authorization and schedule</button>
               {verification && <div className={`rounded-lg p-3 text-sm ${verification.allowed ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-800'}`}><strong>{verification.code}</strong><p className="mt-1">{verification.message}</p>{verification.pdl?.weekday != null && <p className="mt-1 text-xs">Assigned visitation day: {weekdays[verification.pdl.weekday]}</p>}{verification.pdl && <p className="mt-1 text-xs">PDL: {verification.pdl.pdl_name || '—'} · Cell: {verification.pdl.cell_dormitory || '—'} · Relationship: {verification.pdl.relationship || '—'}</p>}{verification.otherApprovedPdls?.length > 0 && <p className="mt-1 text-xs">Other PDL approvals remain separate and may still be valid.</p>}</div>}
-              <div className="rounded-lg border border-slate-200 p-3 text-sm"><strong>Registration details</strong><div className="mt-2 grid gap-1 text-slate-600 sm:grid-cols-2"><span>Gender: {person.gender || '—'}</span><span>Age: {person.age || '—'}</span><span className="sm:col-span-2">Address: {person.address || '—'}</span><span>Contact: {person.contactNumber || '—'}</span><span>Relationship: {selected.assignments?.find((a: any) => a.pdl_id === pdlId)?.relationship || '—'}</span></div></div>
+              <div className="rounded-lg border border-slate-200 p-3 text-sm"><strong>Registration details</strong><div className="mt-2 grid gap-1 text-slate-600 sm:grid-cols-2"><span>Gender: {person.gender || '—'}</span><span>Age: {person.age || '—'}</span><span className="sm:col-span-2">Address: {person.address || '—'}</span><span>Contact: {person.contactNumber || '—'}</span><span>Relationship: {selected.assignments?.find((a: any) => String(a.pdl_id) === pdlId)?.relationship || '—'}</span></div></div>
             </>}
           </>}
           {mode === 'GUEST' && <><div className="flex flex-wrap gap-2"><button type="button" onClick={() => { setSelected(null); setPerson(blank); setSignature(''); }} className="rounded border border-slate-300 px-3 py-2 text-xs font-semibold">Register new Guest Visitor</button>{selected && <span className="self-center text-xs text-slate-500">Using {selected.full_name} · {selected.visitor_code}</span>}</div>{selected?.facilityRestricted && <p className="rounded-lg bg-rose-50 p-3 text-sm font-bold text-rose-800">FACILITY-WIDE RESTRICTION: Entry is not permitted.</p>}{personFields(Boolean(selected))}<label className="block text-sm">Purpose of visit<input required maxLength={255} className={input} value={purpose} onChange={e => setPurpose(e.target.value)}/></label></>}
-          {((mode === 'PDL' && selected) || mode === 'GUEST') && <><div className="rounded-lg bg-slate-50 p-3 text-xs text-slate-600">Today’s date and time in are recorded automatically when check-in is confirmed. In Active Visitors, search the visitor’s name and select Time out when they leave.</div><SignatureCapture value={signature} onChange={setSignature} label="Visitor signature"/></>}
-          {mode === 'PDL' && selected && <button onClick={() => void checkIn()} disabled={busy || !verification?.allowed || !signature} className="w-full rounded-lg bg-emerald-700 px-4 py-3 text-sm font-bold text-white disabled:opacity-40"><CalendarDays className="mr-2 inline" size={16}/>{busy ? 'Saving…' : 'Confirm PDL Visitor check-in'}</button>}
+          {((mode === 'PDL' && selected) || mode === 'GUEST') && <><div className="rounded-lg bg-slate-50 p-3 text-xs text-slate-600">Today’s date and time in are recorded automatically when check-in is confirmed. In Active Visitors, search the visitor’s name and select Check out when they leave.</div><SignatureCapture value={signature} onChange={setSignature} label="Visitor signature"/></>}
+          {mode === 'PDL' && selected && <button onClick={() => void checkIn()} disabled={busy || Boolean(activeVisit) || !verification?.allowed || !signature} className="w-full rounded-lg bg-emerald-700 px-4 py-3 text-sm font-bold text-white disabled:opacity-40"><CalendarDays className="mr-2 inline" size={16}/>{busy ? 'Saving…' : 'Confirm PDL Visitor check-in'}</button>}
           {mode === 'GUEST' && <button onClick={() => void checkIn()} disabled={busy || !person.fullName || !person.gender || !person.address || !person.age || !person.contactNumber || !signature || !purpose.trim() || Boolean(selected?.facilityRestricted)} className="w-full rounded-lg bg-emerald-700 px-4 py-3 text-sm font-bold text-white disabled:opacity-40">{busy ? 'Saving…' : 'Confirm Guest Visitor check-in'}</button>}
         </div>
       </section>}

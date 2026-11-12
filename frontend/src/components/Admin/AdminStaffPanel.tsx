@@ -5,8 +5,8 @@ import { api } from '../../services/api';
 import { BirthDateFields, MobileInput, mobileDigits, PasswordInput, SuffixSelect } from '../Common/IdentityFields';
 import { confirmAction } from '../../utils/appDialogs';
 
-const duties = ['RECORDS', 'GATE', 'IDENTITY_REVIEW', 'ENROLLMENT'];
-const labels: Record<string, string> = { RECORDS: 'PDL records', GATE: 'Gate and visitor history', IDENTITY_REVIEW: 'Identity review', ENROLLMENT: 'Fingerprint enrollment' };
+const duties = ['RECORDS', 'GATE'];
+const labels: Record<string, string> = { RECORDS: 'PDL records', GATE: 'Gate and visitor history' };
 type Form = { firstName: string; middleName: string; lastName: string; suffix: string; dateOfBirth: string; email: string; mobileNumber: string; password: string; confirmPassword: string; badgeNumber: string; status: string; officerDuties: string[] };
 const freshForm = (): Form => ({ firstName: '', middleName: '', lastName: '', suffix: '', dateOfBirth: '', email: '', mobileNumber: '', password: '', confirmPassword: '', badgeNumber: '', status: 'ACTIVE', officerDuties: ['GATE'] });
 const localMobile = (value?: string) => mobileDigits(value || '');
@@ -37,7 +37,7 @@ export function AdminStaffPanel() {
   const openCreate = () => { setEditing(null); setForm(freshForm()); setError(''); setMessage(''); setOpen(true); };
   const openEdit = (row: UserProfile) => {
     setEditing(row);
-    setForm({ firstName: row.firstName, middleName: row.middleName || '', lastName: row.lastName, suffix: row.suffix || '', dateOfBirth: String(row.dateOfBirth || '').slice(0, 10), email: row.email || '', mobileNumber: localMobile(row.mobileNumber), password: '', confirmPassword: '', badgeNumber: row.badgeNumber || '', status: row.accountStatus === 'SUSPENDED' ? 'SUSPENDED' : 'ACTIVE', officerDuties: row.officerDuties?.length ? row.officerDuties : row.role === 'WORKER' ? ['GATE'] : row.role === 'GUARD' ? ['GATE'] : ['IDENTITY_REVIEW'] });
+    setForm({ firstName: row.firstName, middleName: row.middleName || '', lastName: row.lastName, suffix: row.suffix || '', dateOfBirth: String(row.dateOfBirth || '').slice(0, 10), email: row.email || '', mobileNumber: localMobile(row.mobileNumber), password: '', confirmPassword: '', badgeNumber: row.badgeNumber || '', status: row.accountStatus === 'SUSPENDED' ? 'SUSPENDED' : 'ACTIVE', officerDuties: row.officerDuties?.filter(duty => duties.includes(duty))?.length ? row.officerDuties.filter(duty => duties.includes(duty)) : ['GATE'] });
     setError(''); setMessage(''); setOpen(true);
   };
   const submit = async (event: React.FormEvent) => {

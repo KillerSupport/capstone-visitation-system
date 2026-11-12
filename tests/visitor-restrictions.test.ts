@@ -4,12 +4,14 @@ import { randomBytes } from 'node:crypto';
 import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
 import { once } from 'node:events';
+import WebSocket from 'ws';
 
 dotenv.config({ quiet: true });
 
 const database = `bjmp_visitor_restriction_test_${Date.now()}_${randomBytes(3).toString('hex')}`;
 const adminPassword = `TestOnly!2026_${randomBytes(8).toString('hex')}`;
 const workerPassword = `WorkerOnly!2026_${randomBytes(8).toString('hex')}`;
+const hardwareToken = randomBytes(32).toString('hex');
 const signatureData = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a+j8AAAAASUVORK5CYII=';
 let root: mysql.Connection | undefined;
 let db: any;
@@ -19,6 +21,9 @@ let base = '';
 
 class Browser {
   private cookies = new Map<string, string>();
+  cookieHeader() {
+    return [...this.cookies].map(([key, value]) => `${key}=${value}`).join('; ');
+  }
   async request(path: string, body?: any, method = body ? 'POST' : 'GET') {
     const response = await fetch(base + path, {
       method,
@@ -61,6 +66,7 @@ before(async () => {
     NODE_ENV: 'test',
     PORT: '0',
     SESSION_SECRET: randomBytes(32).toString('hex'),
+    HARDWARE_DEVICE_TOKEN: hardwareToken,
     INITIAL_ADMIN_EMAIL: 'restriction-admin@example.invalid',
     INITIAL_ADMIN_PASSWORD: adminPassword,
     INITIAL_WORKER_EMAIL: 'restriction-worker@example.invalid',
@@ -230,6 +236,42 @@ test('PDL-specific, facility-wide, temporary, and removed restrictions follow sc
   assert.deepEqual(assignments[0].map((row: any) => row.status), ['APPROVED', 'APPROVED']);
 });
 
+test('hardware bridge relays a QR result and scanner error to the worker', async () => {
+  const address = base.replace(/^http/, 'ws').replace(/\/api$/, '/hardware');
+  const nextMessage = async (socket: WebSocket) => {
+    const [raw] = await once(socket, 'message', { signal: AbortSignal.timeout(5000) });
+    return JSON.parse(raw.toString());
+  };
+  const device = new WebSocket(address);
+  let desk: WebSocket | undefined;
+  try {
+    await once(device, 'open', { signal: AbortSignal.timeout(5000) });
+    const authenticated = nextMessage(device);
+    device.send(JSON.stringify({ type: 'AUTHENTICATE', device: 'esp32e', token: hardwareToken }));
+    assert.equal((await authenticated).type, 'AUTHENTICATED');
+
+    desk = new WebSocket(address, { headers: { Cookie: worker.cookieHeader() } });
+    assert.equal((await nextMessage(desk)).payload.deviceConnected, true);
+    const code = visitors.get('Multi PDL Visitor')!.qr;
+    const events = [
+      { type: 'QR_SCANNED', payload: { code } },
+      { type: 'DEVICE_ERROR', payload: { message: 'No data received from the QR scanner.' } },
+    ];
+    for (const event of events) {
+      const requestId = randomBytes(16).toString('hex');
+      const command = nextMessage(device);
+      desk.send(JSON.stringify({ type: 'COMMAND', requestId, payload: { action: 'QR_SCAN_START' } }));
+      assert.deepEqual(await command, { type: 'COMMAND', requestId, payload: { action: 'QR_SCAN_START' } });
+      const received = nextMessage(desk);
+      device.send(JSON.stringify({ ...event, requestId }));
+      assert.deepEqual(await received, { ...event, requestId });
+    }
+  } finally {
+    desk?.terminate();
+    device.terminate();
+  }
+});
+
 test('worker visitor data is dated, searchable, visible to administrators, and capped at seven approved visitors per PDL', async () => {
   const multi = visitors.get('Multi PDL Visitor')!;
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
@@ -243,6 +285,20 @@ test('worker visitor data is dated, searchable, visible to administrators, and c
   assert.equal(visitorSearch.status, 200);
   assert.equal(String(visitorSearch.body[0].id), multi.id);
   assert.equal(visitorSearch.body[0].visitor_code, multi.code);
+  assert.deepEqual(
+    new Set(visitorSearch.body[0].assignments.filter((row: any) => row.status === 'APPROVED').map((row: any) => row.pdl_id)),
+    new Set([pdlA, pdlB]),
+  );
+  assert.ok(visitorSearch.body[0].assignments.every((row: any) => row.weekday === todayWeekday && row.pdl_status === 'In Custody'));
+  const scanned = await worker.request(`/visitor-records/worker/search?source=scanner&q=${multi.qr}`);
+  assert.equal(scanned.status, 200);
+  assert.deepEqual(scanned.body.map((row: any) => String(row.id)), [multi.id]);
+  const barcode = await worker.request('/visitor-records/worker/search?source=scanner&q=Multi%20PDL');
+  assert.equal(barcode.status, 200);
+  assert.deepEqual(barcode.body, []);
+  const unknownQr = await worker.request(`/visitor-records/worker/search?source=scanner&q=${randomBytes(32).toString('hex')}`);
+  assert.equal(unknownQr.status, 200);
+  assert.deepEqual(unknownQr.body, []);
 
   const workerHistory = await worker.request('/visitor-records/worker/recent?q=Multi%20PDL%20Visitor');
   assert.equal(workerHistory.status, 200);

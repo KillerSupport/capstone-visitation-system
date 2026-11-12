@@ -130,7 +130,7 @@ class RealtimeWebSocketService {
       this.ws.send(JSON.stringify({
         type: 'IDENTIFY',
         userId,
-        role: role || 'VISITOR',
+        role: role || 'UNKNOWN',
       }));
     }
   }

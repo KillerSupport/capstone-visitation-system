@@ -13,7 +13,6 @@ const secret=process.env.SESSION_SECRET || randomBytes(32).toString('hex');
 const sum=(x:string)=>createHash('sha256').update(secret+':'+x).digest('hex');
 const limit=(count:number,message:string)=>rateLimit({windowMs:900000,limit:count,standardHeaders:true,legacyHeaders:false,message:{error:message}});
 const loginLim=limit(10,'Too many sign-in attempts. Please try again later.');
-const registerLim=limit(10,'Too many registration attempts. Please try again later.');
 const verifyLim=limit(10,'Too many verification attempts. Please try again later.');
 const resendLim=limit(3,'Too many verification requests. Please try again later.');
 const recoveryLim=limit(5,'Too many recovery code requests. Please try again later.');
@@ -28,9 +27,7 @@ export async function auth(q:Request,s:Response,n:NextFunction){try{const t=cook
 export function admin(q:Request,s:Response,n:NextFunction){if(!['ADMIN','SUPER_ADMIN'].includes((q as any).user?.role))return s.status(403).json({error:'You do not have permission.'});n();}
 export function hasDuty(user:any,duty:string){if(!user||pendingContact(user))return false;if(['ADMIN','SUPER_ADMIN'].includes(user.role))return true;if(user.role==='OFFICER')return user.officerDuties?.includes(duty)===true;return (duty==='GATE'&&['WORKER','GUARD'].includes(user.role))||(duty==='RECORDS'&&user.role==='WORKER')||(duty==='IDENTITY_REVIEW'&&user.role==='VERIFICATION_OFFICER');}
 export function requireDuty(duty:string){return(q:Request,s:Response,n:NextFunction)=>hasDuty((q as any).user,duty)?n():s.status(403).json({error:'This task is outside your assigned duties.'});}
-export function kycReviewer(q:Request,s:Response,n:NextFunction){if(!hasDuty((q as any).user,'IDENTITY_REVIEW'))return s.status(403).json({error:'You do not have permission.'});n();}
 export function worker(q:Request,s:Response,n:NextFunction){if(!['ADMIN','WORKER','GUARD','OFFICER'].includes((q as any).user?.role)||pendingContact((q as any).user))return s.status(403).json({error:'You do not have permission.'});n();}
-export function visitorActive(q:Request,s:Response,n:NextFunction){const u=(q as any).user;if(u?.role!=='VISITOR')return s.status(403).json({error:'You do not have permission.'});if(!['ACTIVE','ACTIVATED'].includes(u.accountStatus)||pendingContact(u))return s.status(403).json({error:'Complete account and contact verification before continuing.'});n();}
 export async function hashPass(p:string){const salt=randomBytes(16),key=await scrypt(p,salt,64) as Buffer;return 'scrypt:'+salt.toString('hex')+':'+key.toString('hex');}
 async function verify(p:string,v:string){const[,sa,ke]=v.split(':');if(!sa||!ke)return false;const a=Buffer.from(ke,'hex'),b=await scrypt(p,Buffer.from(sa,'hex'),a.length) as Buffer;return a.length===b.length&&timingSafeEqual(a,b);}
 export const verifyPassword = verify;
@@ -55,8 +52,6 @@ r.post('/login',loginLim,async(q,s)=>{
   clearChallenge(s);await recordLastLogin(u.id);await authAudit(q,u,'LOGIN','SUCCESS');await issue(u,s);s.json({success:true,user:safeUser(u)});
  } catch(e){s.status(503).json({error:deliveryError(e)});}
 });
-r.post(['/resend-login-otp','/verify-login-otp'],(_q,s)=>s.status(410).json({error:'Normal login no longer uses OTP.'}));
-r.post('/register',registerLim,(_q,s)=>s.status(410).json({error:'Visitor self-registration is not available. Visitors are registered by authorized personnel.'}));
 r.post('/resend-otp',resendLim,auth,async(q,s)=>{
  try{const u=(q as any).user,contact=pendingContact(u);if(!contact)return s.status(409).json({error:'Your registered contacts are already verified.'});const developmentOtp=await issueCode(u,contact,`VERIFY_${contact.channel.toUpperCase()}`);s.json({success:true,...(developmentOtp?{developmentOtp}:{})});}
  catch(e){s.status(503).json({error:deliveryError(e)});}

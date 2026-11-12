@@ -429,17 +429,21 @@ visitorRecordsRouter.get('/admin/visitors/:id/qr', adminOnly, async (req, res) =
 
 visitorRecordsRouter.get('/worker/search', gateStaff, async (req, res) => {
   const q = clean(req.query.q, 100);
+  const qrOnly = req.query.source === 'scanner';
+  if (qrOnly && !/^[a-f0-9]{64}$/.test(q)) return res.json([]);
   if (q.length < 2) return res.json([]);
   const like = `%${q}%`;
   const [rows] = await pool.query<any[]>(`SELECT v.id,v.visitor_code,v.full_name,v.gender,v.address,v.address_data,v.age,v.contact_number,v.contact_email,v.status,v.is_archived,v.created_at,v.updated_at,
       (q.visitor_record_id IS NOT NULL) AS has_qr_identity
     FROM visitor_records v LEFT JOIN visitor_qr_identities q ON q.visitor_record_id=v.id
-    WHERE v.is_archived=0 AND v.status='ACTIVE' AND (v.visitor_code LIKE ? OR v.full_name LIKE ? OR q.qr_token=?)
-    ORDER BY v.full_name LIMIT 50`, [like,like,q]);
+    WHERE v.is_archived=0 AND v.status='ACTIVE' AND
+      ${qrOnly ? 'q.qr_token=?' : '(v.visitor_code LIKE ? OR v.full_name LIKE ? OR q.qr_token=?)'}
+    ORDER BY v.full_name LIMIT 50`, qrOnly ? [q] : [like,like,q]);
   const result = [];
   for (const visitor of rows) {
     const [assignments] = await pool.query<any[]>(`SELECT a.id,a.pdl_id,a.relationship,a.status,
-      CONCAT_WS(' ',p.first_name,p.middle_name,p.last_name,p.suffix) AS pdl_name,p.pdl_number,p.cell_dormitory,s.weekday
+      CONCAT_WS(' ',p.first_name,p.middle_name,p.last_name,p.suffix) AS pdl_name,p.pdl_number,p.cell_dormitory,s.weekday,
+      p.status AS pdl_status,p.is_archived AS pdl_archived
       FROM pdl_visitor_assignments a JOIN pdls p ON p.id=a.pdl_id LEFT JOIN pdl_visitation_schedules s ON s.pdl_id=p.id
       WHERE a.visitor_record_id=? ORDER BY a.approved_at DESC`, [visitor.id]);
     const facilityRestriction = await hasFacilityRestriction(pool, visitor.id);

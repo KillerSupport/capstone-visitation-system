@@ -3,8 +3,26 @@
 #include <WebSocketsClient.h>
 #include <ArduinoJson.h>
 #include <Adafruit_Fingerprint.h>
+#include <Adafruit_ILI9341.h>
+#include <SPI.h>
 
 #include "config.h"
+
+struct WiFiNetwork {
+  const char *ssid;
+  const char *password;
+  const char *backendHost;
+};
+
+const WiFiNetwork wifiNetworks[] = {
+  {WIFI_SSID, WIFI_PASSWORD, BACKEND_HOST},
+#ifdef WIFI_FALLBACKS
+  WIFI_FALLBACKS
+#endif
+};
+constexpr size_t WIFI_NETWORK_COUNT = sizeof(wifiNetworks) / sizeof(wifiNetworks[0]);
+size_t wifiNetworkIndex = 0;
+bool wifiWasConnected = false;
 
 #ifndef BACKEND_PATH
 #define BACKEND_PATH "/hardware"
@@ -13,7 +31,23 @@
 #define FINGERPRINT_MAX_TEMPLATE_ID 127
 #endif
 
-HardwareSerial FingerSerial(2);
+// GPIO numbers are from the ESP32 side of each serial connection.
+constexpr int TFT_CS = 5;
+constexpr int TFT_DC = 2;
+constexpr int TFT_RST = 4;
+constexpr int TFT_SCK = 18;
+constexpr int TFT_MISO = 19;
+constexpr int TFT_MOSI = 23;
+constexpr int GM65_RX = 16;
+constexpr int GM65_TX = 17;
+// QR-only operation. Keep the AS608 code available for later hardware tests.
+constexpr bool FINGERPRINT_ENABLED = false;
+constexpr int AS608_RX = 32;
+constexpr int AS608_TX = 33;
+
+Adafruit_ILI9341 display(TFT_CS, TFT_DC, TFT_RST);
+HardwareSerial FingerSerial(1);
+HardwareSerial qrSerial(2);
 Adafruit_Fingerprint finger(&FingerSerial);
 WebSocketsClient webSocket;
 
@@ -41,6 +75,30 @@ const unsigned long SENSOR_CHECK_MS = 10000;
 const unsigned long VERIFY_WAIT_MS = 45000;
 const unsigned long ENROLL_WAIT_MS = 30000;
 const unsigned long REMOVE_FINGER_WAIT_MS = 10000;
+const unsigned long QR_WAIT_MS = 20000;
+constexpr size_t MAX_QR_LENGTH = 512;
+
+void showMessage(const char *title, const char *message) {
+  display.fillScreen(ILI9341_BLACK);
+  display.setTextSize(2);
+  display.setTextColor(ILI9341_CYAN);
+  display.setCursor(15, 20);
+  display.println(title);
+  display.drawFastHLine(10, 55, display.width() - 20, ILI9341_WHITE);
+  display.setTextColor(ILI9341_WHITE);
+  display.setCursor(15, 80);
+  display.println(message);
+}
+
+void showIdleStatus() {
+  if (FINGERPRINT_ENABLED && !sensorReady) {
+    showMessage("Scanner offline", "Check AS608 wiring.");
+  } else if (!deviceAuthenticated) {
+    showMessage("Connecting", "Waiting for the website.");
+  } else {
+    showMessage("System ready", "Start a scan on the website.");
+  }
+}
 
 bool sendDocument(JsonDocument &document) {
   if (!webSocket.isConnected()) return false;
@@ -61,7 +119,7 @@ bool sendAuthentication() {
 void sendDeviceStatus() {
   JsonDocument document;
   document["type"] = "DEVICE_STATUS";
-  document["payload"]["connected"] = sensorReady;
+  document["payload"]["connected"] = true;
   document["payload"]["firmware"] = "esp32e-as608-1.0.0";
   if (sendDocument(document)) statusPending = false;
 }
@@ -110,6 +168,7 @@ void sendVerificationResult(const HardwareCommand &command, bool matched,
 }
 
 void failCommand(const HardwareCommand &command, const char *message) {
+  showMessage("Scan stopped", "See the website for details.");
   if (command.action == "FINGERPRINT_ENROLL") {
     sendEnrollmentResult(command, false, 0);
   } else if (command.action == "FINGERPRINT_VERIFY") {
@@ -139,6 +198,7 @@ void handleIncomingText(uint8_t *payload, size_t length) {
       statusPending = true;
       Serial.println("Authenticated with the BJMP hardware bridge.");
       sendDeviceStatus();
+      if (!operationBusy) showIdleStatus();
     }
     return;
   }
@@ -149,16 +209,23 @@ void handleIncomingText(uint8_t *payload, size_t length) {
   const char *requestId = document["requestId"] | "";
   if (!requestId[0]) return;
 
+  if (!FINGERPRINT_ENABLED && strcmp(action, "QR_SCAN_START") != 0) {
+    sendCommandAck(requestId, action, false);
+    sendDeviceError(requestId, "Fingerprint scanning is disabled for this evaluation.");
+    return;
+  }
+
   if (operationBusy || hasQueuedCommand) {
     sendCommandAck(requestId, action, false);
-    sendDeviceError(requestId, "The fingerprint scanner is handling another request.");
+    sendDeviceError(requestId, "The scanner is handling another request.");
     return;
   }
 
   if (strcmp(action, "FINGERPRINT_ENROLL") != 0 &&
-      strcmp(action, "FINGERPRINT_VERIFY") != 0) {
+      strcmp(action, "FINGERPRINT_VERIFY") != 0 &&
+      strcmp(action, "QR_SCAN_START") != 0) {
     sendCommandAck(requestId, action, false);
-    sendDeviceError(requestId, "This firmware supports fingerprint commands only; no QR reader is connected.");
+    sendDeviceError(requestId, "Unsupported scanner command.");
     return;
   }
 
@@ -168,7 +235,7 @@ void handleIncomingText(uint8_t *payload, size_t length) {
   queuedCommand.subjectId = document["payload"]["subjectId"] | "";
   queuedCommand.appointmentId = document["payload"]["appointmentId"] | "";
 
-  if (!queuedCommand.subjectId.length() ||
+  if ((queuedCommand.action != "QR_SCAN_START" && !queuedCommand.subjectId.length()) ||
       (queuedCommand.action == "FINGERPRINT_VERIFY" &&
        !queuedCommand.appointmentId.length())) {
     sendCommandAck(requestId, action, false);
@@ -176,7 +243,7 @@ void handleIncomingText(uint8_t *payload, size_t length) {
     return;
   }
 
-  if (!sensorReady) {
+  if (!sensorReady && queuedCommand.action != "QR_SCAN_START") {
     sendCommandAck(requestId, action, false);
     failCommand(queuedCommand, "Fingerprint sensor is not available.");
     return;
@@ -198,6 +265,7 @@ void webSocketEvent(WStype_t event, uint8_t *payload, size_t length) {
     case WStype_DISCONNECTED:
       deviceAuthenticated = false;
       if (hasQueuedCommand) hasQueuedCommand = false;
+      if (!operationBusy) showIdleStatus();
       Serial.println("Hardware bridge disconnected; reconnecting automatically.");
       break;
 
@@ -215,6 +283,7 @@ void webSocketEvent(WStype_t event, uint8_t *payload, size_t length) {
 }
 
 bool waitForFingerImage(const char *prompt, unsigned long timeoutMs) {
+  showMessage("Fingerprint", prompt);
   Serial.println(prompt);
   const unsigned long started = millis();
 
@@ -235,6 +304,7 @@ bool waitForFingerImage(const char *prompt, unsigned long timeoutMs) {
 }
 
 bool waitUntilFingerRemoved(unsigned long timeoutMs) {
+  showMessage("Fingerprint", "Lift your finger.");
   const unsigned long started = millis();
   while (millis() - started < timeoutMs) {
     webSocket.loop();
@@ -331,6 +401,7 @@ void runEnrollment(const HardwareCommand &command) {
     return;
   }
 
+  showMessage("Fingerprint saved", "Continue on the website.");
   Serial.printf("Enrollment result sent for visitor %s (template %u).\n",
                 command.subjectId.c_str(), slot);
 }
@@ -352,8 +423,7 @@ void runVerification(const HardwareCommand &command) {
 
   const uint8_t result = finger.fingerFastSearch();
   if (result == FINGERPRINT_NOTFOUND) {
-    sendVerificationResult(command, false, 0);
-    sendDeviceError(command.requestId, "No enrolled fingerprint matched this scan.");
+    failCommand(command, "No enrolled fingerprint matched this scan.");
     return;
   }
   if (result != FINGERPRINT_OK) {
@@ -362,8 +432,75 @@ void runVerification(const HardwareCommand &command) {
   }
 
   sendVerificationResult(command, true, finger.fingerID);
+  showMessage("Fingerprint read", "Continue on the website.");
   Serial.printf("Verification result sent for request %s (template %u).\n",
                 command.requestId.c_str(), finger.fingerID);
+}
+
+void runQrScan(const HardwareCommand &command) {
+  // Drop serial data captured before the operator requested a scan.
+  qrSerial.flush(false);
+  showMessage("Scan QR", "Present the visitor ID QR.");
+
+  String code;
+  code.reserve(MAX_QR_LENGTH);
+  bool discardLine = false;
+  bool receivedData = false;
+  size_t bytesReceived = 0;
+  unsigned long lastByteAt = 0;
+  const unsigned long started = millis();
+  while (millis() - started < QR_WAIT_MS) {
+    webSocket.loop();
+    if (!authenticatedConnectionIsOpen()) {
+      failCommand(command, "The hardware bridge disconnected during the QR scan.");
+      return;
+    }
+
+    const int next = qrSerial.read();
+    if (next < 0 && (!receivedData || millis() - lastByteAt < 120)) {
+      delay(2);
+      continue;
+    }
+    // Some GM65 configurations send a burst with no CR/LF suffix.
+    if (next < 0 || next == '\r' || next == '\n') {
+      if (!receivedData) continue;
+      code.trim();
+      const bool isVisitorToken = !discardLine && code.length() == 64 &&
+        strspn(code.c_str(), "0123456789abcdef") == 64;
+      Serial.printf("GM65 received %u bytes (%s).\n",
+                    static_cast<unsigned>(bytesReceived),
+                    isVisitorToken ? "visitor QR format" : "invalid format");
+      if (isVisitorToken) {
+        JsonDocument document;
+        document["type"] = "QR_SCANNED";
+        document["requestId"] = command.requestId;
+        document["payload"]["code"] = code;
+        if (sendDocument(document)) {
+          showMessage("QR read", "Check the website for verification.");
+        } else {
+          failCommand(command, "Could not send the QR scan to the website.");
+        }
+        return;
+      }
+      failCommand(command, "Invalid code. Scan a visitor QR issued by this system.");
+      return;
+    } else {
+      ++bytesReceived;
+      receivedData = true;
+      lastByteAt = millis();
+      if (discardLine) continue;
+      if (next < 32 || next > 126 || code.length() >= MAX_QR_LENGTH) {
+        discardLine = true;
+      } else {
+        code += static_cast<char>(next);
+      }
+    }
+  }
+  if (!receivedData) {
+    failCommand(command, "No data received from the QR scanner. Check GM65 UART mode and TX connection.");
+  } else {
+    failCommand(command, "The QR scanner sent incomplete data. Try scanning again.");
+  }
 }
 
 void checkSensorStatus() {
@@ -377,28 +514,46 @@ void checkSensorStatus() {
   if (available != sensorReady) {
     sensorReady = available;
     statusPending = true;
+    showIdleStatus();
     Serial.println(sensorReady ? "Fingerprint sensor is ready." :
                                  "Fingerprint sensor is unavailable.");
   }
+}
+
+void connectToSelectedWiFi() {
+  const WiFiNetwork &network = wifiNetworks[wifiNetworkIndex];
+  Serial.printf("Connecting to Wi-Fi: %s\n", network.ssid);
+  WiFi.begin(network.ssid, network.password);
+  lastWiFiAttempt = millis();
 }
 
 void setup() {
   Serial.begin(115200);
   delay(200);
 
-  FingerSerial.begin(FINGERPRINT_BAUD, SERIAL_8N1,
-                     FINGERPRINT_RX_PIN, FINGERPRINT_TX_PIN);
-  finger.begin(FINGERPRINT_BAUD);
+  SPI.begin(TFT_SCK, TFT_MISO, TFT_MOSI, TFT_CS);
+  display.begin();
+  display.setRotation(1);
+  showMessage("BJMP visitation", "Starting...");
 
-  sensorReady = finger.verifyPassword();
-  if (sensorReady) sensorReady = (finger.getParameters() == FINGERPRINT_OK);
-  Serial.println(sensorReady ? "AS608 fingerprint sensor connected." :
-                               "AS608 fingerprint sensor not detected.");
+  qrSerial.setRxBufferSize(1024);
+  qrSerial.begin(9600, SERIAL_8N1, GM65_RX, GM65_TX);
+  if (FINGERPRINT_ENABLED) {
+    Serial.printf("AS608 UART: ESP32 RX GPIO %d, TX GPIO %d.\n", AS608_RX, AS608_TX);
+    FingerSerial.begin(FINGERPRINT_BAUD, SERIAL_8N1,
+                       AS608_RX, AS608_TX);
+    finger.begin(FINGERPRINT_BAUD);
+
+    sensorReady = finger.verifyPassword();
+    if (sensorReady) sensorReady = (finger.getParameters() == FINGERPRINT_OK);
+    Serial.println(sensorReady ? "AS608 fingerprint sensor connected." :
+                                 "AS608 fingerprint sensor not detected.");
+  }
+  showIdleStatus();
 
   WiFi.mode(WIFI_STA);
-  Serial.printf("Connecting to Wi-Fi: %s\n", WIFI_SSID);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  lastWiFiAttempt = millis();
+  WiFi.setAutoReconnect(false);
+  connectToSelectedWiFi();
 
   webSocket.onEvent(webSocketEvent);
   webSocket.setReconnectInterval(3000);
@@ -407,25 +562,43 @@ void setup() {
 
 void loop() {
   if (WiFi.status() == WL_CONNECTED) {
-    if (!socketStarted) {
+    if (!wifiWasConnected) {
+      wifiWasConnected = true;
+      const char *backendHost = wifiNetworks[wifiNetworkIndex].backendHost;
       Serial.printf("Wi-Fi connected. ESP32 IP: %s\n",
                     WiFi.localIP().toString().c_str());
+      if (!backendHost[0]) {
+        Serial.println("No backend IP configured for this Wi-Fi network.");
+        showMessage("Wi-Fi connected", "Set the backend IP.");
+        return;
+      }
       Serial.print("Connecting to hardware bridge at ");
-      Serial.print(BACKEND_HOST);
+      Serial.print(backendHost);
       Serial.print(":");
       Serial.println(BACKEND_PORT);
-      webSocket.begin(BACKEND_HOST, BACKEND_PORT, BACKEND_PATH);
+      WiFiClient probe;
+      const bool tcpReachable = probe.connect(backendHost, BACKEND_PORT, 3000);
+      Serial.println(tcpReachable
+        ? "Backend TCP connection OK; trying WebSocket."
+        : "Backend TCP connection failed; check hotspot and laptop firewall.");
+      probe.stop();
+      webSocket.begin(backendHost, BACKEND_PORT, BACKEND_PATH);
       socketStarted = true;
     }
-    webSocket.loop();
-  } else if (millis() - lastWiFiAttempt >= WIFI_RETRY_MS) {
-    Serial.println("Reconnecting to Wi-Fi.");
+    if (socketStarted) webSocket.loop();
+  } else if (wifiWasConnected || millis() - lastWiFiAttempt >= WIFI_RETRY_MS) {
+    if (socketStarted) webSocket.disconnect();
+    socketStarted = false;
+    deviceAuthenticated = false;
+    hasQueuedCommand = false;
+    wifiWasConnected = false;
+    showIdleStatus();
     WiFi.disconnect();
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-    lastWiFiAttempt = millis();
+    wifiNetworkIndex = (wifiNetworkIndex + 1) % WIFI_NETWORK_COUNT;
+    connectToSelectedWiFi();
   }
 
-  checkSensorStatus();
+  if (FINGERPRINT_ENABLED) checkSensorStatus();
   if (deviceAuthenticated && statusPending) sendDeviceStatus();
 
   if (hasQueuedCommand) {
@@ -436,6 +609,8 @@ void loop() {
       runEnrollment(command);
     } else if (command.action == "FINGERPRINT_VERIFY") {
       runVerification(command);
+    } else if (command.action == "QR_SCAN_START") {
+      runQrScan(command);
     }
     operationBusy = false;
   }

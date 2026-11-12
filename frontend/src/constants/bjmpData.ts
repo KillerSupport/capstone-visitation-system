@@ -1,4 +1,4 @@
-import { JailFacility, PDL, ValidIdType, UserProfile, VisitationAppointment } from '../types';
+import { JailFacility, PDL, ValidIdType, UserProfile } from '../types';
 
 export const PHILIPPINE_MUNICIPALITIES = [
   'Imus City, Cavite',
@@ -187,27 +187,3 @@ export const BJMP_RULES_AND_DRESS_CODE = {
 };
 
 export const INITIAL_DEMO_USERS: UserProfile[] = [];
-
-export const INITIAL_APPOINTMENTS: VisitationAppointment[] = [
-  {
-    id: 'appt-101',
-    appointmentReference: 'BJMP-VIS-IMUS-04421',
-    userId: 'user-activated-01',
-    visitorName: 'Maria Corazon Santos',
-    visitorContact: '+63 917 555 4321',
-    pdlId: 'pdl-001',
-    pdlName: 'Juan Dela Cruz y Santos',
-    pdlNumber: 'PDL-2024-00192',
-    jailFacilityId: 'imus-city-jail-male',
-    jailFacilityName: 'BJMP Imus City Jail - Male Dormitory',
-    cellDormitory: 'Brigada 3 - Cell Dorm B',
-    visitType: 'Contact Visit',
-    relationshipToPDL: 'Spouse',
-    visitDate: '2026-09-12',
-    timeSlot: 'Morning Batch (08:00 AM - 11:30 AM)',
-    paabotItemsDescription: '2 clear containers of cooked beef caldereta and steamed rice, 1 sealed 1L Wilkins water, 2 plain white t-shirts.',
-    status: 'Approved',
-    createdAt: '2026-09-04 11:20:00',
-    qrToken: 'BJMP-GATE-04421-IMUS-CAVITE',
-  },
-];

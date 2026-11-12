@@ -1,9 +1,9 @@
-# ESP32E + AS608 firmware
+# ESP32E + AS608 + GM65 + ILI9341 firmware
 
 This Arduino sketch connects the existing BJMP website to an AS608-compatible
 fingerprint sensor through the backend's authenticated `/hardware` WebSocket.
-It implements the website's fingerprint enrollment and entrance verification
-commands. It does not implement the optional GM65 QR reader.
+It implements fingerprint enrollment, entrance verification, and appointment QR
+scanning. The ILI9341 displays prompts for the current operation.
 
 ## Build in VS Code with PlatformIO
 
@@ -29,27 +29,32 @@ commands. It does not implement the optional GM65 QR reader.
    framework and libraries listed in `platformio.ini`.
 
 The PlatformIO configuration installs the Adafruit Fingerprint Sensor Library,
-WebSockets by Markus Sattler, and ArduinoJson 7.x. It currently targets the
+Adafruit ILI9341 and its dependencies, WebSockets by Markus Sattler, and
+ArduinoJson 7.x. It currently targets the
 classic `ESP32 Dev Module` (`esp32dev`); change the PlatformIO board if your
 board is a different ESP32 variant.
 
-The device connects to `ws://<computer-LAN-IP>:4001/hardware`. The `HTTPClient`
-and `biometric.php` URL in the sample sketch do not match this project: its
-backend requires an authenticated WebSocket and staff-started enrollment or
-verification requests.
+The device connects to `ws://<computer-LAN-IP>:4001/hardware` and responds to
+staff requests from the website.
 
 ## Arduino IDE
 
-You can also open `esp32e_as608.ino` in Arduino IDE. Install the same three
+You can also open `esp32e_as608.ino` in Arduino IDE. Install the same
 libraries through Library Manager, then create `config.h` from
 `config.example.h` and follow the network and token setup above.
 
-For the sample pin defaults, connect sensor TX to ESP32 GPIO 16 (RX2), sensor
-RX to GPIO 17 (TX2), and connect grounds together. Confirm the sensor's power
-requirements, UART voltage, pin labels, baud rate, and storage range for the
-actual module before wiring it. Update the settings in `config.h` if they
-differ. Do not connect a sensor signal to an ESP32 pin if its voltage exceeds
-the board's input rating.
+## Signal wiring
+
+| Module | Module signals → ESP32 GPIO |
+| --- | --- |
+| AS608 (UART1, 57600 baud) | TX → 32, RX → 33 |
+| GM65 (UART2, 9600 baud) | TX → 16, RX → 17 |
+| ILI9341 (SPI) | CS → 5, DC → 2, RST → 4, SCK → 18, MISO → 19, MOSI → 23 |
+
+Connect module grounds to ESP32 ground and verify each breakout's power and
+logic voltage requirements. The GM65 must use UART output with a CR or LF
+suffix, as assumed in the wiring sample. Present the code after the LCD shows
+the scan prompt.
 
 ## Website flow
 
@@ -62,6 +67,9 @@ the board's input rating.
 - Verification returns the matched sensor slot, subject ID, appointment ID,
   and original request ID. The backend compares them with the enrolled visitor
   and visit before it issues its short-lived verification proof.
+- Once the website confirms the fingerprint, click **Scan QR** at the entrance
+  desk. The firmware prompts for the appointment QR and forwards one complete
+  scan to the website. The scan times out after 20 seconds.
 - Fingerprint images and templates stay inside the sensor. The firmware sends
   only operation results and template IDs. Fingerprint success by itself does
   not admit a visitor; the website still requires its QR and eligibility steps.
@@ -79,11 +87,6 @@ kept below the backend's corresponding request windows.
 - This sketch uses plain `ws://` for the project's local development setup.
   Public or facility-network deployments must use a trusted TLS WebSocket
   endpoint and a restricted network before connecting the device.
-- No physical device, board compile, upload, sensor enrollment, or live backend
-  connection has been exercised yet. The precise ESP32 board, AS608 pinout,
-  voltage, and library versions still need confirmation against the hardware.
-- No QR reader support is included. The complete gate sequence still needs the
-  website's QR scan input after fingerprint verification.
 
 ## Project references
 

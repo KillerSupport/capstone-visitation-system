@@ -1,6 +1,6 @@
 import {OfficerWorkspace} from './components/Dashboard/OfficerWorkspace';
 import React, { useState, useEffect } from 'react';
-import { UserProfile, VisitationAppointment, PDL, isStaffRole } from './types';
+import { UserProfile, PDL, isStaffRole } from './types';
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
 import { LoginPage } from './components/Auth/LoginPage';
@@ -8,8 +8,6 @@ import { ForgotPasswordModal } from './components/Auth/ForgotPasswordModal';
 import { EmailConfirmationView } from './components/Verification/EmailConfirmationView';
 import { AdminDashboard } from './components/Dashboard/AdminDashboard';
 import { VisitorOperationsDesk } from './components/Dashboard/VisitorOperationsDesk';
-import { AdminKycPanel } from './components/Admin/AdminKycPanel';
-import { GuardScannerModal } from './components/Guard/GuardScannerModal';
 import {ProfileEditor} from './components/Common/ProfileEditor';
 import {AppDialogHost} from './components/Common/AppDialogHost';
 import {SecurityNotice} from './components/Common/SecurityNotice';
@@ -17,12 +15,11 @@ import { Bell } from 'lucide-react';
 import { api, type LoginResult } from './services/api';
 import { realtimeWS } from './services/websocket';
 import {hardware} from './services/hardware';
-import {confirmAction,promptAction} from './utils/appDialogs';
 
 export default function App() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [appointments, setAppointments] = useState<VisitationAppointment[]>([]);
+  const [checkingSession, setCheckingSession] = useState(true);
   const [pdls, setPdls] = useState<PDL[]>([]);
 
   // Modals & Views
@@ -30,8 +27,6 @@ export default function App() {
   const [forgotIdentifier, setForgotIdentifier] = useState('');
   const [profileOpen,setProfileOpen]=useState(false);
   const openProfile = () => setProfileOpen(true);
-  const [isGuardScannerOpen, setIsGuardScannerOpen] = useState(false);
-  const [guardScannerVisitorId, setGuardScannerVisitorId] = useState<string | undefined>(undefined);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [devVerificationOtp,setDevVerificationOtp]=useState<string|null>(null);
   const [verificationDeliveryError,setVerificationDeliveryError]=useState<string|null>(null);
@@ -39,44 +34,30 @@ export default function App() {
   const [dashboardHomeRequest, setDashboardHomeRequest] = useState(0);
   const [dataError,setDataError]=useState('');
 
-  useEffect(() => { api.me().then(({user}) => { setUsers(prev => [user,...prev.filter(x=>x.id!==user.id)]); setCurrentUserId(user.id); }).catch(() => setCurrentUserId(null)); }, []);
+  useEffect(() => {
+    let active = true;
+    api.me().then(({ user }) => {
+      if (!active) return;
+      setUsers(prev => [user, ...prev.filter(x => x.id !== user.id)]);
+      setCurrentUserId(user.id);
+    }).catch(() => {
+      if (active) setCurrentUserId(null);
+    }).finally(() => {
+      if (active) setCheckingSession(false);
+    });
+    return () => { active = false; };
+  }, []);
 
   // Initialize and connect to Real-time WebSocket Server
   useEffect(() => {
     realtimeWS.connect();
 
     // Listen to real-time events
-    const unsubGateScan = realtimeWS.on('GATE_SCAN_EVENT', (data: any) => {
-      showToast(data.message || `Gate 1 Scan: ${data.visitorName} - ${data.action}`);
-    });
-
-    const unsubApptCreated = realtimeWS.on('APPOINTMENT_CREATED', (newAppt: VisitationAppointment) => {
-      setAppointments((prev) => {
-        if (prev.some((a) => a.id === newAppt.id)) return prev;
-        return [newAppt, ...prev];
-      });
-      showToast(`Real-Time Sync: New appointment created for ${newAppt.visitorName}`);
-    });
-
-    const unsubApptUpdated = realtimeWS.on('APPOINTMENT_STATUS_UPDATED', (updatedAppt: VisitationAppointment) => {
-      setAppointments((prev) => prev.map((a) => (a.id === updatedAppt.id ? updatedAppt : a)));
-      showToast(`Real-Time Sync: Appointment for ${updatedAppt.visitorName} updated to ${updatedAppt.status}`);
-    });
-
-    const unsubUserStatus = realtimeWS.on('USER_STATUS_UPDATED', (updatedUser: UserProfile) => {
-      setUsers((prev) => prev.map((u) => (u.id === updatedUser.id ? updatedUser : u)));
-      showToast(`Real-Time Sync: User ${updatedUser.firstName} ${updatedUser.lastName} is now ${updatedUser.accountStatus}`);
-    });
-
     const unsubAnnouncement = realtimeWS.on('ANNOUNCEMENT_BROADCAST', (ann: any) => {
       showToast(`📢 Official Announcement: ${ann.title}`);
     });
 
     return () => {
-      unsubGateScan();
-      unsubApptCreated();
-      unsubApptUpdated();
-      unsubUserStatus();
       unsubAnnouncement();
     };
   }, []);
@@ -100,12 +81,12 @@ export default function App() {
       setDataError('');
       try {
         if (currentUser.role === 'ADMIN' || currentUser.role === 'SUPER_ADMIN') {
-          const [dbUsers, dbAppts, dbPdls] = await Promise.all([api.getUsers(), api.getAppointments(), api.getPdls()]);
-          setUsers(dbUsers || []); setAppointments(dbAppts || []); setPdls(dbPdls || []);
+          const [dbUsers, dbPdls] = await Promise.all([api.getUsers(), api.getPdls()]);
+          setUsers(dbUsers || []); setPdls(dbPdls || []);
         } else if (currentUser.role === 'OFFICER' || currentUser.role === 'WORKER' || currentUser.role === 'GUARD' || currentUser.role === 'VERIFICATION_OFFICER') {
-          setUsers([currentUser]); setAppointments([]); setPdls([]);
+          setUsers([currentUser]); setPdls([]);
         } else {
-          setUsers([currentUser]); setAppointments([]); setPdls([]);
+          setUsers([currentUser]); setPdls([]);
         }
       } catch (e) { setDataError(e instanceof Error?e.message:'Account data could not be loaded.'); }
     };
@@ -149,7 +130,7 @@ export default function App() {
     realtimeWS.disconnect();hardware.disconnect();
     await api.logout().catch(() => {});
     setCurrentUserId(null);setProfileOpen(false);
-    setUsers([]);setAppointments([]);setPdls([]);setDataError('');
+    setUsers([]);setPdls([]);setDataError('');
     setIsAdminSidebarOpen(false);
     showToast('Logged out successfully.');
   };
@@ -158,7 +139,6 @@ export default function App() {
     if (!isDashboardVisible) return;
     setIsAdminSidebarOpen(false);
     setDashboardHomeRequest((request) => request + 1);
-    setIsGuardScannerOpen(false);
     setIsForgotOpen(false);
     window.scrollTo({ top: 0, behavior: 'instant' });
   };
@@ -175,29 +155,8 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isAdminSidebarOpen]);
 
-  // Administrator actions for the legacy appointment history.
-  const handleUpdateAppointmentStatus = async (appointmentId: string, status: VisitationAppointment['status']) => {
-    try {
-      const { appointment, notifications } = await api.updateAppointmentStatus(appointmentId, status);
-      setAppointments((prev) => prev.map((item) => item.id === appointmentId ? appointment : item));
-      const pending=notifications?.filter(item=>item.status!=='ACCEPTED'&&item.status!=='MOCK');
-      const mock=notifications?.some(item=>item.status==='MOCK');
-      showToast(status==='Approved' && pending?.length ? `Appointment approved. ${pending.map(item=>item.channel==='sms'?'Text':'Email').join(' and ')} confirmation could not be sent yet.` : status==='Approved' && mock ? 'Appointment approved. SMS is in test mode; no real text was sent.' : `Appointment status updated to: ${status.toUpperCase()}`);
-    } catch (e) { showToast(e instanceof Error ? e.message : 'Appointment status could not be updated.'); }
-  };
-
-  const handleDeleteAppointment = async (appointmentId: string) => {
-    if (!await confirmAction('This visit will leave active schedules but remain available in Archive for restoration.', { title: 'Archive visit?', confirmLabel: 'Continue', tone: 'warning' })) return;
-    const reason=await promptAction('Give a short reason for archiving this visit.', { title: 'Archive visit', inputLabel: 'Archive reason', placeholder: 'Enter the reason', confirmLabel: 'Archive visit', tone: 'danger' }); if(reason===null) return;
-    try {
-      await api.deleteAppointment(appointmentId,reason);
-      setAppointments((prev) => prev.filter((item) => item.id !== appointmentId));
-      showToast('Visit archived.');
-    } catch (e) { showToast(e instanceof Error ? e.message : 'Appointment could not be removed.'); }
-  };
-
   // Contact verification is completed by the auth endpoint; proceed to secure document review.
-  const handleEmailConfirmed = (verifiedUser:UserProfile,developmentOtp?:string,deliveryError?:string) => {setUsers(prev=>[verifiedUser,...prev.filter(u=>u.id!==verifiedUser.id)]);setDevVerificationOtp(developmentOtp||null);setVerificationDeliveryError(deliveryError||null);showToast(deliveryError || (contactsVerified(verifiedUser)?'Contacts verified. Continue to Identity Verification.':'Contact verified. Enter the code for your other contact.'));};
+  const handleEmailConfirmed = (verifiedUser:UserProfile,developmentOtp?:string,deliveryError?:string) => {setUsers(prev=>[verifiedUser,...prev.filter(u=>u.id!==verifiedUser.id)]);setDevVerificationOtp(developmentOtp||null);setVerificationDeliveryError(deliveryError||null);showToast(deliveryError || (contactsVerified(verifiedUser)?'Contact details verified.':'Contact verified. Enter the code for your other contact.'));};
 
   return (
     <div className="government-theme min-h-screen flex flex-col text-slate-100 font-sans antialiased">
@@ -219,17 +178,15 @@ export default function App() {
         onGoHome={isDashboardVisible ? handleGoHome : undefined}
         isSidebarOpen={isAdminSidebarOpen}
         onToggleSidebar={(currentUser?.role === 'ADMIN' || currentUser?.role === 'SUPER_ADMIN') ? () => setIsAdminSidebarOpen((open) => !open) : undefined}
-        onOpenGuardScanner={(currentUser?.role === 'ADMIN' || currentUser?.role === 'SUPER_ADMIN') ? () => {
-          setGuardScannerVisitorId(users.find((user) => !isStaffRole(user.role))?.id);
-          setIsGuardScannerOpen(true);
-        } : undefined}
       />
 
       {/* Main Content Area */}
       <SecurityNotice/>
       <main className="flex-1">
         {currentUser&&dataError&&<p role="alert" className="mx-auto max-w-7xl p-4 text-sm text-rose-300">Account data could not be loaded: {dataError} <button className="underline" onClick={()=>window.location.reload()}>Retry</button></p>}
-        {!currentUser ? (
+        {checkingSession ? (
+          <p role="status" className="mx-auto my-8 w-fit rounded-lg bg-white px-4 py-3 text-sm text-slate-900">Checking session…</p>
+        ) : !currentUser ? (
           <LoginPage
             onLogin={handleLogin}
             onOpenForgotPassword={(identifier) => { setForgotIdentifier(identifier); setIsForgotOpen(true); }}
@@ -241,20 +198,12 @@ export default function App() {
               isSidebarOpen={isAdminSidebarOpen}
               homeRequest={dashboardHomeRequest}
               currentUser={currentUser}
-              users={users}
-              appointments={appointments}
               pdls={pdls}
-              onUpdateAppointmentStatus={handleUpdateAppointmentStatus}
-              onOpenGuardScanner={(visitorId) => {
-                setGuardScannerVisitorId(visitorId || users[0]?.id);
-                setIsGuardScannerOpen(true);
-              }}
-              onDeleteAppointment={handleDeleteAppointment}
               onSavePdl={handleSavePdl}
-              onRecordsRefresh={async()=>{const [latestUsers,latestAppointments,latestPdls]=await Promise.all([api.getUsers(),api.getAppointments(),api.getPdls()]);setUsers(latestUsers);setAppointments(latestAppointments);setPdls(latestPdls);}}
+              onRecordsRefresh={async()=>{const [latestUsers,latestPdls]=await Promise.all([api.getUsers(),api.getPdls()]);setUsers(latestUsers);setPdls(latestPdls);}}
             />
         ) : currentUser?.role === 'VERIFICATION_OFFICER' ? (
-          <main className="min-h-screen bg-transparent p-4 text-slate-100 sm:p-8"><div className="mx-auto max-w-7xl"><header className="mb-6 flex items-center justify-between"><div><p className="text-xs font-bold uppercase tracking-widest text-blue-300">Verification Officer</p><h1 className="text-2xl font-bold">Identity Review Workspace</h1></div><button onClick={handleLogout} className="rounded-lg border border-white/15 px-3 py-2 text-sm">Log out</button></header><AdminKycPanel /></div></main>
+          <section className="mx-auto max-w-2xl p-8 text-center text-slate-300">This account type is no longer used. Contact an administrator to update the account role.</section>
         ) : currentUser.accountStatus === 'PENDING_EMAIL' || !contactsVerified(currentUser) ? (
           <EmailConfirmationView
             user={currentUser}
@@ -288,16 +237,6 @@ export default function App() {
             ? result.adminNotified ? 'Password recovery request sent to an administrator. Check your registered email for the decision.' : 'Password recovery request was saved, but administrator email could not be delivered. Contact an administrator to review it.'
             : `Password successfully reset for ${identifier}. Please log in.`);
         }}
-      />
-
-      {/* Gate 1 Guard Scanner Terminal */}
-      <GuardScannerModal
-        staff={currentUser}
-        isOpen={isGuardScannerOpen && (currentUser?.role === 'ADMIN' || currentUser?.role === 'SUPER_ADMIN')}
-        onClose={() => setIsGuardScannerOpen(false)}
-        users={users}
-        appointments={appointments}
-        initialVisitorId={guardScannerVisitorId}
       />
 
       {/* Official Footer */}

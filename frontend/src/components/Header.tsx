@@ -8,7 +8,6 @@ interface HeaderProps {
   onLogout: () => void;
   onOpenProfile?: () => void;
   onSelectState?: (status: AccountStatus) => void;
-  onOpenGuardScanner?: () => void;
   isAdminView?: boolean;
   onToggleAdminView?: () => void;
   onGoHome?: () => void;
@@ -20,7 +19,6 @@ export const Header: React.FC<HeaderProps> = ({
   currentUser,
   onLogout,
   onOpenProfile,
-  onOpenGuardScanner,
   isAdminView,
   onToggleAdminView,
   onGoHome,
@@ -148,19 +146,6 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* User / Session Area & Guard Scanner */}
         <div className="flex items-center space-x-3">
-          {onOpenGuardScanner && (
-            <button
-              type="button"
-              onClick={onOpenGuardScanner}
-              title="Open BJMP Gate 1 Guard Verification Scanner Terminal"
-              className="bg-slate-800 hover:bg-slate-700 text-blue-300 hover:text-white font-semibold px-3 py-1.5 rounded-lg text-xs flex items-center space-x-1.5 border border-slate-700 hover:border-blue-500/40 shadow-sm cursor-pointer transition-all"
-            >
-              <QrCode className="w-3.5 h-3.5 text-blue-400" />
-              <span className="hidden sm:inline">Gate 1</span>
-              <span>Scanner</span>
-            </button>
-          )}
-
           {currentUser&&onOpenProfile&&<button type="button" onClick={onOpenProfile} className="rounded-lg border border-slate-700 px-3 py-2 text-xs">My profile</button>}
           {currentUser ? (
             <div className="flex items-center space-x-3 bg-slate-800/90 border border-slate-700/80 rounded-lg px-3 py-1.5 shadow-sm">

@@ -1,12 +1,4 @@
 import QRCode from 'qrcode';
-import { UserProfile, VisitationAppointment } from '../types';
-
-/** The QR is an opaque, persistent visitor identifier; admission is always checked online. */
-export function buildPermanentQRPayload(user:UserProfile,_appointments:VisitationAppointment[]=[],_currentDateStr?:string):string {
-  if(!user.permanentQrToken)throw new Error('Your visitor QR identifier is not available. Reload your account or contact the records desk.');
-  return user.permanentQrToken;
-}
-
 /**
  * Generates a high-resolution QR code data URL (PNG)
  */

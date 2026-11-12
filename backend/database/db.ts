@@ -537,10 +537,10 @@ export async function markContactVerified(userId: string, channel: ContactChanne
 }
 
 export async function createUser(u: any) {
-  if (!u.email && !u.mobileNumber) throw new Error('Email or mobile number is required.');
-  if (!u.passwordHash || !String(u.passwordHash).startsWith('scrypt:')) {
-    throw new Error('A server-generated password hash is required.');
+  if (!['ADMIN','SUPER_ADMIN','WORKER','GUARD','OFFICER'].includes(String(u.role || 'WORKER'))) {
+    throw new Error('Only staff and administrator accounts can be created.');
   }
+  if (!u.email && !u.mobileNumber) throw new Error('Email or mobile number is required.');
   if (!u.passwordHash || !String(u.passwordHash).startsWith('scrypt:')) {
     throw new Error('A server-generated password hash is required.');
   }
@@ -554,7 +554,7 @@ export async function createUser(u: any) {
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
       (u.email ? String(u.email).trim().toLowerCase() : null), u.mobileNumber || null, u.passwordHash,
-      u.role || 'VISITOR', u.adminTitle || null, u.badgeNumber || null,
+      u.role || 'WORKER', u.adminTitle || null, u.badgeNumber || null,
       u.firstName, u.middleName || null, u.lastName, u.suffix || null,
       u.dateOfBirth || null, u.gender || null,
       u.address?.houseUnitStreet || null, u.address?.municipality || null,
@@ -567,26 +567,7 @@ export async function createUser(u: any) {
       u.registeredAt || now, JSON.stringify(u.address||{}),
     ]
   );
-  if((u.role||'VISITOR')==='VISITOR')await pool.query('UPDATE users SET permanent_qr_token=? WHERE id=?',[randomBytes(32).toString('hex'),result.insertId]);
   return getUserById(String(result.insertId));
-}
-
-export async function updateUserStatus(userId: string, status: string, officerName?: string) {
-  const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
-  if (status === 'ACTIVATED') {
-    await pool.query(
-      `UPDATE users SET account_status=?, biometric_scanned_at=COALESCE(biometric_scanned_at,?), biometrics_officer_name=? WHERE id=?`,
-      [status, now, officerName || 'JO2 R. BAUTISTA (BJMP Imus Records Desk)', userId]
-    );
-  } else if (status === 'PENDING_BIOMETRICS') {
-    await pool.query(
-      `UPDATE users SET account_status=?, email_verified_at=COALESCE(email_verified_at,?) WHERE id=?`,
-      [status, now, userId]
-    );
-  } else {
-    await pool.query(`UPDATE users SET account_status=? WHERE id=?`, [status, userId]);
-  }
-  return getUserById(userId);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1039,9 +1020,8 @@ export async function createAnnouncement(data: any) {
 export async function getDatabaseStatus() {
   const [[users]] = await pool.query<mysql.RowDataPacket[]>('SELECT COUNT(*) AS count FROM users');
   const [[pdls]] = await pool.query<mysql.RowDataPacket[]>('SELECT COUNT(*) AS count FROM pdls');
-  const [[appointments]] = await pool.query<mysql.RowDataPacket[]>('SELECT COUNT(*) AS count FROM appointments');
   const [[forms]] = await pool.query<mysql.RowDataPacket[]>('SELECT COUNT(*) AS count FROM pdl_form_records');
-  return { database: process.env.DB_NAME || 'bjmp_visitation', users: users.count, pdls: pdls.count, appointments: appointments.count, pdlFormRecords: forms.count };
+  return { database: process.env.DB_NAME || 'bjmp_visitation', users: users.count, pdls: pdls.count, pdlFormRecords: forms.count };
 }
 
 /** Explicit local reset utility; the command is never run automatically. */
@@ -1056,20 +1036,4 @@ export async function resetDemoData() {
     await conn.commit();
   } catch (error) { await conn.rollback(); throw error; } finally { conn.release(); }
   return getDatabaseStatus();
-}
-
-export async function getStats() {
-  const today = manilaDate();
-  const [[pdls]]      = await pool.query<mysql.RowDataPacket[]>('SELECT COUNT(*) as cnt FROM pdls WHERE is_archived=0 AND status="In Custody"') as any;
-  const [[scheduled]] = await pool.query<mysql.RowDataPacket[]>('SELECT COUNT(*) as cnt FROM appointments WHERE is_archived=0 AND visit_date=? AND status="Approved"', [today]) as any;
-  const [[admitted]]  = await pool.query<mysql.RowDataPacket[]>('SELECT COUNT(*) as cnt FROM gate_logs WHERE DATE(timestamp)=? AND action="ADMITTED"', [today]) as any;
-  const [[pending]]   = await pool.query<mysql.RowDataPacket[]>('SELECT COUNT(*) as cnt FROM users WHERE is_archived=0 AND account_status="PENDING_BIOMETRICS"') as any;
-  const [[onsite]] = await pool.query<mysql.RowDataPacket[]>("SELECT COUNT(*) AS cnt FROM visitor_log_entries WHERE log_type='PDL_VISITOR' AND time_in IS NOT NULL AND time_out IS NULL") as any;
-  return {
-    totalPdls:         pdls.cnt,
-    scheduledToday:    scheduled.cnt,
-    admittedToday:     admitted.cnt,
-    pendingBiometrics: pending.cnt,
-    currentOnSiteVisitors: onsite.cnt,
-  };
 }

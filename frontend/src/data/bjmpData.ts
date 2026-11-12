@@ -1,4 +1,4 @@
-import { JailFacility, PDL, ValidIdType, UserProfile, VisitationAppointment } from '../types';
+import { JailFacility, PDL, ValidIdType, UserProfile } from '../types';
 
 export const PHILIPPINE_MUNICIPALITIES = [
   'Imus City, Cavite',
@@ -806,69 +806,3 @@ export const BJMP_RULES_AND_DRESS_CODE = {
 };
 
 export const INITIAL_DEMO_USERS: UserProfile[] = [];
-
-export const INITIAL_APPOINTMENTS: VisitationAppointment[] = [
-  {
-    id: 'appt-101',
-    appointmentReference: 'BJMP-VIS-IMUS-04421',
-    userId: 'user-activated-01',
-    visitorName: 'Maria Corazon Santos',
-    visitorContact: '+63 917 555 4321',
-    pdlId: 'pdl-001',
-    pdlName: 'Juan Dela Cruz y Santos',
-    pdlNumber: 'PDL-2024-00192',
-    jailFacilityId: 'imus-city-jail-male',
-    jailFacilityName: 'BJMP Imus City Jail - Male Dormitory',
-    cellDormitory: 'Brigada 3 - Cell Dorm B',
-    visitType: 'Contact Visit',
-    relationshipToPDL: 'Spouse',
-    visitDate: '2026-09-17',
-    timeSlot: 'Morning Batch (08:00 AM - 11:30 AM)',
-    paabotItemsDescription: '2 clear containers of cooked beef caldereta and steamed rice, 1 sealed 1L Wilkins water, 2 plain white t-shirts.',
-    status: 'Approved',
-    createdAt: '2026-09-14 11:20:00',
-    qrToken: 'BJMP-GATE-04421-IMUS-CAVITE',
-  },
-  {
-    id: 'appt-102',
-    appointmentReference: 'BJMP-VIS-IMUS-08912',
-    userId: 'user-activated-01',
-    visitorName: 'Maria Corazon Santos',
-    visitorContact: '+63 917 555 4321',
-    pdlId: 'pdl-001',
-    pdlName: 'Juan Dela Cruz y Santos',
-    pdlNumber: 'PDL-2024-00192',
-    jailFacilityId: 'imus-city-jail-male',
-    jailFacilityName: 'BJMP Imus City Jail - Male Dormitory',
-    cellDormitory: 'Brigada 3 - Cell Dorm B',
-    visitType: 'E-Dalaw (Online Video Call)',
-    relationshipToPDL: 'Spouse',
-    visitDate: '2026-09-20',
-    timeSlot: 'Afternoon Batch (01:00 PM - 03:30 PM)',
-    paabotItemsDescription: 'None (Virtual E-Dalaw)',
-    status: 'Approved',
-    createdAt: '2026-09-15 09:30:00',
-    qrToken: 'BJMP-GATE-08912-IMUS-CAVITE',
-  },
-  {
-    id: 'appt-103',
-    appointmentReference: 'BJMP-VIS-IMUS-11045',
-    userId: 'user-biometrics-pending-02',
-    visitorName: 'Roberto Gomez Reyes Jr.',
-    visitorContact: '+63 920 889 1234',
-    pdlId: 'pdl-002',
-    pdlName: 'Eduardo Martinez y Reyes',
-    pdlNumber: 'PDL-2023-08411',
-    jailFacilityId: 'imus-city-jail-male',
-    cellDormitory: 'Brigada 1 - Main Dormitory',
-    jailFacilityName: 'BJMP Imus City Jail - Male Dormitory',
-    visitType: 'Contact Visit',
-    relationshipToPDL: 'Sibling',
-    visitDate: '2026-09-18',
-    timeSlot: 'Morning Batch (08:00 AM - 11:30 AM)',
-    paabotItemsDescription: '1 transparent container with chicken tinola and rice, doctor-prescribed hypertension maintenance pills with pharmacy receipt.',
-    status: 'Pending Review',
-    createdAt: '2026-09-16 14:40:00',
-    qrToken: 'BJMP-GATE-11045-IMUS-CAVITE',
-  },
-];

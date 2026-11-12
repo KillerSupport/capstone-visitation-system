@@ -9,12 +9,14 @@
 #define BACKEND_PORT 4001
 #define BACKEND_PATH "/hardware"
 
+// Optional Wi-Fi fallback list. Add entries in the order to try them.
+// Each entry holds the SSID, password, and laptop IP on that network.
+// #define WIFI_FALLBACKS \
+//   {"OTHER_WIFI", "OTHER_PASSWORD", "192.168.2.100"},
+
 // Must match HARDWARE_DEVICE_TOKEN in the backend's private .env file.
 #define HARDWARE_DEVICE_TOKEN "REPLACE_WITH_A_LONG_RANDOM_TOKEN"
 
-// ESP32 UART2 pins: sensor TX -> ESP32 RX; sensor RX -> ESP32 TX.
-#define FINGERPRINT_RX_PIN 16
-#define FINGERPRINT_TX_PIN 17
 #define FINGERPRINT_BAUD 57600
 
 // Common AS608-compatible modules expose template IDs 1 through 127.

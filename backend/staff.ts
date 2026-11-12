@@ -5,10 +5,10 @@ import {normalizeEmail,normalizePhilippineMobileNumber} from './identity.js';
 import {validatePerson,strongPassword} from './validation.js';
 import {pendingContact} from './messaging.js';
 
-export const DUTIES=['RECORDS','GATE','IDENTITY_REVIEW','ENROLLMENT'];
+export const DUTIES=['RECORDS','GATE'];
 export const staffRouter=Router();
 staffRouter.use(admin);
-staffRouter.get('/',async(_req,res)=>res.json((await getAllUsers()).filter(u=>['OFFICER','WORKER','GUARD','VERIFICATION_OFFICER'].includes(u.role))));
+staffRouter.get('/',async(_req,res)=>res.json((await getAllUsers()).filter(u=>['OFFICER','WORKER','GUARD'].includes(u.role))));
 function duties(value:any){if(!Array.isArray(value)||!value.length||new Set(value).size!==value.length||value.some(v=>!DUTIES.includes(v)))throw Error('Choose at least one valid Officer duty.');return value;}
 staffRouter.post('/',async(req,res)=>{
   try{
@@ -33,7 +33,7 @@ staffRouter.patch('/:id',async(req,res)=>{
     if((b.email&&!email)||(phoneInput&&!phone)||(!email&&!phone))throw Error('Enter a valid email or Philippine mobile number.');
     if(!['ACTIVE','SUSPENDED'].includes(status)||badge.length>100)throw Error('Choose Active or Suspended and enter a valid official badge number.');
     await conn.beginTransaction();const [rows]=await conn.query<any[]>('SELECT role,officer_duties,account_status,badge_number,email,mobile_number FROM users WHERE id=? AND is_archived=0 FOR UPDATE',[req.params.id]);
-    if(!rows[0]||!['OFFICER','WORKER','GUARD','VERIFICATION_OFFICER'].includes(rows[0].role))throw Error('Worker account not found.');
+    if(!rows[0]||!['OFFICER','WORKER','GUARD'].includes(rows[0].role))throw Error('Worker account not found.');
     await conn.query("UPDATE profile_change_requests SET status='CANCELLED',new_password_hash=NULL,proofs='[]',review_reason='Cancelled by administrator account edit.' WHERE user_id=? AND status IN ('VERIFYING','PENDING_APPROVAL')",[req.params.id]);
     const emailChanged=email!==rows[0].email,phoneChanged=phone!==rows[0].mobile_number;
     await conn.query(`UPDATE users SET first_name=?,middle_name=?,last_name=?,suffix=?,date_of_birth=?,email=?,mobile_number=?,
@@ -53,7 +53,7 @@ staffRouter.post('/:id/reset-password',async(req,res)=>{
   try{
     await conn.beginTransaction();
     const [rows]=await conn.query<any[]>('SELECT id,role FROM users WHERE id=? AND is_archived=0 FOR UPDATE',[req.params.id]);
-    if(!rows[0]||!['OFFICER','WORKER','GUARD','VERIFICATION_OFFICER'].includes(rows[0].role)){await conn.rollback();return res.status(404).json({error:'Worker account not found.'});}
+    if(!rows[0]||!['OFFICER','WORKER','GUARD'].includes(rows[0].role)){await conn.rollback();return res.status(404).json({error:'Worker account not found.'});}
     await conn.query('UPDATE users SET password=? WHERE id=?',[await hashPass(password),req.params.id]);
     await conn.query('DELETE FROM auth_sessions WHERE user_id=?',[req.params.id]);
     await conn.query("UPDATE profile_change_requests SET status='CANCELLED',new_password_hash=NULL,proofs='[]',review_reason='Cancelled by administrator password reset.' WHERE user_id=? AND status IN ('VERIFYING','PENDING_APPROVAL')",[req.params.id]);

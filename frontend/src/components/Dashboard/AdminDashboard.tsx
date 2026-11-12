@@ -4,21 +4,16 @@ import {AdminVisitorRecordsPanel} from '../Admin/AdminVisitorRecordsPanel';
 import {AdminVisitorRestrictionsPanel} from '../Admin/AdminVisitorRestrictionsPanel';
 import {AdminVisitorReportsPanel} from '../Admin/AdminVisitorReportsPanel';
 import {AdminProfileChangeRequestsPanel} from '../Admin/AdminProfileChangeRequestsPanel';
-import {AdminKycPanel} from '../Admin/AdminKycPanel';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   Shield, Users, Calendar, Clock, CheckCircle2, AlertTriangle, AlertCircle, Archive,
-  Search, Filter, Eye, Printer, Plus, Trash2,
-  Building, RefreshCw, Check, X, ArrowUpDown, ExternalLink, QrCode,
+  Search, Filter, Eye, Plus, Trash2,
+  Building, RefreshCw, Check, X, ArrowUpDown, ExternalLink,
   ShieldAlert, UserPlus, Sliders, Sparkles, MapPin,
   FileText, Edit3, Scale, Package, CheckSquare, ListFilter, Table, FileCheck2
 } from 'lucide-react';
-import {
-  UserProfile, VisitationAppointment, JailFacility, PDL,
-  VisitType
-} from '../../types';
+import { UserProfile, PDL } from '../../types';
 import { BJMP_JAIL_FACILITIES } from '../../data/bjmpData';
-import { PrintablePassModal } from '../Common/PrintablePassModal';
 import { PDLRegistrationModal } from '../Admin/PDLRegistrationModal';
 import { OfficialBjmpDocumentsModal } from '../Admin/OfficialBjmpDocumentsModal';
 import { AdminAuditPanel } from '../Admin/AdminAuditPanel';
@@ -56,12 +51,7 @@ const incidentHistorySummary = (entry: any) => {
 
 interface AdminDashboardProps {
   currentUser: UserProfile;
-  users: UserProfile[];
-  appointments: VisitationAppointment[];
   pdls: PDL[];
-  onUpdateAppointmentStatus: (appointmentId: string, status: VisitationAppointment['status']) => void;
-  onOpenGuardScanner: (visitorId?: string) => void;
-  onDeleteAppointment: (appointmentId: string) => void;
   onSavePdl: (pdl: PDL) => Promise<PDL>;
   onRecordsRefresh?:()=>Promise<void>;
   isSidebarOpen: boolean;
@@ -81,28 +71,17 @@ interface SecurityIncident {
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   currentUser,
-  users,
-  appointments,
   pdls,
-  onUpdateAppointmentStatus,
-  onOpenGuardScanner,
-  onDeleteAppointment,
   onSavePdl,
   onRecordsRefresh,
   isSidebarOpen,
   homeRequest,
 }) => {
   // Navigation Tabs
-  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'VISITOR_RECORDS' | 'RESTRICTIONS' | 'PROFILE_APPROVALS' | 'IDENTITY_REVIEW' | 'APPOINTMENTS' | 'PDL_ROSTER' | 'SECURITY_LOGS' | 'AUDIT' | 'ARCHIVE' | 'REPORTS' | 'STAFF' | 'VISITATION' | 'FACILITY_SETTINGS'>('OVERVIEW');
+  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'VISITOR_RECORDS' | 'RESTRICTIONS' | 'PROFILE_APPROVALS' | 'PDL_ROSTER' | 'SECURITY_LOGS' | 'AUDIT' | 'ARCHIVE' | 'REPORTS' | 'STAFF' | 'VISITATION' | 'FACILITY_SETTINGS'>('OVERVIEW');
 
   useEffect(() => { setActiveTab('OVERVIEW'); }, [homeRequest]);
 
-
-  // Appointment Management State
-  const [apptFilterDate, setApptFilterDate] = useState<'ALL' | 'TODAY' | 'UPCOMING'>('ALL');
-  const [apptFilterStatus, setApptFilterStatus] = useState<string>('ALL');
-  const [apptSearch, setApptSearch] = useState('');
-  const [selectedPassModalAppt, setSelectedPassModalAppt] = useState<VisitationAppointment | null>(null);
 
   // PDL State
   const [pdlList, setPdlList] = useState<PDL[]>(pdls);
@@ -121,10 +100,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // Security Incident Logs State
   const [incidentList, setIncidentList] = useState<SecurityIncident[]>([]);
-  const [liveStats,setLiveStats]=useState<any>({});
-  useEffect(()=>{void api.getStats().then(setLiveStats).catch(()=>{});return realtimeWS.on('STATS_UPDATED',setLiveStats)},[]);
   const [pendingProfileRequestCount, setPendingProfileRequestCount] = useState(0);
-  const [pendingKycCount, setPendingKycCount] = useState(0);
   const refreshPendingProfileRequestCount = useCallback(async () => {
     try {
       const result = await api.getWorkerProfileChangeRequestCount();
@@ -135,14 +111,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     void refreshPendingProfileRequestCount();
     return realtimeWS.on('PROFILE_CHANGE_REQUESTS_UPDATED', () => { void refreshPendingProfileRequestCount(); });
   }, [refreshPendingProfileRequestCount]);
-  const refreshPendingKycCount = useCallback(async () => {
-    try { const result = await api.getAdminKycCount(); setPendingKycCount(Number(result.count) || 0); }
-    catch { /* Keep the last known alert count if the API is temporarily unavailable. */ }
-  }, []);
-  useEffect(() => {
-    void refreshPendingKycCount();
-    return realtimeWS.on('KYC_UPDATED', () => { void refreshPendingKycCount(); });
-  }, [refreshPendingKycCount]);
   const [isAddIncidentOpen, setIsAddIncidentOpen] = useState(false);
   const [editingIncident,setEditingIncident]=useState<SecurityIncident|null>(null),[incidentReason,setIncidentReason]=useState(''),[incidentBusy,setIncidentBusy]=useState(false),[incidentError,setIncidentError]=useState(''),[incidentHistory,setIncidentHistory]=useState<any[]|null>(null);
   const [newIncidentVisitor, setNewIncidentVisitor] = useState('');
@@ -150,56 +118,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [newIncidentDesc, setNewIncidentDesc] = useState('');
   const [newIncidentAction, setNewIncidentAction] = useState('');
 
-  // Facility Capacity State
-  const [maleCapacity, setMaleCapacity] = useState(40);
-  const [femaleCapacity, setFemaleCapacity] = useState(30);
+  // Facility notice state
   const [systemNotice, setSystemNotice] = useState('');
-  const [configuredFacilities,setConfiguredFacilities]=useState<string[]>([]);
   const [settingsBusy,setSettingsBusy]=useState(false),[settingsMessage,setSettingsMessage]=useState(''),[settingsError,setSettingsError]=useState('');
-  useEffect(()=>{void Promise.all([api.getFacilities(),api.getSecurityNotice()]).then(([facilities,notice])=>{
-    setConfiguredFacilities(facilities.map(f=>f.id));setMaleCapacity(facilities.find(f=>f.id==='imus-city-jail-male')?.capacityPerSlot||40);setFemaleCapacity(facilities.find(f=>f.id==='imus-city-jail-female')?.capacityPerSlot||30);setSystemNotice(notice.content);
-  }).catch(e=>setSettingsError(e.message));},[]);
-  const saveCapacities=async()=>{setSettingsBusy(true);setSettingsError('');setSettingsMessage('');try{
-    await api.saveFacilityCapacities([{id:'imus-city-jail-male',capacity:maleCapacity},{id:'imus-city-jail-female',capacity:femaleCapacity}].filter(f=>configuredFacilities.includes(f.id)));setSettingsMessage('Capacity settings saved. Booking checks these limits, including companions.');
-  }catch(e){setSettingsError(e.message)}finally{setSettingsBusy(false)}};
-  const publishNotice=async(content:string)=>{setSettingsBusy(true);setSettingsError('');setSettingsMessage('');try{await api.saveSecurityNotice(content);setSystemNotice(content);setSettingsMessage(content.trim()?'Notice published to the login page and dashboards.':'Notice archived and removed from the public banner.');}catch(e){setSettingsError(e.message)}finally{setSettingsBusy(false)}};
-
+  useEffect(()=>{void api.getSecurityNotice().then(notice=>setSystemNotice(notice.content)).catch(e=>setSettingsError(e.message));},[]);
+  const publishNotice=async(content:string)=>{setSettingsBusy(true);setSettingsError('');setSettingsMessage('');try{await api.saveSecurityNotice(content);setSystemNotice(content);setSettingsMessage(content.trim()?'Notice published to the staff dashboard and entrance display.':'Notice archived and removed from the public banner.');}catch(e){setSettingsError(e.message)}finally{setSettingsBusy(false)}};
   // Today's Date calculation
   const todayStr = todayInManila();
   const [visitorSummary,setVisitorSummary]=useState<any>({});
   useEffect(()=>{void api.getVisitorReport(todayStr,todayStr).then(setVisitorSummary).catch(()=>setVisitorSummary({}))},[todayStr,activeTab]);
 
-  // Filtered Appointments
-  const filteredAppointments = useMemo(() => {
-    return appointments.filter((appt) => {
-      if (apptFilterDate === 'TODAY' && appt.visitDate !== todayStr) return false;
-      if (apptFilterDate === 'UPCOMING' && appt.visitDate < todayStr) return false;
-      if (apptFilterStatus !== 'ALL' && appt.status !== apptFilterStatus) return false;
-      if (apptSearch) {
-        const query = apptSearch.toLowerCase();
-        const visitor = (appt.visitorName || '').toLowerCase();
-        const pdl = (appt.pdlName || '').toLowerCase();
-        const ref = (appt.appointmentReference || '').toLowerCase();
-        const cell = (appt.cellDormitory || '').toLowerCase();
-        return visitor.includes(query) || pdl.includes(query) || ref.includes(query) || cell.includes(query);
-      }
-      return true;
-    });
-  }, [appointments, apptFilterDate, apptFilterStatus, apptSearch, todayStr]);
-
   // Metric aggregates
   const totalVisitors = Number(visitorSummary.registeredVisitors||0);
   const approvedPdlVisitors = Number(visitorSummary.approvedPdlVisitors||0);
 
-  const todayAppointments = appointments.filter((a) => a.visitDate === todayStr);
-  const pendingAppointments = appointments.filter((a) => a.status === 'Pending Review');
   const inCustody=pdlList.filter(p=>p.status==='In Custody');
   const malePopulation=inCustody.filter(p=>p.sex==='Male').length;
   const femalePopulation=inCustody.filter(p=>p.sex==='Female').length;
   const malePercent=inCustody.length?Math.round(malePopulation/inCustody.length*100):0;
   const femalePercent=inCustody.length?Math.round(femalePopulation/inCustody.length*100):0;
-  const visitHistogram=Array.from({length:12},(_,i)=>{const date=new Date(`${todayStr}T12:00:00Z`);date.setUTCDate(date.getUTCDate()-11+i);const day=date.toISOString().slice(0,10);return {day,count:appointments.filter(a=>a.visitDate===day&&a.status!=='Cancelled').length}});
-  const histogramMax=Math.max(1,...visitHistogram.map(x=>x.count));
 
   // Save PDL (from comprehensive registration form)
   const handleSavePdl = async (savedPdl: PDL) => {
@@ -301,25 +238,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <span>Profile change requests</span>
             {pendingProfileRequestCount > 0 && <span aria-label={`${pendingProfileRequestCount} pending worker requests`} aria-live="polite" title={`${pendingProfileRequestCount} pending worker request${pendingProfileRequestCount === 1 ? '' : 's'}`} className="ml-2 inline-flex min-w-5 items-center justify-center rounded-full bg-rose-600 px-1.5 py-0.5 text-[10px] font-black leading-none text-white">{pendingProfileRequestCount > 99 ? '99+' : pendingProfileRequestCount}</span>}
           </button>
-          <button type="button" onClick={() => setActiveTab('IDENTITY_REVIEW')} className={`rounded-lg border border-slate-700 px-4 py-2 text-xs font-bold whitespace-nowrap ${activeTab==='IDENTITY_REVIEW'?'bg-blue-500 text-slate-950':'text-slate-300'}`}>
-            <span className="inline-flex items-center gap-2"><FileCheck2 className="h-4 w-4"/>Identity review</span>
-            {pendingKycCount > 0 && <span aria-label={`${pendingKycCount} pending identity reviews`} aria-live="polite" title={`${pendingKycCount} identity review${pendingKycCount === 1 ? '' : 's'} waiting`} className="ml-2 inline-flex min-w-5 items-center justify-center rounded-full bg-rose-600 px-1.5 py-0.5 text-[10px] font-black leading-none text-white">{pendingKycCount > 99 ? '99+' : pendingKycCount}</span>}
-          </button>
+
           <button type="button" onClick={() => setActiveTab('VISITATION')} className="rounded-lg border border-slate-700 px-4 py-2 text-xs font-bold whitespace-nowrap">Approved lists & Scheduling</button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('APPOINTMENTS')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center space-x-2 transition-all cursor-pointer whitespace-nowrap lg:w-full lg:justify-start relative ${
-              activeTab === 'APPOINTMENTS'
-                ? 'bg-blue-500 text-slate-950 shadow-md shadow-blue-500/20'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-            }`}
-          >
-            <Calendar className="w-4 h-4" />
-            <span>Visitations & Gate Schedule</span>
-            {pendingAppointments.length > 0 && <span aria-label={`${pendingAppointments.length} appointments waiting for review`} aria-live="polite" title={`${pendingAppointments.length} appointment${pendingAppointments.length === 1 ? '' : 's'} waiting for review`} className="inline-flex min-w-5 items-center justify-center rounded-full bg-rose-600 px-1.5 py-0.5 text-[10px] font-black leading-none text-white">{pendingAppointments.length > 99 ? '99+' : pendingAppointments.length}</span>}
-          </button>
+
 
           <button
             type="button"
@@ -362,8 +284,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
             }`}
           >
-            <Sliders className="w-4 h-4" />
-            <span>Facility Slot Limits</span>
+            <AlertTriangle className="w-4 h-4" />
+            <span>Facility Notice</span>
           </button>
         </nav>
         </div>
@@ -374,7 +296,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         ======================================================== */}
         {activeTab === 'STAFF' && <AdminStaffPanel/>}
         {activeTab === 'PROFILE_APPROVALS' && <AdminProfileChangeRequestsPanel/>}
-        {activeTab === 'IDENTITY_REVIEW' && <AdminKycPanel initialStatus="PENDING_REVIEW"/>}
+
         {activeTab === 'VISITOR_RECORDS' && <AdminVisitorRecordsPanel pdls={pdlList}/>}
         {activeTab === 'RESTRICTIONS' && <AdminVisitorRestrictionsPanel pdls={pdlList}/>}
         {activeTab === 'VISITATION' && <AdminVisitationPanel pdls={pdls} onChanged={onRecordsRefresh}/> }
@@ -393,20 +315,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
 
               <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
-                <div className="flex items-center justify-between mb-4">
-                  <div><p className="text-[10px] uppercase tracking-[0.18em] text-slate-400 font-bold">Today's schedule</p><h3 className="text-lg font-extrabold text-white mt-1">Visit pass flow</h3></div>
-                  <Calendar className="w-5 h-5 text-blue-300" />
-                </div>
-                <div className="flex items-end gap-1.5 h-12 mb-3" aria-label={`${todayAppointments.length} visits scheduled today`}>
-                  {visitHistogram.map(x=><span key={x.day} title={`${x.day}: ${x.count} visits`} className={`flex-1 rounded-t-sm ${x.count?'bg-blue-500':'bg-slate-800'}`} style={{height:`${x.count?Math.max(6,x.count/histogramMax*100):4}%`}}/>)}
-                </div>
-                <div className="flex items-end justify-between border-t border-slate-800 pt-3">
-                  <div><span className="text-2xl font-black text-white">{todayAppointments.length}</span><span className="text-xs text-slate-400 ml-2">scheduled today</span></div>
-                  <button type="button" onClick={() => setActiveTab('APPOINTMENTS')} className="text-[11px] text-blue-300 hover:text-white font-bold cursor-pointer">Open schedule →</button>
-                </div>
-                <div className="flex gap-3 mt-3 text-[10px] text-slate-400"><span><i className="inline-block w-2 h-2 rounded-full bg-emerald-400 mr-1" />{todayAppointments.filter(a => a.status === 'Approved').length} scheduled</span><span><i className="inline-block w-2 h-2 rounded-full bg-amber-300 mr-1" />{todayAppointments.filter(a => a.status === 'Pending Review').length} legacy pending</span></div>
+                <div className="flex items-center justify-between mb-4"><div><p className="text-[10px] uppercase tracking-[0.18em] text-slate-400 font-bold">Today's visitor activity</p><h3 className="mt-1 text-lg font-extrabold text-white">Gate check-ins</h3></div><Calendar className="h-5 w-5 text-blue-300"/></div>
+                <div className="grid grid-cols-2 gap-3"><div><strong className="block text-3xl text-white">{Number(visitorSummary.pdl?.total||0)+Number(visitorSummary.guest?.total||0)}</strong><span className="text-xs text-slate-400">Visitors today</span></div><div><strong className="block text-3xl text-emerald-300">{Number(visitorSummary.pdl?.on_site||0)+Number(visitorSummary.guest?.on_site||0)}</strong><span className="text-xs text-slate-400">Currently inside</span></div></div>
+                <button type="button" onClick={() => setActiveTab('REPORTS')} className="mt-4 text-xs font-bold text-blue-300">View visitor reports →</button>
               </div>
-
               <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
                 <div className="flex items-center justify-between mb-4">
                   <div><p className="text-[10px] uppercase tracking-[0.18em] text-slate-400 font-bold">Custody snapshot</p><h3 className="text-lg font-extrabold text-white mt-1">Dorm population</h3></div>
@@ -426,98 +338,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </section>
             <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Administrative queues">
               <div className="rounded-xl border border-slate-700 bg-slate-900 p-4"><span className="text-xs text-slate-400">Visitor check-ins today</span><strong className="block text-2xl">{Number(visitorSummary.pdl?.total||0)+Number(visitorSummary.guest?.total||0)}</strong><span className="text-xs text-slate-400">Currently on site: {Number(visitorSummary.pdl?.on_site||0)+Number(visitorSummary.guest?.on_site||0)}</span></div>
-              <button type="button" onClick={() => setActiveTab('VISITOR_RECORDS')} className="rounded-xl border border-white/10 bg-slate-900/90 p-4 text-left hover:border-blue-300/40"><span className="text-[10px] uppercase tracking-widest text-slate-400">Registered visitors</span><strong className="mt-1 block text-2xl text-white">{totalVisitors}</strong><span className="text-xs text-blue-300">Open visitor records →</span></button>
+              <button type="button" onClick={() => setActiveTab('VISITOR_RECORDS')} className="rounded-xl border border-white/10 bg-slate-900/90 p-4 text-left hover:border-blue-300/40"><span className="text-[10px] uppercase tracking-widest text-slate-400">Visitor records</span><strong className="mt-1 block text-2xl text-white">{totalVisitors}</strong><span className="text-xs text-blue-300">Open visitor records →</span></button>
               <button type="button" onClick={() => setActiveTab('RESTRICTIONS')} className="rounded-xl border border-rose-300/15 bg-slate-900/90 p-4 text-left hover:border-rose-300/40"><span className="text-[10px] uppercase tracking-widest text-slate-400">Visitor restrictions</span><strong className="mt-1 block text-2xl text-rose-200">Review</strong><span className="text-xs text-rose-100">PDL-specific and facility-wide →</span></button>
             </section>
 
             {/* Quick Actions & Facility Status Bar */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 gap-6">
               
-              {/* Left 2 Cols: Today's Gate Visitation Schedule */}
-              <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-blue-400" />
-                      Today's Gate 1 Visitation Passes & Schedule
-                    </h3>
-                    <p className="text-xs text-slate-400">Visitors scheduled for contact or e-dalaw visitation today ({todayStr})</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('APPOINTMENTS')}
-                    className="text-xs text-blue-400 hover:text-blue-300 font-semibold cursor-pointer"
-                  >
-                    View All Passes →
-                  </button>
-                </div>
-
-                {todayAppointments.length === 0 ? (
-                  <div className="text-center py-8 bg-slate-950/60 rounded-lg border border-slate-800/80">
-                    <Calendar className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-                    <p className="text-xs text-slate-400 font-medium">No appointments booked specifically for today yet.</p>
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab('APPOINTMENTS')}
-                      className="mt-3 text-xs bg-slate-800 hover:bg-slate-700 text-blue-300 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer"
-                    >
-                      Browse Upcoming Visitation Schedule
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {todayAppointments.map((appt) => (
-                      <div
-                        key={appt.id}
-                        className="bg-slate-950/80 border border-slate-800 rounded-lg p-3.5 flex items-center justify-between hover:border-slate-700 transition-colors"
-                      >
-                        <div className="flex items-center space-x-3">
-                          <div className="w-10 h-10 rounded-lg bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0 font-mono text-xs font-bold">
-                            PASS
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-white text-xs">{appt.visitorName}</span>
-                              <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-mono">
-                                {appt.appointmentReference}
-                              </span>
-                              <span className="text-[10px] bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded font-semibold">
-                                {appt.selectionMode==='PDL_DAY'&&appt.status==='Approved'?'Scheduled':appt.status}
-                              </span>
-                            </div>
-                            <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-2">
-                              <span>Visiting PDL: <strong className="text-slate-200">{appt.pdlName}</strong> ({appt.relationshipToPDL})</span>
-                              <span>•</span>
-                              <span className="text-blue-300/90">{appt.timeSlot}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center space-x-2">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedPassModalAppt(appt)}
-                            className="p-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs cursor-pointer"
-                            title="Inspect Gate Pass"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => onOpenGuardScanner(appt.userId)}
-                            className="px-2.5 py-1.5 rounded bg-blue-500 hover:bg-blue-400 text-slate-950 font-semibold text-xs flex items-center space-x-1 cursor-pointer"
-                          >
-                            <QrCode className="w-3.5 h-3.5" />
-                            <span>Scan at Gate</span>
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-              </div>
-
               <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
                 <h3 className="text-sm font-bold text-white">Visitor restrictions</h3>
                 <p className="mt-2 text-xs text-slate-400">Review PDL-specific and facility-wide restrictions. Each restriction is checked again by the backend during entry.</p>
@@ -558,186 +385,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </div>
                   </div>
                 ))}
-              </div>
-            </div>
-
-          </div>
-        )}
-
-        {/* ========================================================
-            TAB 3: VISITATIONS & GATE SCHEDULE
-        ======================================================== */}
-        {activeTab === 'APPOINTMENTS' && (
-          <div className="space-y-4">
-            
-            {/* Filter Bar */}
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
-              
-              <div className="flex items-center flex-wrap gap-2">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Date:</span>
-                <div className="flex items-center space-x-1">
-                  {(['ALL', 'TODAY', 'UPCOMING'] as const).map((dOption) => (
-                    <button
-                      key={dOption}
-                      type="button"
-                      onClick={() => setApptFilterDate(dOption)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
-                        apptFilterDate === dOption
-                          ? 'bg-blue-500 text-slate-950'
-                          : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                      }`}
-                    >
-                      {dOption === 'ALL' && 'All Dates'}
-                      {dOption === 'TODAY' && `Today (${todayStr})`}
-                      {dOption === 'UPCOMING' && 'Upcoming Dates'}
-                    </button>
-                  ))}
-                </div>
-
-                <span className="text-slate-600 ml-2">|</span>
-
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Status:</span>
-                <select
-                  value={apptFilterStatus}
-                  onChange={(e) => setApptFilterStatus(e.target.value)}
-                  className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-blue-400"
-                >
-                  <option value="ALL">All Statuses</option>
-                  <option value="Approved">Scheduled</option>
-                  <option value="Pending Review">Legacy pending record</option>
-                  <option value="Completed">Completed</option>
-                  <option value="Cancelled">Cancelled</option>
-                </select>
-              </div>
-
-              <label className="block w-full text-[10px] font-semibold text-slate-300 md:w-72">Search visits by visitor, PDL, reference, or cell
-                <div className="relative mt-1">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-                <input
-                  type="text"
-                  placeholder="Search visitor, PDL, ref #, cell..."
-                  value={apptSearch}
-                  onChange={(e) => setApptSearch(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-400"
-                />
-                </div>
-              </label>
-
-            </div>
-
-            {/* Appointments Table */}
-            <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-950/80 text-slate-400 border-b border-slate-800 font-semibold">
-                    <tr>
-                      <th className="py-3 px-4">Gate Pass Ref</th>
-                      <th className="py-3 px-4">Visitor Details</th>
-                      <th className="py-3 px-4">Inmate (PDL) In Custody</th>
-                      <th className="py-3 px-4">Scheduled Date & Slot</th>
-                      <th className="py-3 px-4">Paabot (Care Package)</th>
-                      <th className="py-3 px-4">Status</th>
-                      <th className="py-3 px-4 text-right">Clearance Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/80">
-                    {filteredAppointments.map((appt) => {
-                      const isToday = appt.visitDate === todayStr;
-                      return (
-                        <tr key={appt.id} className={`hover:bg-slate-850/50 transition-colors ${isToday ? 'bg-blue-500/5' : ''}`}>
-                          
-                          {/* Reference */}
-                          <td className="py-3 px-4">
-                            <div className="font-mono font-bold text-blue-300">{appt.appointmentReference}</div>
-                            <div className="text-[10px] text-slate-400">{appt.visitType}</div>
-                            {isToday && (
-                              <span className="inline-block mt-1 bg-blue-500/20 text-blue-400 text-[9px] font-black px-1.5 py-0.2 rounded uppercase">
-                                TODAY'S PASS
-                              </span>
-                            )}
-                          </td>
-
-                          {/* Visitor */}
-                          <td className="py-3 px-4">
-                            <div className="font-bold text-white">{appt.visitorName}</div>
-                            <div className="text-[11px] text-slate-400">{appt.visitorContact}</div>
-                            <div className="text-[10px] text-slate-500">Rel: {appt.relationshipToPDL}</div>
-                          </td>
-
-                          {/* PDL */}
-                          <td className="py-3 px-4">
-                            <div className="font-bold text-slate-200">{appt.pdlName}</div>
-                            <div className="text-[11px] font-mono text-slate-400">{appt.pdlNumber}</div>
-                            <div className="text-[10px] text-blue-400/90">{appt.cellDormitory}</div>
-                          </td>
-
-                          {/* Date & Slot */}
-                          <td className="py-3 px-4">
-                            <div className="font-semibold text-slate-200 flex items-center gap-1">
-                              <Calendar className="w-3.5 h-3.5 text-blue-400" />
-                              {appt.visitDate}
-                            </div>
-                            <div className="text-[11px] text-slate-400">{appt.timeSlot}</div>
-                            <div className="text-[10px] text-slate-500">{appt.jailFacilityName}</div>
-                          </td>
-
-                          {/* Paabot */}
-                          <td className="py-3 px-4 max-w-xs">
-                            <p className="text-slate-300 text-[11px] line-clamp-2" title={appt.paabotItemsDescription}>
-                              {appt.paabotItemsDescription || 'No care package'}
-                            </p>
-                          </td>
-
-                          {/* Status */}
-                          <td className="py-3 px-4">
-                            <span className={`inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full font-bold ${
-                              appt.status === 'Approved'
-                                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                                : appt.status === 'Completed'
-                                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                                : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                            }`}>
-                              {appt.status}
-                            </span>
-                          </td>
-
-                          {/* Actions */}
-                          <td className="py-3 px-4 text-right space-x-1.5">
-                            <button
-                              type="button"
-                              onClick={() => setSelectedPassModalAppt(appt)}
-                              className="p-1.5 rounded bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white border border-slate-700 cursor-pointer"
-                              title="View & Print Official Gate Pass"
-                            >
-                              <Printer className="w-3.5 h-3.5" />
-                            </button>
-
-                            {appt.selectionMode!=='PDL_DAY'&&appt.status === 'Approved' && (
-                              <button
-                                type="button"
-                                onClick={() => onUpdateAppointmentStatus(appt.id, 'Completed')}
-                                className="px-2 py-1 rounded bg-blue-500 hover:bg-blue-400 text-slate-950 text-[11px] font-semibold cursor-pointer"
-                                title="Mark Visitation Concluded"
-                              >
-                                Mark Done
-                              </button>
-                            )}
-
-                            <button
-                              type="button"
-                              onClick={() => onDeleteAppointment(appt.id)}
-                              className="p-1.5 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 cursor-pointer"
-                              title="Cancel / Revoke Pass"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </td>
-
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
               </div>
             </div>
 
@@ -945,13 +592,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           </div>
                         )}
 
-                        {/* Visits stats */}
-                        <div className="text-[11px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-800/80">
-                          <span>Visits on Record:</span>
-                          <strong className="text-blue-300">
-                            {appointments.filter((a) => a.pdlId === pdl.id).length} scheduled
-                          </strong>
-                        </div>
+                        <p className="border-t border-slate-800/80 pt-2 text-[11px] text-slate-400">Approved visitors and this PDL’s weekly visiting day are managed in Approved lists & Scheduling.</p>
                       </div>
 
                       {/* Card Actions: Official Docs & Edit Registration */}
@@ -1186,113 +827,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         {activeTab === 'REPORTS' && <><AdminReportsPanel/><AdminVisitorReportsPanel/></>}
 
         {activeTab === 'FACILITY_SETTINGS' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
-            {/* Slot Limits */}
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Sliders className="w-4 h-4 text-blue-400" />
-                Visitation Slot Capacity Configuration
-              </h3>
-              <p className="text-xs text-slate-400">
-                Configure the maximum number of visitors permitted per batch to prevent overcrowding at the visitation hall.
-              </p>
-
-              <div className="space-y-4 pt-2">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    BJMP Imus Male Dormitory — Capacity per Batch
-                  </label>
-                  <div className="flex items-center space-x-3">
-                    <input
-                      type="number"
-                      min={10}
-                      max={100}
-                      value={maleCapacity}
-                      disabled={!configuredFacilities.includes('imus-city-jail-male')||settingsBusy}
-                      onChange={(e) => setMaleCapacity(Number(e.target.value))}
-                      className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 w-32 focus:outline-none focus:border-blue-400"
-                    />
-                    <span className="text-xs text-slate-400">visitors maximum / batch slot</span>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    BJMP Imus Female Dormitory — Capacity per Batch
-                  </label>
-                  <div className="flex items-center space-x-3">
-                    <input
-                      type="number"
-                      min={10}
-                      max={100}
-                      value={femaleCapacity}
-                      disabled={!configuredFacilities.includes('imus-city-jail-female')||settingsBusy}
-                      onChange={(e) => setFemaleCapacity(Number(e.target.value))}
-                      className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 w-32 focus:outline-none focus:border-blue-400"
-                    />
-                    <span className="text-xs text-slate-400">visitors maximum / batch slot</span>
-                  </div>
-                </div>
-
-                <div className="pt-2">
-                  <button
-                    type="button"
-                    disabled={settingsBusy||!configuredFacilities.some(id=>['imus-city-jail-male','imus-city-jail-female'].includes(id))}
-                    onClick={()=>void saveCapacities()}
-                    className="bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold px-4 py-2 rounded-lg text-xs cursor-pointer shadow"
-                  >
-                    Save Capacity Settings
-                  </button>
-                  <p className="mt-2 text-xs text-slate-400">Only facilities configured in the database can be edited. Existing reservations are retained when a limit is reduced.</p>
-                  {settingsError&&<p role="alert" className="mt-2 text-xs text-rose-300">{settingsError}</p>}
-                  {settingsMessage&&<p role="status" className="mt-2 text-xs text-slate-300">{settingsMessage}</p>}
-                </div>
-              </div>
+          <section className="max-w-3xl rounded-xl border border-slate-800 bg-slate-900 p-5 text-slate-100">
+            <h2 className="flex items-center gap-2 text-base font-bold"><AlertTriangle className="h-4 w-4 text-blue-400"/>Live facility notice</h2>
+            <p className="mt-2 text-xs text-slate-400">Share current visiting guidance with staff and people arriving at the facility.</p>
+            <textarea rows={4} value={systemNotice} onChange={(e) => setSystemNotice(e.target.value)} className="mt-4 w-full rounded-lg border border-slate-700 bg-slate-950 p-3 text-sm text-slate-100" placeholder="Enter a notice, one message per line..."/>
+            <p className="mt-2 text-xs text-slate-400">Put each message on a new line. Messages scroll in the announcement bar.</p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button type="button" disabled={settingsBusy} onClick={()=>void publishNotice(systemNotice)} className="rounded-lg bg-blue-500 px-4 py-2 text-xs font-bold text-slate-950 disabled:opacity-50">Update live notice</button>
+              <button type="button" disabled={settingsBusy} onClick={()=>void publishNotice('')} className="rounded-lg border border-slate-600 px-3 py-2 text-xs text-slate-200 disabled:opacity-50">Clear notice</button>
             </div>
-
-            {/* Broadcast Notice Controller */}
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-blue-400" />
-                Live Broadcast Security Notice
-              </h3>
-              <p className="text-xs text-slate-400">
-                Broadcast vital guidelines to all visitors on their booking screen and login portal banner.
-              </p>
-
-              <div>
-                <textarea
-                  rows={4}
-                  value={systemNotice}
-                  onChange={(e) => setSystemNotice(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-xs text-slate-100 focus:outline-none focus:border-blue-400"
-                  placeholder="Enter announcements, one message per line..."
-                />
-                <p className="mt-2 text-xs text-slate-400">Put each message on a new line. Messages scroll from right to left in the announcement bar.</p>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <button
-                  type="button"
-                  disabled={settingsBusy}
-                  onClick={()=>void publishNotice(systemNotice)}
-                  className="bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold px-4 py-2 rounded-lg text-xs cursor-pointer shadow"
-                >
-                  Update Live Broadcast
-                </button>
-                <button
-                  type="button"
-                  disabled={settingsBusy}
-                  onClick={()=>void publishNotice('')}
-                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2 rounded-lg text-xs cursor-pointer"
-                >
-                  Clear Notice
-                </button>
-              </div>
-            </div>
-
-          </div>
+            {settingsError&&<p role="alert" className="mt-3 text-xs text-rose-300">{settingsError}</p>}{settingsMessage&&<p role="status" className="mt-3 text-xs text-slate-300">{settingsMessage}</p>}
+          </section>
         )}
 
         </div>
@@ -1300,18 +845,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       {/* ========================================================
           MODAL: Printable Gate Pass Preview
-      ======================================================== */}
-      {selectedPassModalAppt && (
-        <PrintablePassModal
-          admin
-          appointment={selectedPassModalAppt}
-          user={users.find((u) => u.id === selectedPassModalAppt.userId) || currentUser}
-          onClose={() => setSelectedPassModalAppt(null)}
-        />
-      )}
-
-      {/* ========================================================
-          MODAL: Comprehensive PDL Registration & Booking Form
       ======================================================== */}
       {isAddPdlOpen && (
         <PDLRegistrationModal
