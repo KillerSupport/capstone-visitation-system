@@ -42,7 +42,8 @@ export function VisitorOperationsDesk({ user }: { user: UserProfile }) {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [scanId, setScanId] = useState('');
-  const pendingScan = useRef('');
+  const usbScannerInput = useRef<HTMLInputElement>(null);
+  const usbScannerBuffer = useRef('');
   const [searchedQuery, setSearchedQuery] = useState('');
   const searchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const lookupVersion = useRef(0);
@@ -151,27 +152,6 @@ export function VisitorOperationsDesk({ user }: { user: UserProfile }) {
         }
         return;
       }
-      const requestId = pendingScan.current;
-      if (!requestId) return;
-      if (event.type === 'DEVICE_STATUS' && event.payload.connected === false) {
-        pendingScan.current = '';
-        setScanId('');
-        showScanError('The ESP32 QR scanner is offline.');
-        return;
-      }
-      if (event.requestId !== requestId) return;
-      if (event.type === 'DEVICE_ERROR') {
-        pendingScan.current = '';
-        setScanId('');
-        showScanError(String(event.payload.message || 'QR scan failed.'));
-      }
-      if (event.type === 'QR_SCANNED') {
-        pendingScan.current = '';
-        setScanId('');
-        const code = String(event.payload.code || '').trim();
-        setQuery('');
-        void findVisitor(code, true);
-      }
     });
     return () => { unsubscribe(); };
   }, [findVisitor, selected?.id, showScanError]);
@@ -188,10 +168,11 @@ export function VisitorOperationsDesk({ user }: { user: UserProfile }) {
   useEffect(() => {
     if (!scanId) return;
     const timeout = setTimeout(() => {
-      if (pendingScan.current !== scanId) return;
-      pendingScan.current = '';
+      if (scanId !== 'usb') return;
       setScanId('');
-      showScanError('The scanner did not send a result. Check the ESP32 connection and try again.');
+      usbScannerBuffer.current = '';
+      if (usbScannerInput.current) usbScannerInput.current.value = '';
+      showScanError('The USB scanner did not send a result. Check that it sends Enter after the QR data, then try again.');
     }, 23000);
     return () => clearTimeout(timeout);
   }, [scanId, showScanError]);
@@ -199,18 +180,11 @@ export function VisitorOperationsDesk({ user }: { user: UserProfile }) {
     clearTimeout(searchTimer.current);
     setSearchedQuery('');
     setError(''); setNotice(''); setResults([]); setSelected(null); setVerification(null);
-    try {
-      const requestId = crypto.randomUUID();
-      pendingScan.current = requestId;
-      hardware.command('QR_SCAN_START', {}, requestId);
-      setScanId(requestId);
-    } catch (e) {
-      pendingScan.current = '';
-      showScanError(e instanceof Error ? e.message : 'Could not start QR scan.');
-    }
+    usbScannerBuffer.current = '';
+    setScanId('usb');
+    window.setTimeout(() => usbScannerInput.current?.focus(), 0);
   };
   const switchMode = (next: Mode) => {
-    pendingScan.current = '';
     clearTimeout(searchTimer.current);
     ++lookupVersion.current;
     setScanId('');
@@ -324,7 +298,7 @@ export function VisitorOperationsDesk({ user }: { user: UserProfile }) {
       {error && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}{notice && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
       {mode === 'ACTIVE' && <section className="rounded-xl border border-slate-200 bg-white p-5"><div className="mb-3 flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-lg font-bold">Active check-ins</h2><p className="text-xs text-slate-500">Find someone currently checked in, then record their time out.</p></div><label className="w-full text-xs font-semibold text-slate-700 sm:w-72">Find checked-in visitor<input type="search" value={activeSearch} onChange={e => setActiveSearch(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal" placeholder="Visitor name, ID, contact, or PDL"/></label></div><div className="overflow-x-auto"><table className="w-full min-w-[750px] text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Type / visitor</th><th className="p-3">PDL / purpose</th><th className="p-3">Date and time in</th><th className="p-3">Time out</th><th className="p-3">Action</th></tr></thead><tbody className="divide-y divide-slate-100">{active.filter(row => `${row.visitor_name} ${row.visitor_code || ''} ${row.contact_number || ''} ${row.pdl_name || ''} ${row.purpose_of_visit || ''}`.toLowerCase().includes(activeSearch.trim().toLowerCase())).map(row => <tr key={`${row.visit_type}-${row.id}`}><td className="p-3"><strong>{row.visit_type}</strong><span className="block">{row.visitor_name}</span><span className="block text-xs text-slate-500">{row.visitor_code} · {row.contact_number}</span></td><td className="p-3">{row.pdl_name || row.purpose_of_visit || '—'}<span className="block text-xs text-slate-500">{row.relationship || row.cell_number || ''}</span></td><td className="p-3">{String(row.visit_date).slice(0, 10)}<span className="block text-xs text-slate-500">{new Date(row.time_in).toLocaleTimeString()}</span></td><td className="p-3">—</td><td className="p-3"><button onClick={() => void checkout(row)} disabled={busy} className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white"><LogOut size={13}/>Check out</button></td></tr>)}{active.length > 0 && !active.some(row => `${row.visitor_name} ${row.visitor_code || ''} ${row.contact_number || ''} ${row.pdl_name || ''} ${row.purpose_of_visit || ''}`.toLowerCase().includes(activeSearch.trim().toLowerCase())) && <tr><td colSpan={5} className="p-5 text-center text-slate-500">No active visitors match that name.</td></tr>}{!active.length && <tr><td colSpan={5} className="p-5 text-center text-slate-500">No visitors are currently checked in.</td></tr>}</tbody></table></div></section>}
       {mode !== 'ACTIVE' && <section className="grid gap-5 lg:grid-cols-[minmax(300px,.8fr)_minmax(400px,1.2fr)]">
-        <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-5"><div><h2 className="text-lg font-bold">Find visitor to check in</h2><p className="mt-1 text-xs text-slate-500">Look up an existing visitor record by name or Visitor ID, or scan their QR token.</p></div>{mode === 'PDL' && <button type="button" onClick={scanQr} disabled={busy || Boolean(scanId) || loading} className="rounded-lg border border-blue-700 px-3 py-2 text-sm font-semibold text-blue-700 disabled:opacity-50">{scanId ? 'Waiting for QR…' : 'Scan QR'}</button>}<form onSubmit={search} className="flex items-end gap-2"><label className="min-w-0 flex-1 text-xs font-semibold text-slate-700">Visitor name, ID, or QR<input value={query} disabled={busy || Boolean(scanId)} onChange={e => updateQuery(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm font-normal" placeholder="Enter visitor name or ID, or scan QR"/></label><button disabled={busy || Boolean(scanId) || loading} className="rounded-lg bg-blue-700 px-3 text-white disabled:opacity-50"><Search size={17}/><span className="sr-only">Search visitors</span></button></form>{loading && <p className="text-xs text-slate-500">Searching…</p>}
+        <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-5"><div><h2 className="text-lg font-bold">Find visitor to check in</h2><p className="mt-1 text-xs text-slate-500">Look up an existing visitor record by name or Visitor ID, or scan their QR token.</p></div>{mode === 'PDL' && <><button type="button" onClick={scanQr} disabled={busy || Boolean(scanId) || loading} className="rounded-lg border border-blue-700 px-3 py-2 text-sm font-semibold text-blue-700 disabled:opacity-50">{scanId ? 'Waiting for USB QR scanner…' : 'Scan QR (USB GM65)'}</button><input ref={usbScannerInput} aria-label="USB QR scanner input" tabIndex={-1} autoComplete="off" className="pointer-events-none fixed left-[-10000px] top-0 h-px w-px opacity-0" onChange={e => { usbScannerBuffer.current = e.target.value; }} onKeyDown={e => { if (e.key !== 'Enter' || scanId !== 'usb') return; e.preventDefault(); const code = usbScannerBuffer.current.trim(); usbScannerBuffer.current = ''; e.currentTarget.value = ''; setScanId(''); setQuery(''); clearTimeout(searchTimer.current); void findVisitor(code, true); }} /></>}<form onSubmit={search} className="flex items-end gap-2"><label className="min-w-0 flex-1 text-xs font-semibold text-slate-700">Visitor name, ID, or QR<input value={query} disabled={busy || Boolean(scanId)} onChange={e => updateQuery(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm font-normal" placeholder="Enter visitor name or ID, or scan QR"/></label><button disabled={busy || Boolean(scanId) || loading} className="rounded-lg bg-blue-700 px-3 text-white disabled:opacity-50"><Search size={17}/><span className="sr-only">Search visitors</span></button></form>{scanId && <p className="text-xs text-blue-700">Scan with GM65 in USB keyboard/HID mode; set its suffix to Enter.</p>}{loading && <p className="text-xs text-slate-500">Searching…</p>}
           <div className="max-h-[420px] space-y-2 overflow-auto">{results.map(row => <button key={row.id} disabled={busy || loading || Boolean(scanId)} onClick={() => choose(row)} className={`w-full rounded-lg border p-3 text-left ${String(selected?.id) === String(row.id) ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:bg-slate-50'}`}><span className="flex items-center justify-between gap-2"><strong>{row.full_name}</strong>{row.facilityRestricted ? <ShieldAlert size={16} className="text-rose-700"/> : row.has_qr_identity ? <BadgeCheck size={16} className="text-emerald-700"/> : null}</span><span className="block text-xs text-slate-500">{row.visitor_code} · {row.gender} · Age {row.age ?? '—'}</span>{row.facilityRestricted && <span className="mt-1 block text-xs font-bold text-rose-700">FACILITY-WIDE RESTRICTION</span>}</button>)}{searchedQuery === query.trim() && searchedQuery.length > 1 && !loading && !results.length && <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-500">No visitor record found.</p>}</div>
         </div>
         <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-widest text-blue-700">{mode === 'PDL' ? 'PDL Visitor form' : 'Jail Visitor form'}</p><h2 className="mt-1 text-lg font-bold">{mode === 'PDL' ? 'Check in an approved PDL Visitor' : 'Register or retrieve a Guest Visitor'}</h2></div>{mode === 'GUEST' && selected && <button type="button" onClick={() => void printId()} disabled={busy || !selected.has_qr_identity} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold disabled:opacity-40"><BookUser size={14}/>Print existing ID</button>}</div>
