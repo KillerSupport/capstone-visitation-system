@@ -236,7 +236,7 @@ test('PDL-specific, facility-wide, temporary, and removed restrictions follow sc
   assert.deepEqual(assignments[0].map((row: any) => row.status), ['APPROVED', 'APPROVED']);
 });
 
-test('hardware bridge relays a QR result and scanner error to the worker', async () => {
+test('worker desk scans QR codes and enrolls an approved visitor fingerprint', async () => {
   const address = base.replace(/^http/, 'ws').replace(/\/api$/, '/hardware');
   const nextMessage = async (socket: WebSocket) => {
     const [raw] = await once(socket, 'message', { signal: AbortSignal.timeout(5000) });
@@ -266,6 +266,33 @@ test('hardware bridge relays a QR result and scanner error to the worker', async
       device.send(JSON.stringify({ ...event, requestId }));
       assert.deepEqual(await received, { ...event, requestId });
     }
+    const visitor = visitors.get('Multi PDL Visitor')!;
+    const deniedQr = await worker.request(`/visitor-records/worker/visitors/${visitor.id}/qr`, { pdlId: pdlA });
+    assert.equal(deniedQr.status, 409);
+    const qrCopy = await worker.request(`/visitor-records/worker/visitors/${visitor.id}/qr`, { pdlId: pdlB });
+    assert.equal(qrCopy.status, 200, JSON.stringify(qrCopy.body));
+    assert.equal(qrCopy.body.qr_token, visitor.qr);
+
+    const enrollmentCommand = { type: 'COMMAND', payload: { action: 'FINGERPRINT_ENROLL', visitorId: visitor.id, pdlId: pdlB } };
+    const rejected = nextMessage(desk);
+    desk.send(JSON.stringify({ ...enrollmentCommand, requestId: 'unapproved', payload: { ...enrollmentCommand.payload, pdlId: 'missing' } }));
+    assert.equal((await rejected).type, 'DEVICE_ERROR');
+
+    const command = nextMessage(device);
+    desk.send(JSON.stringify({ ...enrollmentCommand, requestId: 'enroll' }));
+    const scan = await command;
+    assert.deepEqual(scan.payload, { action: 'FINGERPRINT_ENROLL', subjectType: 'VISITOR', subjectId: visitor.id });
+    const confirmed = nextMessage(desk);
+    device.send(JSON.stringify({ type: 'FINGERPRINT_ENROLL_RESULT', requestId: scan.requestId,
+      payload: { success: true, subjectType: 'VISITOR', subjectId: visitor.id, templateId: '1' } }));
+    assert.deepEqual(await confirmed, { type: 'FINGERPRINT_ENROLLED', requestId: 'enroll', payload: {} });
+    const search = await worker.request('/visitor-records/worker/search?q=Multi%20PDL');
+    assert.equal(Number(search.body[0].has_fingerprint), 1);
+    assert.equal(search.body[0].template_id, undefined);
+
+    const duplicate = nextMessage(desk);
+    desk.send(JSON.stringify({ ...enrollmentCommand, requestId: 'duplicate' }));
+    assert.match((await duplicate).payload.message, /already has an enrolled fingerprint/);
   } finally {
     desk?.terminate();
     device.terminate();

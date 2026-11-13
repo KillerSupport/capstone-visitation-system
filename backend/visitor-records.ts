@@ -4,6 +4,7 @@ import { pool } from './database/db.js';
 import { admin, requireDuty } from './auth.js';
 import { normalizeEmail, normalizePhilippineMobileNumber } from './identity.js';
 import { manilaDate } from './validation.js';
+import type { Pool, PoolConnection } from 'mysql2/promise';
 
 export const visitorRecordsRouter = Router();
 const adminOnly = admin;
@@ -70,6 +71,44 @@ async function ensureQrIdentity(conn: any, visitorId: string | number) {
   const token = randomBytes(32).toString('hex');
   await conn.query('INSERT INTO visitor_qr_identities(visitor_record_id,qr_token) VALUES(?,?)', [visitorId, token]);
   return token;
+}
+
+export async function requireApprovedWorkerVisit(conn: Pool | PoolConnection, visitorId: string, pdlId: string, lock = false) {
+  if (!/^[1-9]\d{0,19}$/.test(visitorId) || !pdlId || pdlId.length > 100) {
+    throw new Error('Select an approved visitor and PDL.');
+  }
+  const [rows] = await conn.query<any[]>(`SELECT s.weekday FROM pdls p
+    JOIN pdl_visitor_assignments a ON a.pdl_id=p.id
+    JOIN visitor_records v ON v.id=a.visitor_record_id
+    LEFT JOIN pdl_visitation_schedules s ON s.pdl_id=p.id
+    WHERE p.id=? AND v.id=? AND a.status='APPROVED' AND p.is_archived=0
+      AND p.status='In Custody' AND v.is_archived=0 AND v.status='ACTIVE'
+    ${lock ? 'FOR UPDATE' : ''}`, [pdlId, visitorId]);
+  const visit = rows[0];
+  if (!visit) throw new Error('This visitor has no active approval for the selected PDL.');
+  if (await hasFacilityRestriction(conn, visitorId) || await hasPdlRestriction(conn, visitorId, pdlId)) {
+    throw new Error('An active restriction prevents this visitor from proceeding.');
+  }
+  const weekday = new Date(`${manilaDate()}T12:00:00+08:00`).getDay();
+  if (visit.weekday == null || Number(visit.weekday) !== weekday) {
+    throw new Error('The selected PDL is not scheduled for visits today.');
+  }
+}
+
+export async function saveVisitorFingerprint(visitorId: string, templateId: number, actor: {id: string; role: string}, pdlId: string) {
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    await conn.query('INSERT INTO visitor_fingerprint_identities (visitor_record_id,template_id,enrolled_by) VALUES (?,?,?)',
+      [visitorId, templateId, actor.id]);
+    await audit(conn, actor, 'VISITOR_FINGERPRINT_ENROLLED', 'VISITOR_RECORD', visitorId, { pdlId });
+    await conn.commit();
+  } catch (error) {
+    await conn.rollback();
+    throw error;
+  } finally {
+    conn.release();
+  }
 }
 
 visitorRecordsRouter.get('/admin/visitors', adminOnly, async (req, res) => {
@@ -434,8 +473,10 @@ visitorRecordsRouter.get('/worker/search', gateStaff, async (req, res) => {
   if (q.length < 2) return res.json([]);
   const like = `%${q}%`;
   const [rows] = await pool.query<any[]>(`SELECT v.id,v.visitor_code,v.full_name,v.gender,v.address,v.address_data,v.age,v.contact_number,v.contact_email,v.status,v.is_archived,v.created_at,v.updated_at,
-      (q.visitor_record_id IS NOT NULL) AS has_qr_identity
+      (q.visitor_record_id IS NOT NULL) AS has_qr_identity,
+      (f.visitor_record_id IS NOT NULL) AS has_fingerprint
     FROM visitor_records v LEFT JOIN visitor_qr_identities q ON q.visitor_record_id=v.id
+    LEFT JOIN visitor_fingerprint_identities f ON f.visitor_record_id=v.id
     WHERE v.is_archived=0 AND v.status='ACTIVE' AND
       ${qrOnly ? 'q.qr_token=?' : '(v.visitor_code LIKE ? OR v.full_name LIKE ? OR q.qr_token=?)'}
     ORDER BY v.full_name LIMIT 50`, qrOnly ? [q] : [like,like,q]);
@@ -499,6 +540,27 @@ visitorRecordsRouter.get('/worker/visitors/:id/qr', gateStaff, async (req, res) 
   if (!rows[0]) return res.status(404).json({ error: 'No active PDL visitor QR identity was found.' });
   res.setHeader('Cache-Control','private, no-store');
   res.json(rows[0]);
+});
+
+visitorRecordsRouter.post('/worker/visitors/:id/qr', gateStaff, async (req, res) => {
+  const visitorId = req.params.id;
+  const pdlId = String(req.body?.pdlId ?? '');
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    await requireApprovedWorkerVisit(conn, visitorId, pdlId, true);
+    const token = await ensureQrIdentity(conn, visitorId);
+    const [[visitor]] = await conn.query<any[]>(
+      'SELECT id,visitor_code,full_name,gender,address,age FROM visitor_records WHERE id=?', [visitorId]);
+    await conn.commit();
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.json({ ...visitor, qr_token: token });
+  } catch (error: any) {
+    await conn.rollback();
+    res.status(409).json({ error: error.code ? 'Could not retrieve the visitor QR.' : error.message });
+  } finally {
+    conn.release();
+  }
 });
 
 visitorRecordsRouter.get('/worker/verify/:visitorId/:pdlId', gateStaff, async (req, res) => {

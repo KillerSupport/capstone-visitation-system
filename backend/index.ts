@@ -2,7 +2,7 @@ import {incidentRouter,validateIncident} from './incidents.js';
 import {staffRouter} from './staff.js';
 import 'dotenv/config';
 import {geographyRouter} from './geography.js';
-import { visitorRecordsRouter } from './visitor-records.js';
+import { requireApprovedWorkerVisit, saveVisitorFingerprint, visitorRecordsRouter } from './visitor-records.js';
 import { accountChangesRouter } from './account-changes.js';
 import express from 'express';
 import cors from 'cors';
@@ -75,6 +75,32 @@ wss.on('connection', async (ws: WebSocket, request) => {
 interface HardwarePeer { ws: WebSocket; userId?: string; role?: string; sessionId?:string; device: boolean; }
 const hardwarePeers = new Set<HardwarePeer>();
 let hardwareDevice: WebSocket | null = null;
+interface FingerprintEnrollment {
+  device: WebSocket;
+  worker: WebSocket;
+  requestId: string;
+  deviceRequestId: string;
+  visitorId: string;
+  pdlId: string;
+  actor: { id: string; role: string };
+  timeout?: ReturnType<typeof setTimeout>;
+  saving?: boolean;
+}
+let enrollment: FingerprintEnrollment | undefined;
+
+function finishEnrollment(pending: FingerprintEnrollment, error?: string) {
+  if (enrollment !== pending) return;
+  clearTimeout(pending.timeout);
+  enrollment = undefined;
+  if (pending.worker.readyState === WebSocket.OPEN) {
+    pending.worker.send(JSON.stringify({
+      type: error ? 'DEVICE_ERROR' : 'FINGERPRINT_ENROLLED',
+      requestId: pending.requestId,
+      payload: error ? { message: error } : {},
+    }));
+  }
+}
+
 const hardwareEvents = new Set(['QR_SCANNED','DEVICE_STATUS','DEVICE_ERROR','COMMAND_ACK']);server.on('upgrade',(request,socket,head)=>{
   const pathname=new URL(request.url||'/', 'http://localhost').pathname;
   const target=pathname==='/ws'?wss:pathname==='/hardware'?hardwareWss:null;
@@ -88,20 +114,60 @@ hardwareWss.on('connection',async(ws:WebSocket,request)=>{
     const peer:HardwarePeer={ws,userId:session.id,role:session.role,sessionId:session.sessionId,device:false};hardwarePeers.add(peer);
     ws.send(JSON.stringify({type:'AUTHENTICATED',payload:{role:session.role,deviceConnected:Boolean(hardwareDevice&&hardwareDevice.readyState===WebSocket.OPEN)}}));
     ws.on('message',async(data:Buffer)=>{
+      let pending: FingerprintEnrollment | undefined;
       try{
         const msg=JSON.parse(data.toString());
-        if(msg.type!=='COMMAND'||!msg.requestId||msg.payload?.action!=='QR_SCAN_START')return;
-        if(!hardwareDevice||hardwareDevice.readyState!==WebSocket.OPEN){ws.send(JSON.stringify({type:'DEVICE_STATUS',payload:{connected:false,message:'ESP32E hardware gateway is offline.'}}));return}
+        const action = msg.payload?.action;
+        if(msg.type!=='COMMAND'||typeof msg.requestId!=='string'||!msg.requestId||msg.requestId.length>100||
+          (action!=='QR_SCAN_START' && action!=='FINGERPRINT_ENROLL'))return;
+        if(!hardwareDevice||hardwareDevice.readyState!==WebSocket.OPEN){
+          ws.send(JSON.stringify({type:'DEVICE_ERROR',requestId:msg.requestId,payload:{message:'ESP32E hardware gateway is offline.'}}));
+          return;
+        }
         const latest=await getUserById(session.id);
-        if(!latest||!['ACTIVE','ACTIVATED'].includes(latest.accountStatus)||!hasDuty(latest,'GATE'))return;
-        hardwareDevice.send(JSON.stringify({type:'COMMAND',requestId:String(msg.requestId),payload:{action:'QR_SCAN_START'}}));
-      }catch{}
+        if(!latest||!['ACTIVE','ACTIVATED'].includes(latest.accountStatus)||!hasDuty(latest,'GATE')){
+          ws.send(JSON.stringify({type:'DEVICE_ERROR',requestId:msg.requestId,payload:{message:'An active gate staff account is required.'}}));
+          return;
+        }
+        const device = hardwareDevice;
+        if (!device || device.readyState !== WebSocket.OPEN || enrollment) {
+          ws.send(JSON.stringify({type:'DEVICE_ERROR',requestId:msg.requestId,payload:{
+            message: enrollment ? 'A fingerprint enrollment is already in progress.' : 'The ESP32 is offline.',
+          }}));
+          return;
+        }
+        if (action === 'QR_SCAN_START') {
+          device.send(JSON.stringify({type:'COMMAND',requestId:msg.requestId,payload:{action}}));
+          return;
+        }
+        pending = {
+          device, worker: ws, requestId: msg.requestId, deviceRequestId: randomUUID(),
+          visitorId: String(msg.payload.visitorId ?? ''), pdlId: String(msg.payload.pdlId ?? ''),
+          actor: { id: session.id, role: latest.role },
+        };
+        enrollment = pending;
+        await requireApprovedWorkerVisit(pool, pending.visitorId, pending.pdlId);
+        const [existing] = await pool.query<any[]>(
+          'SELECT 1 FROM visitor_fingerprint_identities WHERE visitor_record_id=?', [pending.visitorId]);
+        if (existing.length) throw new Error('This visitor already has an enrolled fingerprint.');
+        if (enrollment !== pending || ws.readyState !== WebSocket.OPEN ||
+          device !== hardwareDevice || device.readyState !== WebSocket.OPEN) {
+          finishEnrollment(pending, 'The hardware connection closed before enrollment started.');
+          return;
+        }
+        const activeEnrollment = pending;
+        pending.timeout = setTimeout(() => finishEnrollment(activeEnrollment, 'The fingerprint scanner did not respond.'), 80000);
+        device.send(JSON.stringify({type:'COMMAND',requestId:pending.deviceRequestId,
+          payload:{action,subjectType:'VISITOR',subjectId:pending.visitorId}}));
+      }catch(error: any){
+        if (pending) finishEnrollment(pending, error.code ? 'Could not start fingerprint enrollment.' : error.message);
+      }
     });
     ws.on('close',()=>hardwarePeers.delete(peer));return;
   }
   const token=process.env.HARDWARE_DEVICE_TOKEN||'';let authenticated=false;
   const timer=setTimeout(()=>{if(!authenticated)ws.close(1008,'Device authentication required')},5000);
-  ws.on('message',(data:Buffer)=>{
+  ws.on('message',async(data:Buffer)=>{
     try{
       const msg=JSON.parse(data.toString());
       if(!authenticated){
@@ -112,15 +178,43 @@ hardwareWss.on('connection',async(ws:WebSocket,request)=>{
         for(const staff of hardwarePeers)if(!staff.device&&staff.ws.readyState===WebSocket.OPEN)staff.ws.send(JSON.stringify({type:'DEVICE_STATUS',payload:{connected:true,device:'esp32e'}}));
         return;
       }
-      if(!hardwareEvents.has(msg.type))return;
+      const pending = enrollment;
+      if (pending?.device === ws && msg.requestId === pending.deviceRequestId) {
+        if (pending.saving) return;
+        if (msg.type === 'DEVICE_ERROR') {
+          finishEnrollment(pending, String(msg.payload?.message || 'Fingerprint enrollment failed.').slice(0, 300));
+        }
+        if (msg.type === 'FINGERPRINT_ENROLL_RESULT' && msg.payload?.success === true) {
+          const templateId = Number(msg.payload.templateId);
+          if (msg.payload.subjectType !== 'VISITOR' || msg.payload.subjectId !== pending.visitorId ||
+            !Number.isInteger(templateId) || templateId < 1 || templateId > 65535) {
+            finishEnrollment(pending, 'The scanner returned an invalid fingerprint enrollment result.');
+            return;
+          }
+          pending.saving = true;
+          clearTimeout(pending.timeout);
+          try {
+            await saveVisitorFingerprint(pending.visitorId, templateId, pending.actor, pending.pdlId);
+            finishEnrollment(pending);
+          } catch (error: any) {
+            console.error('Could not save visitor fingerprint enrollment:', error.code || error.name);
+            finishEnrollment(pending, 'The scanner captured the fingerprint, but its link to the visitor could not be saved.');
+          }
+        }
+        return;
+      }
+      if(ws!==hardwareDevice||!hardwareEvents.has(msg.type))return;
       const event=JSON.stringify({type:msg.type,requestId:msg.requestId||null,payload:msg.type==='QR_SCANNED'?{code:String(msg.payload?.code||msg.payload?.value||'')}:{connected:msg.payload?.connected,message:String(msg.payload?.message||'')}});
       for(const staff of hardwarePeers)if(!staff.device&&staff.ws.readyState===WebSocket.OPEN)staff.ws.send(event);
     }catch{}
   });
   ws.on('close',()=>{
     clearTimeout(timer);
-    if(hardwareDevice===ws)hardwareDevice=null;
-    for(const staff of hardwarePeers)if(!staff.device&&staff.ws.readyState===WebSocket.OPEN)staff.ws.send(JSON.stringify({type:'DEVICE_STATUS',payload:{connected:false,device:'esp32e'}}));
+    if(enrollment?.device===ws && !enrollment.saving)finishEnrollment(enrollment,'The fingerprint scanner disconnected.');
+    if(hardwareDevice===ws){
+      hardwareDevice=null;
+      for(const staff of hardwarePeers)if(!staff.device&&staff.ws.readyState===WebSocket.OPEN)staff.ws.send(JSON.stringify({type:'DEVICE_STATUS',payload:{connected:false,device:'esp32e'}}));
+    }
     for(const peer of hardwarePeers)if(peer.ws===ws)hardwarePeers.delete(peer);
   });
 });// ─── REST Endpoints ───────────────────────────────────────────────────────────

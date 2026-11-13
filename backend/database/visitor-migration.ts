@@ -40,6 +40,15 @@ export async function migrateVisitorRecords(conn: PoolConnection) {
     FOREIGN KEY (visitor_record_id) REFERENCES visitor_records(id)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
+  await conn.query(`CREATE TABLE IF NOT EXISTS visitor_fingerprint_identities (
+    visitor_record_id BIGINT NOT NULL PRIMARY KEY,
+    template_id SMALLINT UNSIGNED NOT NULL UNIQUE,
+    enrolled_by INT NULL,
+    enrolled_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (visitor_record_id) REFERENCES visitor_records(id),
+    FOREIGN KEY (enrolled_by) REFERENCES users(id) ON DELETE SET NULL
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
   await conn.query(`CREATE TABLE IF NOT EXISTS pdl_visitor_assignments (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     visitor_record_id BIGINT NOT NULL,

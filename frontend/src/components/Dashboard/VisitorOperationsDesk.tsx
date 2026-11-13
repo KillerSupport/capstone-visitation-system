@@ -34,7 +34,10 @@ export function VisitorOperationsDesk({ user }: { user: UserProfile }) {
   const [recentSearch, setRecentSearch] = useState('');
   const [appliedRecentSearch, setAppliedRecentSearch] = useState('');
   const [loading, setLoading] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [saving, setBusy] = useState(false);
+  const [enrollmentId, setEnrollmentId] = useState('');
+  const pendingEnrollment = useRef('');
+  const busy = saving || Boolean(enrollmentId);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [scanId, setScanId] = useState('');
@@ -114,6 +117,21 @@ export function VisitorOperationsDesk({ user }: { user: UserProfile }) {
   };
   useEffect(() => {
     const unsubscribe = hardware.onEvent(event => {
+      if (pendingEnrollment.current && event.requestId === pendingEnrollment.current) {
+        if (event.type === 'FINGERPRINT_ENROLLED' || event.type === 'DEVICE_ERROR') {
+          pendingEnrollment.current = '';
+          setEnrollmentId('');
+          if (event.type === 'FINGERPRINT_ENROLLED') {
+            setSelected(row => row && { ...row, has_fingerprint: true });
+            setResults(rows => rows.map(row => row.id === selected?.id ? { ...row, has_fingerprint: true } : row));
+            setNotice('Fingerprint enrolled for this visitor.');
+          } else {
+            setNotice('');
+            setError(String(event.payload.message || 'Fingerprint enrollment failed.'));
+          }
+        }
+        return;
+      }
       const requestId = pendingScan.current;
       if (!requestId) return;
       if (event.type === 'DEVICE_STATUS' && event.payload.connected === false) {
@@ -137,7 +155,17 @@ export function VisitorOperationsDesk({ user }: { user: UserProfile }) {
       }
     });
     return () => { unsubscribe(); };
-  }, [findVisitor]);
+  }, [findVisitor, selected?.id]);
+  useEffect(() => {
+    if (!enrollmentId) return;
+    const timeout = setTimeout(() => {
+      pendingEnrollment.current = '';
+      setEnrollmentId('');
+      setNotice('');
+      setError('No enrollment confirmation received. Search for the visitor again to refresh enrollment status.');
+    }, 90000);
+    return () => clearTimeout(timeout);
+  }, [enrollmentId]);
   useEffect(() => {
     if (!scanId) return;
     const timeout = setTimeout(() => {
@@ -180,17 +208,41 @@ export function VisitorOperationsDesk({ user }: { user: UserProfile }) {
     finally { setBusy(false); }
   };
   const printId = async () => {
-    if (!selected) return;
+    if (!selected || (mode === 'PDL' && !verification?.allowed)) return;
+    const w = window.open('', '_blank', 'width=720,height=520');
+    if (!w) { setError('Allow the print window to open, then try again.'); return; }
     setBusy(true); setError('');
     try {
-      const row = await api.getVisitorQrIdentity(String(selected.id), 'worker');
+      const row = mode === 'PDL'
+        ? await api.requestWorkerVisitorQr(String(selected.id), pdlId)
+        : await api.getVisitorQrIdentity(String(selected.id), 'worker');
+      if (mode === 'PDL') {
+        setSelected(current => ({ ...current, has_qr_identity: true }));
+        setResults(rows => rows.map(result => result.id === selected.id ? { ...result, has_qr_identity: true } : result));
+      }
       const qr = await generateQRCodeDataUrl(row.qr_token);
-      const w = window.open('', '_blank', 'width=720,height=520');
-      if (!w) throw new Error('Allow the print window to open, then try again.');
       w.document.write(`<!doctype html><html><head><title>${esc(row.visitor_code)} Visitor ID</title><style>@page{size:85mm 54mm;margin:0}*{box-sizing:border-box}body{margin:0;font:12px Arial;color:#111}.card{width:85mm;height:54mm;padding:5mm;border:1px solid #172554;display:grid;grid-template-columns:1fr 28mm;gap:3mm;align-items:center}.brand{font-size:10px;font-weight:bold;letter-spacing:.08em;text-transform:uppercase;color:#1e3a8a}.name{font-size:17px;font-weight:bold;margin:5mm 0 2mm}.detail{font-size:10px;margin-top:2mm}.qr{width:28mm;height:28mm}</style></head><body><article class="card"><section><div class="brand">BJMP Bacoor · Visitor Identification</div><div class="name">${esc(row.full_name)}</div><strong>${esc(row.visitor_code)}</strong><div class="detail">${esc(row.gender)} · Age ${esc(row.age)}</div><div class="detail">${esc(row.address)}</div></section><img class="qr" src="${qr}" alt="QR"></article><script>window.onload=()=>window.print()</script></body></html>`);
       w.document.close();
-    } catch (e) { setError(e instanceof Error ? e.message : 'Could not retrieve the visitor ID.'); }
+    } catch (e) {
+      w.close();
+      setError(e instanceof Error ? e.message : 'Could not retrieve the visitor ID.');
+    }
     finally { setBusy(false); }
+  };
+  const enrollFingerprint = () => {
+    if (!selected || !verification?.allowed || selected.has_fingerprint || busy || scanId) return;
+    if (!window.confirm(`Have you checked the original ID and confirmed it belongs to ${selected.full_name}?`)) return;
+    setError(''); setNotice('');
+    const requestId = crypto.randomUUID();
+    pendingEnrollment.current = requestId;
+    try {
+      hardware.command('FINGERPRINT_ENROLL', { visitorId: String(selected.id), pdlId }, requestId);
+      setEnrollmentId(requestId);
+      setNotice('Place the visitor’s finger on the scanner, lift it, then scan the same finger again when prompted.');
+    } catch (e) {
+      pendingEnrollment.current = '';
+      setError(e instanceof Error ? e.message : 'Could not start fingerprint enrollment.');
+    }
   };
   const checkIn = async () => {
     if (!signature) { setError('Capture the visitor signature before check-in.'); return; }
@@ -248,7 +300,7 @@ export function VisitorOperationsDesk({ user }: { user: UserProfile }) {
         <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-5"><div><h2 className="text-lg font-bold">Find visitor to check in</h2><p className="mt-1 text-xs text-slate-500">Look up an existing visitor record by name or Visitor ID, or scan their QR token.</p></div>{mode === 'PDL' && <button type="button" onClick={scanQr} disabled={busy || Boolean(scanId) || loading} className="rounded-lg border border-blue-700 px-3 py-2 text-sm font-semibold text-blue-700 disabled:opacity-50">{scanId ? 'Waiting for QR…' : 'Scan QR'}</button>}<form onSubmit={search} className="flex items-end gap-2"><label className="min-w-0 flex-1 text-xs font-semibold text-slate-700">Visitor name, ID, or QR<input value={query} disabled={busy || Boolean(scanId)} onChange={e => updateQuery(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm font-normal" placeholder="Enter visitor name or ID, or scan QR"/></label><button disabled={busy || Boolean(scanId) || loading} className="rounded-lg bg-blue-700 px-3 text-white disabled:opacity-50"><Search size={17}/><span className="sr-only">Search visitors</span></button></form>{loading && <p className="text-xs text-slate-500">Searching…</p>}
           <div className="max-h-[420px] space-y-2 overflow-auto">{results.map(row => <button key={row.id} disabled={busy || loading || Boolean(scanId)} onClick={() => choose(row)} className={`w-full rounded-lg border p-3 text-left ${String(selected?.id) === String(row.id) ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:bg-slate-50'}`}><span className="flex items-center justify-between gap-2"><strong>{row.full_name}</strong>{row.facilityRestricted ? <ShieldAlert size={16} className="text-rose-700"/> : row.has_qr_identity ? <BadgeCheck size={16} className="text-emerald-700"/> : null}</span><span className="block text-xs text-slate-500">{row.visitor_code} · {row.gender} · Age {row.age ?? '—'}</span>{row.facilityRestricted && <span className="mt-1 block text-xs font-bold text-rose-700">FACILITY-WIDE RESTRICTION</span>}</button>)}{searchedQuery === query.trim() && searchedQuery.length > 1 && !loading && !results.length && <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-500">No visitor record found.</p>}</div>
         </div>
-        <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-widest text-blue-700">{mode === 'PDL' ? 'PDL Visitor form' : 'Jail Visitor form'}</p><h2 className="mt-1 text-lg font-bold">{mode === 'PDL' ? 'Check in an approved PDL Visitor' : 'Register or retrieve a Guest Visitor'}</h2></div>{selected && <button type="button" onClick={() => void printId()} disabled={busy || !selected.has_qr_identity} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold disabled:opacity-40"><BookUser size={14}/>Print existing ID</button>}</div>
+        <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-widest text-blue-700">{mode === 'PDL' ? 'PDL Visitor form' : 'Jail Visitor form'}</p><h2 className="mt-1 text-lg font-bold">{mode === 'PDL' ? 'Check in an approved PDL Visitor' : 'Register or retrieve a Guest Visitor'}</h2></div>{mode === 'GUEST' && selected && <button type="button" onClick={() => void printId()} disabled={busy || !selected.has_qr_identity} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold disabled:opacity-40"><BookUser size={14}/>Print existing ID</button>}</div>
           {mode === 'PDL' && <>
             {!selected && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">Select the visitor record first. Only an active approved PDL assignment can be checked in.</p>}
             {selected && <><div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><div className="flex flex-wrap items-center justify-between gap-2"><strong>{selected.full_name} · {selected.visitor_code}</strong><span className={selected.has_qr_identity ? 'text-xs font-bold text-emerald-700' : 'text-xs font-bold text-rose-700'}>{selected.has_qr_identity ? 'QR identity exists' : 'No approved PDL QR identity'}</span></div>{selected.facilityRestricted && <p className="mt-2 text-sm font-bold text-rose-700">FACILITY-WIDE RESTRICTION: Entry is not permitted.</p>}</div>
@@ -274,6 +326,16 @@ export function VisitorOperationsDesk({ user }: { user: UserProfile }) {
               </div>}
               <button type="button" onClick={() => void verify()} disabled={busy || !pdlId || Boolean(activeVisit)} className="inline-flex items-center gap-2 rounded-lg border border-blue-700 px-3 py-2 text-sm font-bold text-blue-800 disabled:opacity-40"><UserRoundCheck size={16}/>Verify authorization and schedule</button>
               {verification && <div className={`rounded-lg p-3 text-sm ${verification.allowed ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-800'}`}><strong>{verification.code}</strong><p className="mt-1">{verification.message}</p>{verification.pdl?.weekday != null && <p className="mt-1 text-xs">Assigned visitation day: {weekdays[verification.pdl.weekday]}</p>}{verification.pdl && <p className="mt-1 text-xs">PDL: {verification.pdl.pdl_name || '—'} · Cell: {verification.pdl.cell_dormitory || '—'} · Relationship: {verification.pdl.relationship || '—'}</p>}{verification.otherApprovedPdls?.length > 0 && <p className="mt-1 text-xs">Other PDL approvals remain separate and may still be valid.</p>}</div>}
+              {verification?.allowed && <div className="flex flex-wrap items-center gap-2">
+                <button type="button" onClick={() => void printId()} disabled={busy || Boolean(scanId)} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold disabled:opacity-40">
+                  <BookUser size={14}/>Print visitor QR ID
+                </button>
+                {selected.has_fingerprint
+                  ? <span className="text-sm font-semibold text-emerald-700">Fingerprint enrolled</span>
+                  : <button type="button" onClick={enrollFingerprint} disabled={busy || Boolean(scanId)} className="rounded-lg border border-blue-700 px-3 py-2 text-sm font-semibold text-blue-800 disabled:opacity-40">
+                      {enrollmentId ? 'Waiting for fingerprint…' : 'Enroll fingerprint'}
+                    </button>}
+              </div>}
               <div className="rounded-lg border border-slate-200 p-3 text-sm"><strong>Registration details</strong><div className="mt-2 grid gap-1 text-slate-600 sm:grid-cols-2"><span>Gender: {person.gender || '—'}</span><span>Age: {person.age || '—'}</span><span className="sm:col-span-2">Address: {person.address || '—'}</span><span>Contact: {person.contactNumber || '—'}</span><span>Relationship: {selected.assignments?.find((a: any) => String(a.pdl_id) === pdlId)?.relationship || '—'}</span></div></div>
             </>}
           </>}

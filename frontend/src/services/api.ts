@@ -252,6 +252,11 @@ export const api = {
     const path=scope==='admin'?`/visitor-records/admin/visitors/${encodeURIComponent(id)}/qr`:`/visitor-records/worker/visitors/${encodeURIComponent(id)}/qr`;
     return request<any>(path);
   },
+  async requestWorkerVisitorQr(visitorId: string, pdlId: string) {
+    return request<any>(`/visitor-records/worker/visitors/${encodeURIComponent(visitorId)}/qr`, {
+      method: 'POST', body: JSON.stringify({ pdlId }),
+    });
+  },
   async getVisitorRestrictions(query='',from='',to='') {
     const params = new URLSearchParams({ q: query, from, to });
     return request<any[]>(`/visitor-records/admin/restrictions?${params}`);
