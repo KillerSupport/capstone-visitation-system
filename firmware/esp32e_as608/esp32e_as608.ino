@@ -40,10 +40,9 @@ constexpr int TFT_MISO = 19;
 constexpr int TFT_MOSI = 23;
 constexpr int GM65_RX = 16;
 constexpr int GM65_TX = 17;
-// QR-only operation. Keep the AS608 code available for later hardware tests.
-constexpr bool FINGERPRINT_ENABLED = false;
-constexpr int AS608_RX = 32;
-constexpr int AS608_TX = 33;
+constexpr bool FINGERPRINT_ENABLED = true;
+constexpr int AS608_RX = 26;
+constexpr int AS608_TX = 27;
 
 Adafruit_ILI9341 display(TFT_CS, TFT_DC, TFT_RST);
 HardwareSerial FingerSerial(1);

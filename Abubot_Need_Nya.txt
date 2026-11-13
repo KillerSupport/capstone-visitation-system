@@ -1,6 +1,6 @@
 TO RUN THE PROJECT, OPEN TERMINAL THEN TYPE THIS: npm.cmd run dev
-
-ADMIN ACC: tongtongornamental@gmail.com   AdminAcc@123
-WORKER ACC: mharijie@gmail.com   WorkerAcc@123
-
-VISITOR ACC: harijiem@gmail.com   VisitorTest@123
+or try this, copy the 4 lines and paste then enter:
+$env:npm_config_cache = "$PWD\.local-backups\npm-cache"
+$env:TEMP = "$PWD\.local-backups\npm-temp"
+$env:TMP = $env:TEMP
+npm.cmd run dev

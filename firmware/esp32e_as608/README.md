@@ -47,7 +47,7 @@ libraries through Library Manager, then create `config.h` from
 
 | Module | Module signals → ESP32 GPIO |
 | --- | --- |
-| AS608 (UART1, 57600 baud) | TX → 32, RX → 33 |
+| AS608 (UART1, 57600 baud) | TX → 26, RX → 27 |
 | GM65 (UART2, 9600 baud) | TX → 16, RX → 17 |
 | ILI9341 (SPI) | CS → 5, DC → 2, RST → 4, SCK → 18, MISO → 19, MOSI → 23 |
 
