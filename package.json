@@ -9,6 +9,8 @@
     "server": "node --require ./scripts/node-runtime.cjs --import tsx backend/index.ts",
     "start": "node scripts/run-dev.mjs",
     "build": "vite build --config frontend/vite.config.ts",
+    "build:production": "npm run build && node scripts/build-server.mjs",
+    "start:production": "node scripts/start-production.mjs",
     "preview": "vite preview",
     "db:reset-demo": "tsx scripts/reset-demo-db.ts",
     "clean": "rm -rf frontend/dist server.js",

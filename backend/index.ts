@@ -11,6 +11,7 @@ import authRoutes, { auth as authenticate, admin as requireAdmin, worker as requ
 import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { randomUUID } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import { FINGERPRINT_ENABLED } from '../shared/hardware-features.js';
 import {
   pool,
@@ -31,7 +32,16 @@ import {
 
 const app = express();
 const PORT = process.env.PORT || 4001;
-app.use(helmet());
+app.set('trust proxy', Number(process.env.TRUST_PROXY || 0));
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+      fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
+      connectSrc: ["'self'", (process.env.APP_ORIGIN || 'http://localhost:3000').replace(/^http/, 'ws')],
+    },
+  },
+}));
 app.use(cors({ origin: process.env.APP_ORIGIN || 'http://localhost:3000', credentials: true }));
 app.use(express.json({ limit: '15mb' }));
 app.use('/api/auth', authRoutes);
@@ -233,7 +243,7 @@ app.get('/api/health', async (_req, res) => {
   res.json({
     status: 'ONLINE',
     service: 'BJMP Imus City Jail Fullstack Realtime API',
-    database: 'MySQL via XAMPP',
+    database: 'MySQL',
     websocketClients: clients.size,
     timestamp: new Date().toISOString(),
   });
@@ -368,10 +378,17 @@ app.post('/api/announcements', requireAdmin, async (req, res) => {
 (app as any).on('session-ended',(sessionId:string)=>{for(const client of clients)if(client.sessionId===sessionId)client.ws.close(1008,'Signed out.');for(const peer of hardwarePeers)if(peer.sessionId===sessionId)peer.ws.close(1008,'Signed out.')});
 (app as any).on('sessions-invalidated',(userId:string)=>{for(const client of clients)if(client.userId===userId)client.ws.close(1008,'Sign in again.');for(const peer of hardwarePeers)if(peer.userId===userId)peer.ws.close(1008,'Sign in again.')});
 
+if (process.env.NODE_ENV === 'production') {
+  const frontendDirectory = fileURLToPath(new URL('../frontend/dist/', import.meta.url));
+  app.use('/api', (_request, response) => response.status(404).json({ error: 'Endpoint not found.' }));
+  app.use(express.static(frontendDirectory));
+  app.get('*', (_request, response) => response.sendFile('index.html', { root: frontendDirectory }));
+}
+
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 async function start() {
   try {
-    console.log('🔌 Connecting to XAMPP MySQL database...');
+    console.log('🔌 Connecting to MySQL database...');
     await initDatabase();
     await hashLegacyPasswords(hashPass);
     console.log(`✅ MySQL database ready (${process.env.DB_NAME || 'bjmp_visitation'})`);
@@ -381,11 +398,11 @@ async function start() {
       console.log(`🏛️  BJMP Imus City Jail Backend & Real-Time WebSocket Server`);
       console.log(`📡  HTTP REST API  : http://localhost:${PORT}`);
       console.log(`⚡  WebSocket      : ws://localhost:${PORT}/ws`);
-      console.log(`🗄️  Database       : MySQL (XAMPP) → ${process.env.DB_NAME || 'bjmp_visitation'}`);
+      console.log(`🗄️  Database       : MySQL → ${process.env.DB_NAME || 'bjmp_visitation'}`);
       console.log(`===================================================================\n`);
     });
   } catch (err: any) {
-    console.error('\n❌ Failed to connect to MySQL. Make sure XAMPP is running!\n', err.message);
+    console.error('\n❌ Failed to initialize MySQL. Check database settings and availability.\n', err.message);
     process.exit(1);
   }
 }
