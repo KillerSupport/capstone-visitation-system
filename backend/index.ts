@@ -11,6 +11,7 @@ import authRoutes, { auth as authenticate, admin as requireAdmin, worker as requ
 import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { randomUUID } from 'node:crypto';
+import { FINGERPRINT_ENABLED } from '../shared/hardware-features.js';
 import {
   pool,
   initDatabase,
@@ -118,8 +119,16 @@ hardwareWss.on('connection',async(ws:WebSocket,request)=>{
       try{
         const msg=JSON.parse(data.toString());
         const action = msg.payload?.action;
-        if(msg.type!=='COMMAND'||typeof msg.requestId!=='string'||!msg.requestId||msg.requestId.length>100||
-          (action!=='QR_SCAN_START' && action!=='FINGERPRINT_ENROLL'))return;
+        if(msg.type!=='COMMAND'||typeof msg.requestId!=='string'||!msg.requestId||msg.requestId.length>100)return;
+        // Keep the fingerprint implementation below disabled while using the QR scanner.
+        if (!FINGERPRINT_ENABLED && (action === 'FINGERPRINT_ENROLL' || action === 'FINGERPRINT_VERIFY')) {
+          ws.send(JSON.stringify({
+            type: 'DEVICE_ERROR', requestId: msg.requestId,
+            payload: { message: 'Fingerprint scanning is disabled.' },
+          }));
+          return;
+        }
+        if (action !== 'QR_SCAN_START' && action !== 'FINGERPRINT_ENROLL') return;
         if(!hardwareDevice||hardwareDevice.readyState!==WebSocket.OPEN){
           ws.send(JSON.stringify({type:'DEVICE_ERROR',requestId:msg.requestId,payload:{message:'ESP32E hardware gateway is offline.'}}));
           return;

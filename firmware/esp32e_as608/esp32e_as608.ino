@@ -40,7 +40,8 @@ constexpr int TFT_MISO = 19;
 constexpr int TFT_MOSI = 23;
 constexpr int GM65_RX = 16;
 constexpr int GM65_TX = 17;
-constexpr bool FINGERPRINT_ENABLED = true;
+// Fingerprint scanning is disabled. Keep the AS608 code for future use.
+constexpr bool FINGERPRINT_ENABLED = false;
 constexpr int AS608_RX = 26;
 constexpr int AS608_TX = 27;
 
@@ -210,7 +211,7 @@ void handleIncomingText(uint8_t *payload, size_t length) {
 
   if (!FINGERPRINT_ENABLED && strcmp(action, "QR_SCAN_START") != 0) {
     sendCommandAck(requestId, action, false);
-    sendDeviceError(requestId, "Fingerprint scanning is disabled for this evaluation.");
+    sendDeviceError(requestId, "Fingerprint scanning is disabled.");
     return;
   }
 
@@ -547,6 +548,8 @@ void setup() {
     if (sensorReady) sensorReady = (finger.getParameters() == FINGERPRINT_OK);
     Serial.println(sensorReady ? "AS608 fingerprint sensor connected." :
                                  "AS608 fingerprint sensor not detected.");
+  } else {
+    Serial.println("Fingerprint scanning disabled. QR scanner enabled.");
   }
   showIdleStatus();
 

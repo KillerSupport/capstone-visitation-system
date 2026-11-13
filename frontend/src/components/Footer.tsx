@@ -30,7 +30,7 @@ export const Footer: React.FC = () => {
           <ul className="space-y-1.5 text-[11px] text-slate-400">
             <li>• Valid Government ID must be presented upon jail entrance.</li>
             <li>• Strictly NO yellow/orange clothing inside jail facilities.</li>
-            <li>• Biometric fingerprint registration at Imus City Jail Gate 1.</li>
+            <li>• Present your visitor QR ID for verification.</li>
             <li>• All food/paabot containers must be 100% transparent.</li>
             <li>• Cellphones and electronic gadgets strictly prohibited.</li>
           </ul>

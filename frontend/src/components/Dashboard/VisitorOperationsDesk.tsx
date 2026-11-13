@@ -3,12 +3,13 @@ import { BadgeCheck, BookUser, CalendarDays, LogOut, RefreshCw, Search, ShieldAl
 import { UserAddress, UserProfile } from '../../types';
 import { api } from '../../services/api';
 import { hardware } from '../../services/hardware';
-import { confirmAction } from '../../utils/appDialogs';
+import { alertAction, confirmAction } from '../../utils/appDialogs';
 import { realtimeWS } from '../../services/websocket';
 import { SignatureCapture } from '../Common/SignatureCapture';
 import { generateQRCodeDataUrl } from '../../utils/qrGenerator';
 import { AddressFields, addressFromSaved, formatAddress } from '../Common/AddressFields';
 import { MobileInput, mobileDigits } from '../Common/IdentityFields';
+import { FINGERPRINT_ENABLED } from '../../../../shared/hardware-features';
 
 type Mode = 'PDL' | 'GUEST' | 'ACTIVE';
 type Person = { fullName: string; gender: string; address: string; addressDetails: UserAddress; age: string; contactNumber: string };
@@ -37,7 +38,7 @@ export function VisitorOperationsDesk({ user }: { user: UserProfile }) {
   const [saving, setBusy] = useState(false);
   const [enrollmentId, setEnrollmentId] = useState('');
   const pendingEnrollment = useRef('');
-  const busy = saving || Boolean(enrollmentId);
+  const busy = saving || (FINGERPRINT_ENABLED && Boolean(enrollmentId));
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [scanId, setScanId] = useState('');
@@ -64,6 +65,11 @@ export function VisitorOperationsDesk({ user }: { user: UserProfile }) {
 
   useEffect(() => { if (mode === 'PDL') hardware.connect(); }, [mode]);
 
+  const showScanError = useCallback((message: string) => {
+    setError(message);
+    void alertAction(message, { title: 'QR scan failed', tone: 'danger' });
+  }, []);
+
   const choose = useCallback((row: any) => {
     setSelected(row);
     setPerson({ fullName: row.full_name || '', gender: row.gender || '', address: row.address || '', addressDetails: addressFromSaved(row.address || '', row.addressDetails), age: row.age == null ? '' : String(row.age), contactNumber: mobileDigits(row.contact_number || '') });
@@ -75,8 +81,9 @@ export function VisitorOperationsDesk({ user }: { user: UserProfile }) {
     setSearchedQuery('');
     setError(''); setNotice(''); setSelected(null); setVerification(null);
     setResults([]);
+    setLoading(false);
     if (fromScanner && !/^[a-f0-9]{64}$/.test(value.trim())) {
-      setError('Invalid code. Scan a visitor QR issued by this system.');
+      showScanError('Invalid code. Scan a visitor QR issued by this system.');
       return;
     }
     if (value.trim().length < 2) { setResults([]); return; }
@@ -86,17 +93,29 @@ export function VisitorOperationsDesk({ user }: { user: UserProfile }) {
       if (version !== lookupVersion.current) return;
       setResults(matches);
       if (!fromScanner) setSearchedQuery(value.trim());
-      if (fromScanner && !matches.length) setError('QR not recognized. No active visitor record matches this code.');
+      if (fromScanner && !matches.length) showScanError('QR not recognized. No active visitor record matches this code.');
       if (fromScanner && matches.length === 1) {
-        choose(matches[0]);
-        setNotice('Visitor QR found. Choose a PDL to verify the visit.');
+        const visitor = matches[0];
+        choose(visitor);
+        if (visitor.facilityRestricted) {
+          const message = `${visitor.full_name} has an active facility-wide restriction. Entry is not permitted.`;
+          setError(message);
+          void alertAction(message, { title: 'Visitor restricted', tone: 'danger' });
+        } else {
+          const message = `Visitor record found for ${visitor.full_name}. Choose a PDL to verify authorization and today's schedule.`;
+          setNotice(message);
+          void alertAction(message, { title: 'Visitor QR found', tone: 'success' });
+        }
       }
     }
     catch (e) {
-      if (version === lookupVersion.current) setError(e instanceof Error ? e.message : 'Visitor search failed.');
+      if (version === lookupVersion.current) {
+        const message = e instanceof Error ? e.message : 'Visitor search failed.';
+        if (fromScanner) showScanError(message); else setError(message);
+      }
     }
     finally { if (version === lookupVersion.current) setLoading(false); }
-  }, [choose]);
+  }, [choose, showScanError]);
   useEffect(() => () => {
     clearTimeout(searchTimer.current);
     ++lookupVersion.current;
@@ -117,7 +136,7 @@ export function VisitorOperationsDesk({ user }: { user: UserProfile }) {
   };
   useEffect(() => {
     const unsubscribe = hardware.onEvent(event => {
-      if (pendingEnrollment.current && event.requestId === pendingEnrollment.current) {
+      if (FINGERPRINT_ENABLED && pendingEnrollment.current && event.requestId === pendingEnrollment.current) {
         if (event.type === 'FINGERPRINT_ENROLLED' || event.type === 'DEVICE_ERROR') {
           pendingEnrollment.current = '';
           setEnrollmentId('');
@@ -137,14 +156,14 @@ export function VisitorOperationsDesk({ user }: { user: UserProfile }) {
       if (event.type === 'DEVICE_STATUS' && event.payload.connected === false) {
         pendingScan.current = '';
         setScanId('');
-        setError('The ESP32 QR scanner is offline.');
+        showScanError('The ESP32 QR scanner is offline.');
         return;
       }
       if (event.requestId !== requestId) return;
       if (event.type === 'DEVICE_ERROR') {
         pendingScan.current = '';
         setScanId('');
-        setError(String(event.payload.message || 'QR scan failed.'));
+        showScanError(String(event.payload.message || 'QR scan failed.'));
       }
       if (event.type === 'QR_SCANNED') {
         pendingScan.current = '';
@@ -155,9 +174,9 @@ export function VisitorOperationsDesk({ user }: { user: UserProfile }) {
       }
     });
     return () => { unsubscribe(); };
-  }, [findVisitor, selected?.id]);
+  }, [findVisitor, selected?.id, showScanError]);
   useEffect(() => {
-    if (!enrollmentId) return;
+    if (!FINGERPRINT_ENABLED || !enrollmentId) return;
     const timeout = setTimeout(() => {
       pendingEnrollment.current = '';
       setEnrollmentId('');
@@ -172,10 +191,10 @@ export function VisitorOperationsDesk({ user }: { user: UserProfile }) {
       if (pendingScan.current !== scanId) return;
       pendingScan.current = '';
       setScanId('');
-      setError('The scanner did not send a result. Check the ESP32 connection and try again.');
+      showScanError('The scanner did not send a result. Check the ESP32 connection and try again.');
     }, 23000);
     return () => clearTimeout(timeout);
-  }, [scanId]);
+  }, [scanId, showScanError]);
   const scanQr = () => {
     clearTimeout(searchTimer.current);
     setSearchedQuery('');
@@ -187,13 +206,15 @@ export function VisitorOperationsDesk({ user }: { user: UserProfile }) {
       setScanId(requestId);
     } catch (e) {
       pendingScan.current = '';
-      setError(e instanceof Error ? e.message : 'Could not start QR scan.');
+      showScanError(e instanceof Error ? e.message : 'Could not start QR scan.');
     }
   };
   const switchMode = (next: Mode) => {
     pendingScan.current = '';
     clearTimeout(searchTimer.current);
+    ++lookupVersion.current;
     setScanId('');
+    setLoading(false);
     setMode(next); setSelected(null); setVerification(null); setSignature(''); setPurpose('');
     setPerson(blank); setError(''); setNotice('');
   };
@@ -204,6 +225,10 @@ export function VisitorOperationsDesk({ user }: { user: UserProfile }) {
       const result = await api.verifyVisitorForPdl(String(selected.id), pdlId);
       setVerification(result);
       if (result.allowed) setNotice(result.message); else setError(result.message);
+      void alertAction(result.message, {
+        title: result.allowed ? 'Visitor authorized' : 'Entry blocked',
+        tone: result.allowed ? 'success' : 'danger',
+      });
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not verify visitor authorization.'); }
     finally { setBusy(false); }
   };
@@ -230,6 +255,8 @@ export function VisitorOperationsDesk({ user }: { user: UserProfile }) {
     finally { setBusy(false); }
   };
   const enrollFingerprint = () => {
+    // Retained for future use. The shared feature flag disables this operation.
+    if (!FINGERPRINT_ENABLED) return;
     if (!selected || !verification?.allowed || selected.has_fingerprint || busy || scanId) return;
     if (!window.confirm(`Have you checked the original ID and confirmed it belongs to ${selected.full_name}?`)) return;
     setError(''); setNotice('');
@@ -330,11 +357,11 @@ export function VisitorOperationsDesk({ user }: { user: UserProfile }) {
                 <button type="button" onClick={() => void printId()} disabled={busy || Boolean(scanId)} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold disabled:opacity-40">
                   <BookUser size={14}/>Print visitor QR ID
                 </button>
-                {selected.has_fingerprint
+                {FINGERPRINT_ENABLED && (selected.has_fingerprint
                   ? <span className="text-sm font-semibold text-emerald-700">Fingerprint enrolled</span>
                   : <button type="button" onClick={enrollFingerprint} disabled={busy || Boolean(scanId)} className="rounded-lg border border-blue-700 px-3 py-2 text-sm font-semibold text-blue-800 disabled:opacity-40">
                       {enrollmentId ? 'Waiting for fingerprint…' : 'Enroll fingerprint'}
-                    </button>}
+                    </button>)}
               </div>}
               <div className="rounded-lg border border-slate-200 p-3 text-sm"><strong>Registration details</strong><div className="mt-2 grid gap-1 text-slate-600 sm:grid-cols-2"><span>Gender: {person.gender || '—'}</span><span>Age: {person.age || '—'}</span><span className="sm:col-span-2">Address: {person.address || '—'}</span><span>Contact: {person.contactNumber || '—'}</span><span>Relationship: {selected.assignments?.find((a: any) => String(a.pdl_id) === pdlId)?.relationship || '—'}</span></div></div>
             </>}

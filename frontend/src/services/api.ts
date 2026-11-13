@@ -9,7 +9,7 @@ const browserHost = typeof window !== 'undefined' && window.location.hostname
   : 'localhost';
 const protocol = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'https:' : 'http:';
 const backendPort = import.meta.env.VITE_BACKEND_PORT || '4001';
-const API_BASE = import.meta.env.VITE_API_BASE_URL || `${protocol}//${browserHost}:${backendPort}/api`;
+const API_BASE = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? '/api' : `${protocol}//${browserHost}:${backendPort}/api`);
 
 function parseCsvDocument(input: string): string[][] {
   const text = input.replace(/^\uFEFF/, '');

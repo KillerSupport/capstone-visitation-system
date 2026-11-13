@@ -28,7 +28,10 @@ class RealtimeWebSocketService {
     const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
     const host = typeof window !== 'undefined' && window.location.hostname ? window.location.hostname : 'localhost';
     const backendPort = import.meta.env.VITE_BACKEND_PORT || '4001';
-    this.url = `${isHttps ? 'wss:' : 'ws:'}//${host}:${backendPort}/ws`;
+    const authority = import.meta.env.PROD && typeof window !== 'undefined'
+      ? window.location.host
+      : `${host}:${backendPort}`;
+    this.url = import.meta.env.VITE_WS_URL || `${isHttps ? 'wss:' : 'ws:'}//${authority}/ws`;
   }
 
   public connect() {

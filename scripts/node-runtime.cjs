@@ -2,6 +2,12 @@
 // tsx only needs it for its local cache folder. Preserve the native result when available.
 const os = require('node:os');
 if (process.platform === 'win32') {
+  // Keep Node and tsx temporary files on the same drive as this project.
+  const tempDirectory = require('node:path').resolve(__dirname, '..', '.local-backups', 'npm-temp');
+  require('node:fs').mkdirSync(tempDirectory, { recursive: true });
+  process.env.TEMP = tempDirectory;
+  process.env.TMP = tempDirectory;
+
   const nativeUserInfo = os.userInfo;
   try {
     nativeUserInfo();
